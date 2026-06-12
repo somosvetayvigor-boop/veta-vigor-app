@@ -71,6 +71,7 @@ import Dashboard from './pages/Dashboard';
 import Consultorio from './pages/Consultorio';
 import SistemaDetail from './pages/SistemaDetail';
 import RutinaDetail from './pages/RutinaDetail';
+import MiRutina from './pages/MiRutina';
 import OnboardingModal from './components/OnboardingModal';
 
 function App() {
@@ -112,7 +113,7 @@ function App() {
         <Route path="/" element={session ? <Dashboard session={session} /> : <Navigate to="/login" />} />
         <Route path="/sistema/:id" element={session ? <SistemaDetail session={session} /> : <Navigate to="/login" />} />
         <Route path="/rutina/:id" element={session ? <RutinaDetail session={session} /> : <Navigate to="/login" />} />
-        <Route path="/mirutina" element={session ? <div className="container"><h2>Próximamente: Tu Rutina Personalizada</h2></div> : <Navigate to="/login" />} />
+        <Route path="/mirutina" element={session ? <MiRutina session={session} /> : <Navigate to="/login" />} />
         <Route path="/comunidad" element={session ? <div className="container"><h2>Próximamente: Comunidad V&V</h2></div> : <Navigate to="/login" />} />
         <Route path="/coach" element={session ? <Consultorio session={session} /> : <Navigate to="/login" />} />
         <Route path="/perfil" element={session ? <div className="container"><h2>Perfil V&V</h2><button className="btn-secondary" onClick={() => supabase.auth.signOut()}>Cerrar Sesión</button></div> : <Navigate to="/login" />} />
