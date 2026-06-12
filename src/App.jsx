@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from './supabaseClient';
-import { Home, Dumbbell, MessageCircle, User } from 'lucide-react';
+import { Home, Dumbbell, MessageCircle, User, CalendarCheck, Users } from 'lucide-react';
 
 // Components
 const BottomNav = () => {
@@ -13,21 +13,21 @@ const BottomNav = () => {
 
   return (
     <div className="bottom-nav">
-      <div className={`nav-item ${location.pathname === '/' ? 'active' : ''}`} onClick={() => navigate('/')}>
-        <Home />
-        <span>Inicio</span>
-      </div>
-      <div className={`nav-item ${location.pathname === '/rutinas' ? 'active' : ''}`} onClick={() => navigate('/rutinas')}>
-        <Dumbbell />
-        <span>Rutinas</span>
-      </div>
-      <div className={`nav-item ${location.pathname === '/coach' ? 'active' : ''}`} onClick={() => navigate('/coach')}>
-        <MessageCircle />
-        <span>Coach V.I.P</span>
-      </div>
       <div className={`nav-item ${location.pathname === '/perfil' ? 'active' : ''}`} onClick={() => navigate('/perfil')}>
         <User />
-        <span>Perfil</span>
+        <span>Perfil V&V</span>
+      </div>
+      <div className={`nav-item ${location.pathname === '/' ? 'active' : ''}`} onClick={() => navigate('/')}>
+        <Dumbbell />
+        <span>Sistemas V&V</span>
+      </div>
+      <div className={`nav-item ${location.pathname === '/mirutina' ? 'active' : ''}`} onClick={() => navigate('/mirutina')}>
+        <CalendarCheck />
+        <span>Mi Rutina V&V</span>
+      </div>
+      <div className={`nav-item ${location.pathname === '/comunidad' ? 'active' : ''}`} onClick={() => navigate('/comunidad')}>
+        <Users />
+        <span>Comunidad V&V</span>
       </div>
     </div>
   );
@@ -68,7 +68,8 @@ function App() {
         <Route path="/" element={session ? <Dashboard session={session} /> : <Navigate to="/login" />} />
         <Route path="/sistema/:id" element={session ? <SistemaDetail session={session} /> : <Navigate to="/login" />} />
         <Route path="/rutina/:id" element={session ? <RutinaDetail session={session} /> : <Navigate to="/login" />} />
-        <Route path="/rutinas" element={session ? <div className="container"><h2>Próximamente: Historial de Rutinas</h2></div> : <Navigate to="/login" />} />
+        <Route path="/mirutina" element={session ? <div className="container"><h2>Próximamente: Tu Rutina Personalizada</h2></div> : <Navigate to="/login" />} />
+        <Route path="/comunidad" element={session ? <div className="container"><h2>Próximamente: Comunidad V&V</h2></div> : <Navigate to="/login" />} />
         <Route path="/coach" element={session ? <Consultorio session={session} /> : <Navigate to="/login" />} />
         <Route path="/perfil" element={session ? <div className="container"><h2>Perfil V&V</h2><button className="btn-secondary" onClick={() => supabase.auth.signOut()}>Cerrar Sesión</button></div> : <Navigate to="/login" />} />
       </Routes>
