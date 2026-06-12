@@ -12,8 +12,19 @@ export default function Dashboard({ session }) {
         .select('*')
         .order('nombre');
       
-      if (error) console.error("Error cargando sistemas:", error);
-      else setSistemas(data);
+      if (error) {
+        console.error("Error cargando sistemas:", error);
+      } else {
+        const orderList = ["Vigor Corporal", "Carga de Hierro", "Método Híbrido", "Rutas de Maestría"];
+        const sortedData = data.sort((a, b) => {
+          const getIndex = (name) => {
+            const index = orderList.findIndex(orderName => name.includes(orderName) || orderName.includes(name));
+            return index === -1 ? 999 : index;
+          };
+          return getIndex(a.nombre) - getIndex(b.nombre);
+        });
+        setSistemas(sortedData);
+      }
       
       setLoading(false);
     }
