@@ -37,6 +37,8 @@ const BottomNav = () => {
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Consultorio from './pages/Consultorio';
+import SistemaDetail from './pages/SistemaDetail';
+import RutinaDetail from './pages/RutinaDetail';
 
 function App() {
   const [session, setSession] = useState(null);
@@ -64,9 +66,11 @@ function App() {
       <Routes>
         <Route path="/login" element={!session ? <Login /> : <Navigate to="/" />} />
         <Route path="/" element={session ? <Dashboard session={session} /> : <Navigate to="/login" />} />
-        <Route path="/rutinas" element={session ? <div className="container"><h2>Próximamente: Rutinas</h2></div> : <Navigate to="/login" />} />
+        <Route path="/sistema/:id" element={session ? <SistemaDetail session={session} /> : <Navigate to="/login" />} />
+        <Route path="/rutina/:id" element={session ? <RutinaDetail session={session} /> : <Navigate to="/login" />} />
+        <Route path="/rutinas" element={session ? <div className="container"><h2>Próximamente: Historial de Rutinas</h2></div> : <Navigate to="/login" />} />
         <Route path="/coach" element={session ? <Consultorio session={session} /> : <Navigate to="/login" />} />
-        <Route path="/perfil" element={session ? <div className="container"><h2>Próximamente: Perfil</h2><button className="btn-secondary" onClick={() => supabase.auth.signOut()}>Cerrar Sesión</button></div> : <Navigate to="/login" />} />
+        <Route path="/perfil" element={session ? <div className="container"><h2>Perfil V&V</h2><button className="btn-secondary" onClick={() => supabase.auth.signOut()}>Cerrar Sesión</button></div> : <Navigate to="/login" />} />
       </Routes>
       <BottomNav />
     </Router>

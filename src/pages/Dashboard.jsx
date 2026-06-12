@@ -1,9 +1,12 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 
 export default function Dashboard({ session }) {
   const [sistemas, setSistemas] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  const navigate = useNavigate();
 
   useEffect(() => {
     async function fetchSistemas() {
@@ -50,7 +53,7 @@ export default function Dashboard({ session }) {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
           {sistemas.map(sis => (
-            <div key={sis.id} className="system-card" onClick={() => alert('Próximamente: Vista de Rutinas')}>
+            <div key={sis.id} className="system-card" onClick={() => navigate(`/sistema/${sis.id}`)}>
               <img src={sis.imagen_url || 'https://via.placeholder.com/400x200?text=Veta+y+Vigor'} alt={sis.nombre} className="system-image" />
               <div className="system-content">
                 <h3 className="system-title">{sis.nombre}</h3>
