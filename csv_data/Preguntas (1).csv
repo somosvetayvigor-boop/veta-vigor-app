@@ -1,0 +1,46 @@
+ID,Categoria,Pregunta,Opcion A,Puntos A,Puntos B,Puntos C
+C1,Calistenia,Cuantas flexiones (lagartijas) completas puedes hacer seguidas con buena forma?,Menos de 5 o ninguna,0,1,2
+C1,Calistenia,Cuantas flexiones (lagartijas) completas puedes hacer seguidas con buena forma?,Entre 5 y 15,0,1,2
+C1,Calistenia,Cuantas flexiones (lagartijas) completas puedes hacer seguidas con buena forma?,Mas de 15,0,1,2
+C2,Calistenia,Puedes mantener una plancha (plank) con buena forma?,Menos de 15 segundos o no puedo,0,1,2
+C2,Calistenia,Puedes mantener una plancha (plank) con buena forma?,Entre 15 y 45 segundos,0,1,2
+C2,Calistenia,Puedes mantener una plancha (plank) con buena forma?,Mas de 45 segundos,0,1,2
+C3,Calistenia,Puedes hacer dominadas (pull-ups) estrictas?,No puedo hacer ninguna,0,1,2
+C3,Calistenia,Puedes hacer dominadas (pull-ups) estrictas?,Puedo hacer entre 1 y 3,0,1,2
+C3,Calistenia,Puedes hacer dominadas (pull-ups) estrictas?,Puedo hacer 4 o mas,0,1,2
+C4,Calistenia,Puedes hacer fondos (dips) en paralelas o barras?,No puedo o solo con ayuda,0,1,2
+C4,Calistenia,Puedes hacer fondos (dips) en paralelas o barras?,Puedo hacer entre 1 y 5 con control,0,1,2
+C4,Calistenia,Puedes hacer fondos (dips) en paralelas o barras?,Puedo hacer mas de 5 con buena forma,0,1,2
+C5,Calistenia,Puedes mantener un L-Sit (sentado con piernas al frente elevadas)?,No se que es o no puedo intentarlo,0,1,2
+C5,Calistenia,Puedes mantener un L-Sit (sentado con piernas al frente elevadas)?,Puedo con rodillas flexionadas unos segundos,0,1,2
+C5,Calistenia,Puedes mantener un L-Sit (sentado con piernas al frente elevadas)?,Puedo mantenerlo con piernas extendidas al menos 5 segundos,0,1,2
+G1,Gimnasio,Cual es tu experiencia con pesas o mancuernas?,Nunca he entrenado con pesas,0,1,2
+G1,Gimnasio,Cual es tu experiencia con pesas o mancuernas?,He entrenado algunos meses de forma irregular,0,1,2
+G1,Gimnasio,Cual es tu experiencia con pesas o mancuernas?,Entreno con pesas de forma constante (mas de 6 meses),0,1,2
+G2,Gimnasio,Puedes hacer sentadilla con barra (back squat) con buena tecnica?,No la he intentado o me cuesta sin peso,0,1,2
+G2,Gimnasio,Puedes hacer sentadilla con barra (back squat) con buena tecnica?,Puedo con la barra sola o poco peso,0,1,2
+G2,Gimnasio,Puedes hacer sentadilla con barra (back squat) con buena tecnica?,Puedo con peso moderado a pesado manteniendo forma,0,1,2
+G3,Gimnasio,Puedes hacer peso muerto (deadlift) con buena tecnica?,No la he intentado o no conozco la tecnica,0,1,2
+G3,Gimnasio,Puedes hacer peso muerto (deadlift) con buena tecnica?,Puedo con peso ligero cuidando la forma,0,1,2
+G3,Gimnasio,Puedes hacer peso muerto (deadlift) con buena tecnica?,Puedo con peso moderado a pesado con buena tecnica,0,1,2
+G4,Gimnasio,Puedes hacer press de banca (bench press) con barra?,No la he intentado o solo con mancuernas ligeras,0,1,2
+G4,Gimnasio,Puedes hacer press de banca (bench press) con barra?,Puedo con la barra sola o peso ligero,0,1,2
+G4,Gimnasio,Puedes hacer press de banca (bench press) con barra?,Puedo con peso moderado manteniendo control,0,1,2
+G5,Gimnasio,Cuanto tiempo llevas entrenando de forma constante (cualquier tipo de ejercicio)?,Menos de 3 meses o acabo de empezar,0,1,2
+G5,Gimnasio,Cuanto tiempo llevas entrenando de forma constante (cualquier tipo de ejercicio)?,Entre 3 y 12 meses,0,1,2
+G5,Gimnasio,Cuanto tiempo llevas entrenando de forma constante (cualquier tipo de ejercicio)?,Mas de 1 año,0,1,2
+M1,Movilidad,Puedes tocar la punta de tus pies sin flexionar las rodillas?,No llego ni cerca de los pies,0,1,2
+M1,Movilidad,Puedes tocar la punta de tus pies sin flexionar las rodillas?,Llego a los tobillos o casi a los pies,0,1,2
+M1,Movilidad,Puedes tocar la punta de tus pies sin flexionar las rodillas?,Toco los pies o incluso paso de ellos con facilidad,0,1,2
+M2,Movilidad,Puedes hacer una sentadilla profunda (deep squat) con talones en el piso?,No puedo bajar o mis talones se levantan,0,1,2
+M2,Movilidad,Puedes hacer una sentadilla profunda (deep squat) con talones en el piso?,Puedo bajar pero mis talones se levantan un poco,0,1,2
+M2,Movilidad,Puedes hacer una sentadilla profunda (deep squat) con talones en el piso?,Puedo mantener la posición con talones en el piso comodamente,0,1,2
+M3,Movilidad,Puedes llevar tus brazos completamente por encima de la cabeza sin arquear la espalda baja?,Mis brazos no llegan arriba del todo o arqueo mucho,0,1,2
+M3,Movilidad,Puedes llevar tus brazos completamente por encima de la cabeza sin arquear la espalda baja?,Llego arriba pero con algo de compensación en la espalda,0,1,2
+M3,Movilidad,Puedes llevar tus brazos completamente por encima de la cabeza sin arquear la espalda baja?,Llego completamente arriba sin arquear la espalda,0,1,2
+M4,Movilidad,Puedes sentarte en el piso con piernas extendidas y espalda recta (sin encorvar)?,Mi espalda se redondea bastante,0,1,2
+M4,Movilidad,Puedes sentarte en el piso con piernas extendidas y espalda recta (sin encorvar)?,Puedo pero con algo de esfuerzo para mantener la espalda recta,0,1,2
+M4,Movilidad,Puedes sentarte en el piso con piernas extendidas y espalda recta (sin encorvar)?,Puedo mantener la espalda recta sin problema,0,1,2
+M5,Movilidad,Puedes hacer una zancada (lunge) profunda sin perder el equilibrio?,Me cuesta mucho o pierdo el equilibrio,0,1,2
+M5,Movilidad,Puedes hacer una zancada (lunge) profunda sin perder el equilibrio?,Puedo pero con algo de inestabilidad,0,1,2
+M5,Movilidad,Puedes hacer una zancada (lunge) profunda sin perder el equilibrio?,Puedo hacerla profunda y con control total,0,1,2
