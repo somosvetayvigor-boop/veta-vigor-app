@@ -71,14 +71,19 @@ import Dashboard from './pages/Dashboard';
 import Consultorio from './pages/Consultorio';
 import SistemaDetail from './pages/SistemaDetail';
 import RutinaDetail from './pages/RutinaDetail';
+import OnboardingModal from './components/OnboardingModal';
 
 function App() {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
+      if (session && !session.user.user_metadata?.onboarding_complete) {
+        setShowOnboarding(true);
+      }
       setLoading(false);
     });
 
@@ -86,6 +91,11 @@ function App() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
+      if (session && !session.user.user_metadata?.onboarding_complete) {
+        setShowOnboarding(true);
+      } else {
+        setShowOnboarding(false);
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -109,6 +119,12 @@ function App() {
       </Routes>
       </div>
       <BottomNav />
+      {showOnboarding && session && (
+        <OnboardingModal 
+          session={session} 
+          onComplete={() => setShowOnboarding(false)} 
+        />
+      )}
     </Router>
   );
 }

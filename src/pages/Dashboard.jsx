@@ -34,15 +34,28 @@ export default function Dashboard({ session }) {
     fetchSistemas();
   }, []);
 
+  const meta = session.user.user_metadata || {};
+  const displayName = meta.display_preference === 'username' && meta.username 
+    ? `@${meta.username}` 
+    : (meta.nombre || session.user.email?.split('@')[0] || 'Recluta');
+
+  const avatarContent = meta.avatar_url ? (
+    <img src={meta.avatar_url} alt="Avatar" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+  ) : (
+    (meta.nombre || session.user.email || 'A')[0]
+  );
+
   return (
     <div className="container" style={{ paddingBottom: '90px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', marginTop: '20px' }}>
         <div>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '4px' }}>Bienvenido de vuelta,</p>
-          <h1 style={{ fontSize: '1.5rem', textTransform: 'capitalize' }}>{session.user.user_metadata?.nombre || session.user.email?.split('@')[0] || 'Recluta'}</h1>
+          <h1 style={{ fontSize: '1.5rem', textTransform: meta.display_preference === 'username' ? 'none' : 'capitalize' }}>
+            {displayName}
+          </h1>
         </div>
-        <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: 'var(--accent-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'black', fontWeight: 'bold', textTransform: 'uppercase' }}>
-          {(session.user.user_metadata?.nombre || session.user.email || 'A')[0]}
+        <div style={{ width: '45px', height: '45px', borderRadius: '50%', backgroundColor: 'var(--accent-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'black', fontWeight: 'bold', textTransform: 'uppercase', overflow: 'hidden', border: '2px solid var(--accent-gold)' }}>
+          {avatarContent}
         </div>
       </div>
 
