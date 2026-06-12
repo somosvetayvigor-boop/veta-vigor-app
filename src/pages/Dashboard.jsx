@@ -39,14 +39,14 @@ export default function Dashboard({ session }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', marginTop: '20px' }}>
         <div>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '4px' }}>Bienvenido de vuelta,</p>
-          <h1 style={{ fontSize: '1.5rem' }}>{session.user.user_metadata?.nombre || 'Atleta'}</h1>
+          <h1 style={{ fontSize: '1.5rem', textTransform: 'capitalize' }}>{session.user.user_metadata?.nombre || session.user.email?.split('@')[0] || 'Recluta'}</h1>
         </div>
-        <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: 'var(--accent-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'black', fontWeight: 'bold' }}>
-          {session.user.user_metadata?.nombre ? session.user.user_metadata.nombre[0].toUpperCase() : 'A'}
+        <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: 'var(--accent-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'black', fontWeight: 'bold', textTransform: 'uppercase' }}>
+          {(session.user.user_metadata?.nombre || session.user.email || 'A')[0]}
         </div>
       </div>
 
-      <h2 style={{ marginBottom: '20px', fontSize: '1.3rem' }} className="gold-gradient-text">Tus Sistemas de Entrenamiento</h2>
+      <h2 style={{ marginBottom: '20px', fontSize: '1.3rem' }} className="gold-gradient-text">Sistemas Veta&Vigor</h2>
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: '40px' }}><i className="fa-solid fa-circle-notch fa-spin gold-gradient-text" style={{fontSize: '2rem'}}></i></div>
