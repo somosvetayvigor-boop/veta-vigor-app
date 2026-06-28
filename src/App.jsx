@@ -161,7 +161,7 @@ const TopHeader = ({ session }) => {
   if (location.pathname === '/login') return null;
 
   return (
-    <header style={{ position: 'fixed', top: 0, left: 0, right: 0, height: '60px', backgroundColor: '#0f0f11', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px', borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
+    <header style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 'calc(60px + env(safe-area-inset-top, 0px))', paddingTop: 'env(safe-area-inset-top, 0px)', backgroundColor: '#0f0f11', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingLeft: '20px', paddingRight: '20px', borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
       <h1 className="gold-gradient-text" style={{ margin: 0, fontSize: '1.5rem', fontWeight: '900', letterSpacing: '1px' }}>V&V</h1>
       
       <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '15px' }}>
@@ -639,12 +639,12 @@ function App() {
       <BackButtonHandler />
       <TopHeader session={session} />
       {isOffline && (
-        <div style={{ position: 'fixed', top: '60px', left: 0, right: 0, backgroundColor: '#e55039', color: 'white', textAlign: 'center', padding: '5px', fontSize: '0.8rem', zIndex: 999, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '5px' }}>
+        <div style={{ position: 'fixed', top: 'calc(60px + env(safe-area-inset-top, 0px))', left: 0, right: 0, backgroundColor: '#e55039', color: 'white', textAlign: 'center', padding: '5px', fontSize: '0.8rem', zIndex: 999, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '5px' }}>
           <WifiOff size={14} /> Estás sin conexión. Los cambios se guardarán localmente.
         </div>
       )}
       <PullToRefresh onRefresh={() => window.location.reload()}>
-        <div id="main-scroll-container" style={{ minHeight: '100%', paddingTop: isOffline ? '90px' : '60px' }}>
+        <div id="main-scroll-container" style={{ minHeight: '100%', paddingTop: isOffline ? 'calc(90px + env(safe-area-inset-top, 0px))' : 'calc(60px + env(safe-area-inset-top, 0px))' }}>
           <Routes>
             <Route path="/login" element={!session ? <Login /> : <Navigate to="/" />} />
             <Route path="/sistemas" element={session ? <Dashboard session={session} /> : <Navigate to="/login" />} />
