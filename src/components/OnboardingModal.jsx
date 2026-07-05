@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from '../supabaseClient';
-import { Camera, CheckCircle, Loader } from 'lucide-react';
+import { Camera, CheckCircle, Loader, LogOut } from 'lucide-react';
 
 export default function OnboardingModal({ session, onComplete }) {
   const [username, setUsername] = useState('');
@@ -9,12 +9,33 @@ export default function OnboardingModal({ session, onComplete }) {
   const [avatarPreview, setAvatarPreview] = useState(null);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [showPhotoPrompt, setShowPhotoPrompt] = useState(false);
 
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       setAvatarFile(file);
       setAvatarPreview(URL.createObjectURL(file));
+      setShowPhotoPrompt(false);
+    }
+  };
+
+  const handlePhotoTap = (e) => {
+    e.preventDefault();
+    setShowPhotoPrompt(true);
+  };
+
+  const confirmarSubirFoto = () => {
+    setShowPhotoPrompt(false);
+    const input = document.getElementById('avatar-upload');
+    if (input) {
+      input.click();
+      // Detectar si el picker falló (timeout de seguridad)
+      setTimeout(() => {
+        if (!avatarFile && !document.querySelector('input[type=file]:focus')) {
+          // No hacemos nada extra, el usuario puede continuar sin foto
+        }
+      }, 1000);
     }
   };
 
@@ -38,29 +59,31 @@ export default function OnboardingModal({ session, onComplete }) {
         const filePath = `${fileName}`;
 
         const { error: uploadError } = await supabase.storage
-          .from('avatars')
+          .from('fotos_progreso')
           .upload(filePath, avatarFile);
 
         if (uploadError) throw uploadError;
 
         const { data: publicUrlData } = supabase.storage
-          .from('avatars')
+          .from('fotos_progreso')
           .getPublicUrl(filePath);
           
         avatar_url = publicUrlData.publicUrl;
       }
 
-      // 2. Insert into perfiles table (this enforces unique username)
+      // 2. Upsert into perfiles table (this enforces unique username but allows updating existing profile)
       const { error: profileError } = await supabase
         .from('perfiles')
-        .insert([
+        .upsert([
           { 
             id: session.user.id, 
             username: username.toLowerCase().trim(), 
             avatar_url: avatar_url,
-            display_preference: displayPref 
+            display_preference: displayPref,
+            email: session.user.email,
+            full_name: session.user.user_metadata?.nombre || session.user.user_metadata?.nombre_completo || ''
           }
-        ]);
+        ], { onConflict: 'id' });
 
       if (profileError) {
         if (profileError.code === '23505') { // Unique violation
@@ -111,21 +134,64 @@ export default function OnboardingModal({ session, onComplete }) {
           
           {/* Avatar Upload */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <label htmlFor="avatar-upload" style={{
-              width: '100px', height: '100px', borderRadius: '50%',
-              backgroundColor: 'rgba(255,255,255,0.05)', border: '2px dashed var(--accent-gold)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-              overflow: 'hidden', position: 'relative'
-            }}>
+            <div 
+              onClick={handlePhotoTap}
+              style={{
+                width: '100px', height: '100px', borderRadius: '50%',
+                backgroundColor: 'rgba(255,255,255,0.05)', border: '2px dashed var(--accent-gold)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+                overflow: 'hidden', position: 'relative'
+              }}
+            >
               {avatarPreview ? (
                 <img src={avatarPreview} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              ) : session?.user?.user_metadata?.avatar_url ? (
+                <img src={session.user.user_metadata.avatar_url} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               ) : (
                 <Camera size={30} color="var(--accent-gold)" />
               )}
-            </label>
+            </div>
             <input id="avatar-upload" type="file" accept="image/*" onChange={handleFileChange} style={{ display: 'none' }} />
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '8px' }}>Toca para subir foto</span>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '8px' }}>Toca para subir foto <span style={{color:'var(--text-muted)'}}>(Opcional)</span></span>
           </div>
+
+          {/* Modal de permiso de foto */}
+          {showPhotoPrompt && (
+            <div style={{
+              position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+              backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 10001,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px'
+            }}>
+              <div style={{
+                backgroundColor: '#1e1e22', borderRadius: '16px', padding: '25px',
+                maxWidth: '340px', width: '100%', border: '1px solid rgba(212,175,55,0.3)',
+                textAlign: 'center'
+              }}>
+                <Camera size={40} color="var(--accent-gold)" style={{ marginBottom: '15px' }} />
+                <h3 style={{ marginBottom: '10px', fontSize: '1.1rem' }}>Acceso a tu Galería</h3>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '20px', lineHeight: '1.5' }}>
+                  Para subir tu foto de perfil, la app necesita acceso a tus fotos. 
+                  Si tu celular no abre la galería, ve a <strong style={{color:'#fff'}}>Ajustes → Aplicaciones → Veta y Vigor → Permisos</strong> y activa "Fotos".
+                </p>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button 
+                    type="button"
+                    onClick={() => setShowPhotoPrompt(false)} 
+                    style={{ flex: 1, padding: '12px', borderRadius: '10px', background: 'rgba(255,255,255,0.1)', color: '#fff', border: 'none', fontSize: '0.9rem', cursor: 'pointer' }}
+                  >
+                    Cancelar
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={confirmarSubirFoto} 
+                    style={{ flex: 1, padding: '12px', borderRadius: '10px', background: 'var(--accent-gold)', color: '#000', border: 'none', fontWeight: 'bold', fontSize: '0.9rem', cursor: 'pointer' }}
+                  >
+                    Abrir Galería
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Username */}
           <div>
@@ -172,7 +238,26 @@ export default function OnboardingModal({ session, onComplete }) {
           {errorMsg && <p style={{ color: 'var(--error-red)', fontSize: '0.9rem', textAlign: 'center', margin: 0 }}>{errorMsg}</p>}
 
           <button type="submit" className="btn-primary" disabled={loading} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}>
-            {loading ? <Loader className="fa-spin" size={20} /> : <><CheckCircle size={20} /> Entrar al Cuartel</>}
+            {loading ? <Loader className="fa-spin" size={20} /> : <><CheckCircle size={20} /> Siguiente Paso</>}
+          </button>
+          
+          <button 
+            type="button"
+            onClick={() => supabase.auth.signOut()}
+            style={{ 
+              background: 'transparent', 
+              color: 'var(--text-muted)', 
+              border: 'none', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              gap: '8px', 
+              marginTop: '5px',
+              cursor: 'pointer',
+              fontSize: '0.9rem'
+            }}
+          >
+            <LogOut size={16} /> Cerrar Sesión
           </button>
         </form>
       </div>

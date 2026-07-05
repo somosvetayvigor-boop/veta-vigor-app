@@ -1,0 +1,4 @@
+#Sun Jun 14 19:44:41 CST 2026
+base.0=C\:\\Users\\grd_a\\.gemini\\antigravity\\scratch\\Veta_Vigor_App\\android_twa\\app\\build\\intermediates\\dex\\release\\minifyReleaseWithR8\\classes.dex
+renamed.0=classes.dex
+path.0=classes.dex

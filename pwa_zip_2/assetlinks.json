@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "dev.workers.somos_vetayvigor.vetayvigor_assetlinks.twa",
+        "sha256_cert_fingerprints": ["1B:08:00:84:6D:3A:01:D9:73:A4:3D:F5:65:10:CF:E2:FC:6C:FF:E4:F2:45:58:78:0A:C0:85:6C:D7:23:F8:C5"]
+      }
+    }]
