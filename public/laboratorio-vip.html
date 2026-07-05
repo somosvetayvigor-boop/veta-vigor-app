@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Laboratorio Nutricional VIP - Veta & Vigor</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --bg-color: #0b0b0f;
+            --surface-color: rgba(25, 25, 30, 0.7);
+            --border-glass: 1px solid rgba(255, 255, 255, 0.08);
+            --accent-gold: #d4af37;
+            --accent-gold-glow: rgba(212, 175, 55, 0.3);
+            --text-pure: #ffffff;
+            --text-muted: #a0a0a5;
+            --danger: #e55039;
+            --success: #44bd32;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-pure);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 10px;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            text-rendering: optimizeLegibility;
+            /* Subtle background grid for premium feel */
+            background-image: 
+                linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+            background-size: 30px 30px;
+        }
+
+        .lab-container {
+            width: 100%;
+            max-width: 500px;
+            background: rgba(18, 18, 22, 0.98); /* Fondo más sólido */
+            /* Se removió el backdrop-filter porque Glide borronea los iframes con ese efecto */
+            border: var(--border-glass);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+            animation: slideUp 0.6s ease-out forwards;
+            opacity: 0;
+            transform: translateY(20px);
+        }
+
+        @keyframes slideUp {
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header-icon {
+            font-size: 2.5rem;
+            color: var(--accent-gold);
+            margin-bottom: 10px;
+            text-shadow: 0 0 15px var(--accent-gold-glow);
+        }
+
+        .header h1 {
+            font-size: 1.8rem;
+            font-weight: 800;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            background: linear-gradient(45deg, #fff, #a0a0a5);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header p {
+            color: var(--accent-gold);
+            font-size: 0.9rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-top: 5px;
+            font-weight: 600;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .input-group {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .input-group i {
+            position: absolute;
+            left: 15px;
+            color: var(--text-muted);
+        }
+
+        input[type="number"], select {
+            width: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--text-pure);
+            padding: 14px 15px 14px 45px;
+            border-radius: 12px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            outline: none;
+            appearance: none;
+        }
+
+        select {
+            cursor: pointer;
+        }
+
+        input:focus, select:focus {
+            border-color: var(--accent-gold);
+            box-shadow: 0 0 15px var(--accent-gold-glow);
+        }
+
+        /* Custom radio buttons for gender */
+        .gender-selector {
+            display: flex;
+            gap: 15px;
+        }
+
+        .gender-btn {
+            flex: 1;
+            padding: 12px;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            color: var(--text-muted);
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+        }
+
+        .gender-btn.active {
+            background: rgba(212, 175, 55, 0.1);
+            border-color: var(--accent-gold);
+            color: var(--accent-gold);
+            box-shadow: inset 0 0 10px var(--accent-gold-glow);
+        }
+
+        .btn-calculate {
+            width: 100%;
+            background: linear-gradient(45deg, #d4af37, #b8860b);
+            color: #000;
+            border: none;
+            padding: 16px;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 10px;
+            box-shadow: 0 5px 15px var(--accent-gold-glow);
+        }
+
+        .btn-calculate:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(212, 175, 55, 0.5);
+        }
+
+        .btn-calculate:active {
+            transform: translateY(1px);
+        }
+
+        /* Results Section */
+        .results-container {
+            display: none;
+            margin-top: 30px;
+            padding-top: 30px;
+            border-top: var(--border-glass);
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        .result-card {
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .result-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; height: 3px;
+            background: linear-gradient(90deg, transparent, var(--accent-gold), transparent);
+        }
+
+        .result-title {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+        }
+
+        .result-value {
+            font-size: 2.5rem;
+            font-weight: 800;
+            color: var(--accent-gold);
+            text-shadow: 0 0 10px var(--accent-gold-glow);
+        }
+
+        .result-value span {
+            font-size: 1rem;
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+
+        .macros-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .macro-box {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 15px 10px;
+            text-align: center;
+            transition: transform 0.3s ease;
+        }
+
+        .macro-box:hover {
+            transform: translateY(-5px);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .macro-title {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .macro-value {
+            font-size: 1.2rem;
+            font-weight: 800;
+            color: var(--text-pure);
+        }
+
+        .protein .macro-value { color: #3498db; }
+        .carbs .macro-value { color: #e67e22; }
+        .fats .macro-value { color: #f1c40f; }
+
+        /* Food Examples Accordion */
+        .food-examples-btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--text-pure);
+            width: 100%;
+            padding: 12px;
+            margin-top: 20px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-family: 'Outfit', sans-serif;
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.3s ease;
+        }
+
+        .food-examples-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+
+        .food-examples-content {
+            display: none;
+            margin-top: 15px;
+            text-align: left;
+            animation: fadeIn 0.4s ease-out;
+        }
+
+        .food-category {
+            margin-bottom: 12px;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 15px;
+            border-radius: 10px;
+            border-left: 3px solid var(--text-muted);
+        }
+
+        .food-category.protein-cat { border-left-color: #3498db; }
+        .food-category.fat-cat { border-left-color: #f1c40f; }
+        .food-category.carb-cat { border-left-color: #e67e22; }
+
+        .food-category h4 {
+            color: var(--text-pure);
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .food-category p {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            line-height: 1.5;
+        }
+
+    </style>
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-924857475F"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+
+      gtag('config', 'G-924857475F');
+    </script>
+</head>
+<body>
+
+    <div class="lab-container">
+        <div class="header">
+            <i class="fa-solid fa-flask header-icon"></i>
+            <h1>Lab Nutricional</h1>
+            <p>Acceso VIP</p>
+        </div>
+
+        <div class="form-group">
+            <label>Género</label>
+            <div class="gender-selector">
+                <div class="gender-btn active" onclick="setGender('male')" id="btn-male">
+                    <i class="fa-solid fa-mars"></i> Hombre
+                </div>
+                <div class="gender-btn" onclick="setGender('female')" id="btn-female">
+                    <i class="fa-solid fa-venus"></i> Mujer
+                </div>
+            </div>
+            <input type="hidden" id="gender" value="male">
+        </div>
+
+        <div class="form-group">
+            <label>Edad (años)</label>
+            <div class="input-group">
+                <i class="fa-regular fa-calendar"></i>
+                <input type="number" id="age" placeholder="Ej. 28" min="15" max="100">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>Peso Corporal (kg)</label>
+            <div class="input-group">
+                <i class="fa-solid fa-weight-scale"></i>
+                <input type="number" id="weight" placeholder="Ej. 75" min="40" max="200" step="0.1">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>Altura (cm)</label>
+            <div class="input-group">
+                <i class="fa-solid fa-ruler-vertical"></i>
+                <input type="number" id="height" placeholder="Ej. 175" min="120" max="250">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>Nivel de Actividad Física</label>
+            <div class="input-group">
+                <i class="fa-solid fa-person-running"></i>
+                <select id="activity">
+                    <option value="1.2">Sedentario (Poco o ningún ejercicio extra)</option>
+                    <option value="1.375">Ligero (Rutina V&V de 3 días)</option>
+                    <option value="1.55" selected>Moderado (Rutina V&V de 4 días + Descanso Activo)</option>
+                    <option value="1.725">Atleta Élite (Rutina Híbrida Avanzada / Físico Pesado)</option>
+                    <option value="1.9">Competidor (Doble turno de entrenamiento diario)</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>Objetivo VIP</label>
+            <div class="input-group">
+                <i class="fa-solid fa-bullseye"></i>
+                <select id="goal">
+                    <option value="-500">Déficit (Quema de Grasa Extrema)</option>
+                    <option value="-300">Déficit Ligero (Recomposición)</option>
+                    <option value="0" selected>Mantenimiento (Fuerza Base)</option>
+                    <option value="300">Superávit Ligero (Músculo Magro)</option>
+                    <option value="500">Superávit (Volumen Puro)</option>
+                </select>
+            </div>
+        </div>
+
+        <button class="btn-calculate" onclick="calculateMacros()">
+            <i class="fa-solid fa-microchip"></i> Procesar Datos
+        </button>
+
+        <!-- Results -->
+        <div class="results-container" id="results">
+            <div class="result-card">
+                <div class="result-title">Calorías Diarias Objetivo</div>
+                <div class="result-value" id="target-calories">0 <span>kcal</span></div>
+                <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 10px;">Basado en la fórmula Mifflin-St Jeor (VIP)</p>
+            </div>
+
+            <div class="result-title" style="text-align: center; color: var(--accent-gold); margin-top: 10px;">Distribución de Macros Élite</div>
+            <div class="macros-grid">
+                <div class="macro-box protein">
+                    <div class="macro-title">Proteína</div>
+                    <div class="macro-value" id="macro-protein">0g</div>
+                    <div style="font-size: 0.7rem; color: #7f8c8d; margin-top: 5px;">2.2g x kg</div>
+                </div>
+                <div class="macro-box fats">
+                    <div class="macro-title">Grasas</div>
+                    <div class="macro-value" id="macro-fats">0g</div>
+                    <div style="font-size: 0.7rem; color: #7f8c8d; margin-top: 5px;">25% total</div>
+                </div>
+                <div class="macro-box carbs">
+                    <div class="macro-title">Carbos</div>
+                    <div class="macro-value" id="macro-carbs">0g</div>
+                    <div style="font-size: 0.7rem; color: #7f8c8d; margin-top: 5px;">El resto</div>
+                </div>
+            </div>
+            
+            <!-- Botón de Ejemplos de Alimentos -->
+            <button class="food-examples-btn" onclick="toggleFoods()" id="btn-foods">
+                <span><i class="fa-solid fa-utensils"></i> Ejemplos de Alimentos</span>
+                <i class="fa-solid fa-chevron-down" id="icon-foods"></i>
+            </button>
+
+            <!-- Contenido de Ejemplos -->
+            <div class="food-examples-content" id="food-content">
+                <div class="food-category protein-cat">
+                    <h4><i class="fa-solid fa-drumstick-bite" style="color:#3498db"></i> Proteínas Magras</h4>
+                    <p>Pechuga de pollo, atún, salmón, claras de huevo, yogur griego sin azúcar, carne de res magra, lomo de cerdo, tofu, proteína de suero (whey).</p>
+                </div>
+                <div class="food-category fat-cat">
+                    <h4><i class="fa-solid fa-cheese" style="color:#f1c40f"></i> Grasas Saludables</h4>
+                    <p>Aguacate, almendras, nueces, crema de maní/almendra natural, aceite de oliva extra virgen, yemas de huevo, semillas de chía.</p>
+                </div>
+                <div class="food-category carb-cat">
+                    <h4><i class="fa-solid fa-bowl-rice" style="color:#e67e22"></i> Carbohidratos Completos</h4>
+                    <p>Avena, arroz blanco/integral, papa, camote (batata), pasta, quinoa, tortillas de maíz, plátano, manzana, frutos rojos.</p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        function setGender(gender) {
+            document.getElementById('gender').value = gender;
+            document.getElementById('btn-male').classList.remove('active');
+            document.getElementById('btn-female').classList.remove('active');
+            document.getElementById('btn-' + gender).classList.add('active');
+        }
+
+        function calculateMacros() {
+            const age = parseFloat(document.getElementById('age').value);
+            const weight = parseFloat(document.getElementById('weight').value);
+            const height = parseFloat(document.getElementById('height').value);
+            const activity = parseFloat(document.getElementById('activity').value);
+            const goal = parseFloat(document.getElementById('goal').value);
+            const gender = document.getElementById('gender').value;
+
+            if (!age || !weight || !height) {
+                alert("Por favor, llena todos los datos como buen atleta.");
+                return;
+            }
+
+            // Basal Metabolic Rate (Mifflin-St Jeor)
+            let bmr = (10 * weight) + (6.25 * height) - (5 * age);
+            bmr = gender === 'male' ? bmr + 5 : bmr - 161;
+
+            // Total Daily Energy Expenditure (TDEE)
+            let tdee = bmr * activity;
+
+            // Target Calories
+            let targetCalories = tdee + goal;
+
+            // Macros Calculation
+            // Protein: 2.2g per kg of bodyweight (High protein for athletes)
+            let protein = weight * 2.2;
+            let proteinCalories = protein * 4;
+
+            // Fats: 25% of total target calories
+            let fatCalories = targetCalories * 0.25;
+            let fats = fatCalories / 9;
+
+            // Carbs: The remaining calories
+            let remainingCalories = targetCalories - proteinCalories - fatCalories;
+            let carbs = remainingCalories / 4;
+
+            // Update UI
+            document.getElementById('target-calories').innerText = Math.round(targetCalories);
+            document.getElementById('macro-protein').innerText = Math.round(protein) + 'g';
+            document.getElementById('macro-fats').innerText = Math.round(fats) + 'g';
+            document.getElementById('macro-carbs').innerText = Math.round(carbs) + 'g';
+
+            // Show results with animation
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.style.display = 'block';
+            
+            // Scroll to results slightly
+            setTimeout(() => {
+                resultsDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }, 100);
+        }
+
+        function toggleFoods() {
+            const content = document.getElementById('food-content');
+            const icon = document.getElementById('icon-foods');
+            if (content.style.display === 'block') {
+                content.style.display = 'none';
+                icon.classList.replace('fa-chevron-up', 'fa-chevron-down');
+            } else {
+                content.style.display = 'block';
+                icon.classList.replace('fa-chevron-down', 'fa-chevron-up');
+                setTimeout(() => {
+                    content.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }, 100);
+            }
+        }
+    </script>
+</body>
+</html>

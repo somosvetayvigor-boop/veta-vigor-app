@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Calculadora de Composición Corporal</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #000000; /* Match Glide app background to avoid white borders */
+            color: #fff;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+        .calc-wrapper {
+            background: #0c0d10;
+            padding: 20px;
+            border-radius: 16px;
+            border: 1px solid rgba(197, 160, 89, 0.2);
+            max-width: 400px;
+            margin: 0 auto;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+        }
+        h3 {
+            color: #c5a059;
+            margin: 0 0 15px 0;
+            text-transform: uppercase;
+            font-size: 1.1rem;
+            text-align: center;
+            letter-spacing: 1px;
+        }
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid #c5a059;
+        }
+        .tab {
+            flex: 1;
+            padding: 10px;
+            text-align: center;
+            background: #1a1a1a;
+            color: #888;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        .tab.active {
+            background: #c5a059;
+            color: #0c0d10;
+        }
+        .input-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #aaa;
+            font-size: 0.85rem;
+        }
+        input, select {
+            width: 100%;
+            padding: 12px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid #333;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 1rem;
+            box-sizing: border-box;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+        input:focus, select:focus {
+            border-color: #c5a059;
+        }
+        button {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #d4af37, #aa7c11);
+            color: #000;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            box-shadow: 0 4px 15px rgba(197, 160, 89, 0.3);
+            transition: transform 0.1s;
+            margin-top: 10px;
+        }
+        button:active {
+            transform: scale(0.98);
+        }
+        .result-box {
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(197, 160, 89, 0.1);
+            border: 1px solid rgba(197, 160, 89, 0.3);
+            border-radius: 8px;
+            text-align: center;
+            display: none;
+            animation: fadeIn 0.5s;
+        }
+        .result-title {
+            color: #aaa;
+            font-size: 0.9rem;
+            margin-bottom: 5px;
+        }
+        .result-value {
+            font-size: 1.8rem;
+            font-weight: 900;
+            color: #fff;
+            margin: 5px 0;
+        }
+        .result-level {
+            color: #c5a059;
+            font-weight: bold;
+            font-size: 1.1rem;
+            text-transform: uppercase;
+            margin-top: 10px;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 15px;
+            text-align: left;
+        }
+        .stat-item {
+            background: rgba(0,0,0,0.3);
+            padding: 10px;
+            border-radius: 6px;
+        }
+        .stat-label {
+            font-size: 0.75rem;
+            color: #888;
+        }
+        .stat-val {
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: #ddd;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-924857475F"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+
+      gtag('config', 'G-924857475F');
+    </script>
+</head>
+<body>
+
+<div class="calc-wrapper">
+    <h3>Composición Corporal</h3>
+    
+    <div class="tabs">
+        <div class="tab active" id="tab-bascula" onclick="setMode('bascula')">Con Báscula</div>
+        <div class="tab" id="tab-cinta" onclick="setMode('cinta')">Cinta Métrica</div>
+    </div>
+
+    <div class="input-group">
+        <label>Género</label>
+        <select id="gender" onchange="toggleHip()">
+            <option value="male">Masculino</option>
+            <option value="female">Femenino</option>
+        </select>
+    </div>
+
+    <div class="input-group">
+        <label>Peso Corporal (kg)</label>
+        <input type="number" id="weight" placeholder="Ej. 75">
+    </div>
+
+    <div class="input-group">
+        <label>Altura (cm)</label>
+        <input type="number" id="height" placeholder="Ej. 175">
+    </div>
+
+    <!-- Modo Báscula -->
+    <div id="mode-bascula">
+        <p style="color: #888; font-size: 0.8rem; margin-top: 0; margin-bottom: 15px; text-align: center; font-style: italic;">Súbete a tu báscula inteligente en casa y transcribe tus métricas manualmente aquí.</p>
+        <div class="input-group">
+            <label>Grasa Corporal (%) de la báscula</label>
+            <input type="number" id="bodyfat-input" placeholder="Ej. 15">
+        </div>
+    </div>
+
+    <!-- Modo Cinta Métrica -->
+    <div id="mode-cinta" style="display: none;">
+        <div class="input-group">
+            <label>Cuello (cm) - Por debajo de la nuez</label>
+            <input type="number" id="neck" placeholder="Ej. 38">
+        </div>
+        <div class="input-group">
+            <label>Cintura (cm) - A nivel del ombligo</label>
+            <input type="number" id="waist" placeholder="Ej. 82">
+        </div>
+        <div class="input-group" id="hip-group" style="display: none;">
+            <label>Cadera (cm) - Parte más ancha</label>
+            <input type="number" id="hip" placeholder="Ej. 95">
+        </div>
+    </div>
+
+    <button onclick="calculate()">Analizar Físico</button>
+
+    <div id="result-box" class="result-box">
+        <div class="result-title">Tu Nivel FFMI (Masa Muscular Libre de Grasa)</div>
+        <div class="result-value" id="res-ffmi">0.0</div>
+        <div class="result-level" id="res-level">Cargando...</div>
+        
+        <div class="stats-grid">
+            <div class="stat-item">
+                <div class="stat-label">Grasa Corporal</div>
+                <div class="stat-val" id="res-bf">0%</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">Masa Magra (Músculo)</div>
+                <div class="stat-val" id="res-lean">0 kg</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">Masa Grasa</div>
+                <div class="stat-val" id="res-fat">0 kg</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">Calidad de Composición</div>
+                <div class="stat-val" style="color: #c5a059;" id="res-quality">-</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let currentMode = 'bascula';
+
+    function setMode(mode) {
+        currentMode = mode;
+        document.getElementById('tab-bascula').classList.remove('active');
+        document.getElementById('tab-cinta').classList.remove('active');
+        document.getElementById('tab-' + mode).classList.add('active');
+        
+        document.getElementById('mode-bascula').style.display = mode === 'bascula' ? 'block' : 'none';
+        document.getElementById('mode-cinta').style.display = mode === 'cinta' ? 'block' : 'none';
+    }
+
+    function toggleHip() {
+        const isFemale = document.getElementById('gender').value === 'female';
+        document.getElementById('hip-group').style.display = isFemale ? 'block' : 'none';
+    }
+
+    function calculate() {
+        const gender = document.getElementById('gender').value;
+        const weight = parseFloat(document.getElementById('weight').value);
+        const height = parseFloat(document.getElementById('height').value);
+        
+        if (!weight || !height) return alert("Por favor ingresa tu peso y altura.");
+
+        let bodyFat = 0;
+
+        if (currentMode === 'bascula') {
+            bodyFat = parseFloat(document.getElementById('bodyfat-input').value);
+            if (!bodyFat) return alert("Por favor ingresa el porcentaje de grasa de tu báscula.");
+        } else {
+            // US Navy Method
+            const neck = parseFloat(document.getElementById('neck').value);
+            const waist = parseFloat(document.getElementById('waist').value);
+            
+            if (!neck || !waist) return alert("Por favor ingresa las medidas de cuello y cintura.");
+
+            if (gender === 'male') {
+                bodyFat = 495 / (1.0324 - 0.19077 * Math.log10(waist - neck) + 0.15456 * Math.log10(height)) - 450;
+            } else {
+                const hip = parseFloat(document.getElementById('hip').value);
+                if (!hip) return alert("Por favor ingresa la medida de cadera.");
+                bodyFat = 495 / (1.29579 - 0.35004 * Math.log10(waist + hip - neck) + 0.22100 * Math.log10(height)) - 450;
+            }
+        }
+
+        // Constraints and edge cases
+        bodyFat = Math.max(3, Math.min(bodyFat, 60)); 
+
+        const fatMass = weight * (bodyFat / 100);
+        const leanMass = weight - fatMass;
+        
+        // Normalized FFMI formula: LeanMass / (Height in meters)^2 + 6.1 * (1.8 - Height in meters)
+        const heightMeters = height / 100;
+        let ffmi = (leanMass / (heightMeters * heightMeters)) + 6.1 * (1.8 - heightMeters);
+
+        // UI Updates
+        document.getElementById('res-bf').innerText = bodyFat.toFixed(1) + '%';
+        document.getElementById('res-lean').innerText = leanMass.toFixed(1) + ' kg';
+        document.getElementById('res-fat').innerText = fatMass.toFixed(1) + ' kg';
+        document.getElementById('res-ffmi').innerText = ffmi.toFixed(1);
+
+        // FFMI Levels (Male standards generally used in hybrid training, simplified)
+        let level = "";
+        if (gender === 'male') {
+            if (ffmi < 18) level = "Semilla (Bajo)";
+            else if (ffmi < 20) level = "Promedio";
+            else if (ffmi < 22) level = "Atlético ⚡";
+            else if (ffmi < 24) level = "Veta Dura 🪵";
+            else if (ffmi < 26) level = "Leyenda Vigorosa 🦍";
+            else level = "Élite / Competitivo 👑";
+        } else {
+            // Female FFMI standards are roughly 3-4 points lower
+            if (ffmi < 15) level = "Semilla (Bajo)";
+            else if (ffmi < 17) level = "Promedio";
+            else if (ffmi < 19) level = "Atlético ⚡";
+            else if (ffmi < 21) level = "Veta Dura 🪵";
+            else if (ffmi < 22) level = "Leyenda Vigorosa 🦍";
+            else level = "Élite / Competitivo 👑";
+        }
+
+        // Fat Quality (Mens BF%)
+        let quality = "";
+        if (gender === 'male') {
+            if (bodyFat > 25) quality = "Volumen Pesado";
+            else if (bodyFat > 18) quality = "Saludable";
+            else if (bodyFat > 14) quality = "Atlético";
+            else if (bodyFat > 10) quality = "Definido 🔥";
+            else quality = "Extremo 💀";
+        } else {
+            if (bodyFat > 32) quality = "Volumen Pesado";
+            else if (bodyFat > 25) quality = "Saludable";
+            else if (bodyFat > 21) quality = "Atlética";
+            else if (bodyFat > 16) quality = "Definida 🔥";
+            else quality = "Extrema 💀";
+        }
+
+        document.getElementById('res-level').innerText = level;
+        document.getElementById('res-quality').innerText = quality;
+        document.getElementById('result-box').style.display = 'block';
+    }
+</script>
+
+</body>
+</html>

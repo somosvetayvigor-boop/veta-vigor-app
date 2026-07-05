@@ -16,6 +16,19 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+  -webkit-touch-callout: none; 
+  -webkit-user-select: none; 
+  user-select: none; 
+}
+
+input, textarea, [contenteditable="true"] {
+  -webkit-user-select: auto;
+  user-select: auto;
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden; /* Prevent native body scroll */
 }
 
 body {
@@ -23,7 +36,7 @@ body {
   background-color: var(--bg-dark);
   color: var(--text-main);
   -webkit-font-smoothing: antialiased;
-  padding-bottom: 70px; /* Space for bottom nav */
+  padding-bottom: 0; /* Handled by flex layout now */
 }
 
 h1, h2, h3, h4 {
@@ -46,12 +59,23 @@ button {
   padding: 20px;
   max-width: 800px;
   margin: 0 auto;
+  isolation: isolate;
+}
+
+#root {
+  height: 100%;
+  width: 100%;
+  background-color: var(--bg-dark);
+  display: flex;
+  flex-direction: column;
+  isolation: isolate;
 }
 
 .gold-gradient-text {
   background: linear-gradient(135deg, #f9f0b1 0%, #D4AF37 50%, #aa8b2c 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
+  isolation: isolate;
 }
 
 .btn-primary {
@@ -113,19 +137,14 @@ button {
 
 /* Bottom Nav */
 .bottom-nav {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background-color: rgba(15, 15, 17, 0.85);
-  backdrop-filter: blur(10px);
+  flex-shrink: 0;
+  width: 100%;
+  background-color: #0f0f11;
   border-top: 1px solid rgba(255, 255, 255, 0.05);
   display: flex;
   justify-content: space-around;
-  padding: 10px 0;
+  padding: 10px 0 calc(10px + env(safe-area-inset-bottom, 10px));
   z-index: 1000;
-  max-width: 800px;
-  margin: 0 auto;
 }
 
 .nav-item {
@@ -156,6 +175,7 @@ button {
   margin-bottom: 20px;
   transition: transform 0.2s ease;
   border: 1px solid rgba(255,255,255,0.02);
+  isolation: isolate;
 }
 
 .system-card:active {
@@ -226,4 +246,9 @@ button {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(0.8); opacity: 0.5; }
+  50% { transform: scale(1.2); opacity: 1; }
 }

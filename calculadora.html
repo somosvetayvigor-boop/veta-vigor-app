@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Calculadora de Fuerza V&V</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #0c0d10; /* Match Glide dark theme */
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+            color: #fff;
+        }
+        input:focus {
+            outline: none;
+            border-color: #c5a059 !important;
+            box-shadow: 0 0 5px rgba(197, 160, 89, 0.5);
+        }
+    </style>
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-924857475F"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+
+      gtag('config', 'G-924857475F');
+    </script>
+</head>
+<body>
+    <div id="vv-1rm-calc" style="font-family: -apple-system, system-ui, sans-serif; background: #0c0d10; width: 100%; max-width: 400px; padding: 15px; box-sizing: border-box;">
+        <h3 style="color: #c5a059; margin: 0 0 15px 0; text-transform: uppercase; font-size: 1.1rem; text-align: center; letter-spacing: 1px;">Calculadora de Fuerza</h3>
+        
+        <div style="margin-bottom: 15px; display: flex; justify-content: space-between; background: rgba(255,255,255,0.05); padding: 5px; border-radius: 8px;">
+            <label style="flex: 1; text-align: center; color: #fff; cursor: pointer; font-size: 0.9rem; padding: 8px; border-radius: 6px;" id="lbl-cali">
+                <input type="radio" name="mode" value="cali" checked onclick="changeMode()" style="display:none;"> Calistenia
+            </label>
+            <label style="flex: 1; text-align: center; color: #999; cursor: pointer; font-size: 0.9rem; padding: 8px; border-radius: 6px;" id="lbl-gym">
+                <input type="radio" name="mode" value="gym" onclick="changeMode()" style="display:none;"> Gimnasio (Pesas)
+            </label>
+        </div>
+
+        <div style="margin-bottom: 15px;">
+            <label style="font-size: 0.85rem; color: #999;">Tu Peso Corporal (kg)</label>
+            <input type="number" id="bw" value="70" style="width: 100%; padding: 12px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 1rem; margin-top: 5px; box-sizing: border-box;" />
+        </div>
+        
+        <div style="margin-bottom: 15px;">
+            <label id="weight-label" style="font-size: 0.85rem; color: #999;">Lastre / Peso Extra (kg)</label>
+            <input type="number" id="added" value="20" style="width: 100%; padding: 12px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 1rem; margin-top: 5px; box-sizing: border-box;" />
+        </div>
+        
+        <div style="margin-bottom: 20px;">
+            <label style="font-size: 0.85rem; color: #999;">Repeticiones Sacadas</label>
+            <input type="number" id="reps" value="5" style="width: 100%; padding: 12px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 1rem; margin-top: 5px; box-sizing: border-box;" />
+        </div>
+        
+        <button onclick="calculate1RM()" style="width: 100%; padding: 14px; background: #c5a059; color: #0c0d10; border: none; border-radius: 8px; font-weight: bold; font-size: 1rem; cursor: pointer; text-transform: uppercase; transition: background 0.2s;">Calcular Poder</button>
+        
+        <div id="result-box" style="margin-top: 20px; padding: 15px; background: rgba(197, 160, 89, 0.1); border-radius: 8px; text-align: center; display: none;">
+            <div style="font-size: 0.85rem; color: #999;">Tu Fuerza Máxima Estimada</div>
+            <div id="res-1rm" style="font-size: 2rem; font-weight: 900; color: #fff; margin: 5px 0;">0 kg</div>
+            <div id="res-level" style="font-size: 1.1rem; color: #c5a059; font-weight: bold; margin-top: 5px; text-transform: uppercase;"></div>
+            
+            <div style="display: flex; gap: 10px; margin-top: 15px;">
+                <button onclick="copyResult()" style="flex: 1; padding: 10px; background: transparent; color: #fff; border: 1px solid rgba(255,255,255,0.3); border-radius: 8px; font-weight: bold; font-size: 0.85rem; cursor: pointer; transition: 0.2s;">📋 Copiar</button>
+                <a id="btn-wa" href="#" target="_top" style="flex: 2; padding: 10px; background: #25D366; color: #fff; border: none; border-radius: 8px; font-weight: bold; font-size: 0.85rem; text-decoration: none; display: flex; justify-content: center; align-items: center; transition: 0.2s;">📲 Enviar por WhatsApp</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    function changeMode() {
+        const isGym = document.querySelector('input[name="mode"]:checked').value === 'gym';
+        document.getElementById('lbl-cali').style.color = isGym ? '#999' : '#fff';
+        document.getElementById('lbl-cali').style.background = isGym ? 'transparent' : '#c5a059';
+        document.getElementById('lbl-cali').style.color = isGym ? '#999' : '#0c0d10';
+        document.getElementById('lbl-cali').style.fontWeight = isGym ? 'normal' : 'bold';
+        
+        document.getElementById('lbl-gym').style.color = isGym ? '#0c0d10' : '#999';
+        document.getElementById('lbl-gym').style.background = isGym ? '#c5a059' : 'transparent';
+        document.getElementById('lbl-gym').style.fontWeight = isGym ? 'bold' : 'normal';
+
+        document.getElementById('weight-label').innerText = isGym ? 'Peso en la Barra (kg)' : 'Lastre / Peso Extra (kg)';
+    }
+
+    // Inicializar colores
+    document.getElementById('lbl-cali').style.background = '#c5a059';
+    document.getElementById('lbl-cali').style.color = '#0c0d10';
+    document.getElementById('lbl-cali').style.fontWeight = 'bold';
+
+    function calculate1RM() {
+        const isGym = document.querySelector('input[name="mode"]:checked').value === 'gym';
+        const bw = parseFloat(document.getElementById('bw').value) || 0;
+        const added = parseFloat(document.getElementById('added').value) || 0;
+        const reps = parseFloat(document.getElementById('reps').value) || 0;
+        
+        if (bw === 0 || reps === 0) return;
+        
+        // En calistenia se levanta cuerpo + lastre. En gimnasio se levanta solo la barra.
+        const totalWeightLifted = isGym ? added : (bw + added);
+        
+        // Fórmula de Epley para sacar el RM del ejercicio
+        const rm = totalWeightLifted * (1 + (reps / 30));
+        
+        // Fuerza Relativa siempre es respecto al peso corporal para dar el rango V&V
+        const relative = rm / bw;
+        
+        document.getElementById('res-1rm').innerText = rm.toFixed(1) + ' kg';
+        
+        let level = "";
+        if (relative < 1.0) level = "Veta en Construcción 🌱";
+        else if (relative < 1.4) level = "Veta Dura 🪵";
+        else if (relative < 1.8) level = "Veta ExtraDura 💎";
+        else level = "Leyenda Vigorosa 👑";
+        
+        document.getElementById('res-level').innerText = level;
+
+        // Actualizar el link de WhatsApp dinámicamente
+        const modality = isGym ? "Gimnasio" : "Calistenia";
+        const shareText = `¡Acabo de medir mi fuerza máxima en Veta & Vigor! 🔥\n\n💪 Modalidad: ${modality}\n🏋️‍♂️ Récord Estimado: ${rm.toFixed(1)} kg\n👑 Mi Nivel: ${level}\n\nÚnete a la élite del entrenamiento.`;
+        document.getElementById('btn-wa').href = "whatsapp://send?text=" + encodeURIComponent(shareText);
+
+        document.getElementById('result-box').style.display = 'block';
+    }
+
+    function copyResult() {
+        const rmText = document.getElementById('res-1rm').innerText;
+        const levelText = document.getElementById('res-level').innerText;
+        const isGym = document.querySelector('input[name="mode"]:checked').value === 'gym';
+        const modality = isGym ? "Gimnasio" : "Calistenia";
+
+        const shareText = `¡Acabo de medir mi fuerza máxima en Veta & Vigor! 🔥\n\n💪 Modalidad: ${modality}\n🏋️‍♂️ Récord Estimado: ${rmText}\n👑 Mi Nivel: ${levelText}\n\nÚnete a la élite del entrenamiento.`;
+
+        const tempTextArea = document.createElement("textarea");
+        tempTextArea.value = shareText;
+        tempTextArea.style.position = "fixed";
+        tempTextArea.style.top = "0";
+        tempTextArea.style.left = "0";
+        tempTextArea.style.opacity = "0";
+        document.body.appendChild(tempTextArea);
+        
+        tempTextArea.select();
+        tempTextArea.setSelectionRange(0, 99999); 
+
+        try {
+            document.execCommand("copy");
+            alert("✅ ¡Récord copiado al portapapeles!");
+        } catch (err) {
+            console.log("No se pudo copiar", err);
+        }
+        
+        document.body.removeChild(tempTextArea);
+    }
+    </script>
+</body>
+</html>
