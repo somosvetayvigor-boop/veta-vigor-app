@@ -12,7 +12,7 @@ export default defineConfig({
         importScripts: ['https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.sw.js'],
         runtimeCaching: [
           {
-            urlPattern: /^https:\/\/(supabase\.co|.*\.supabase\.co)\/.*$/,
+            urlPattern: /^https:\/\/.*\.supabase\.co\/storage\/v1\/object\/public\/.*$/,
             handler: 'CacheFirst',
             options: {
               cacheName: 'supabase-images-cache',
