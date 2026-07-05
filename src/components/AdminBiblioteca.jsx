@@ -134,17 +134,38 @@ export default function AdminBiblioteca() {
               <div style={{ flex: 1 }}>
                 <h4 style={{ margin: '0 0 8px 0', fontSize: '1rem', color: 'white' }}>{item.nombre}</h4>
                 
-                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '6px 12px', background: 'rgba(212, 175, 55, 0.1)', color: 'var(--accent-gold)', borderRadius: '6px', fontSize: '0.85rem', cursor: 'pointer', border: '1px solid rgba(212, 175, 55, 0.3)' }}>
-                  {uploadingId === item.id ? <Loader2 size={14} className="spin" /> : <Edit2 size={14} />}
-                  {uploadingId === item.id ? 'Subiendo...' : 'Cambiar Foto'}
-                  <input 
-                    type="file" 
-                    accept="image/*" 
-                    onChange={(e) => handleImageUpload(e, item.id)} 
-                    style={{ display: 'none' }} 
-                    disabled={uploadingId === item.id}
-                  />
-                </label>
+                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '6px 12px', background: 'rgba(212, 175, 55, 0.1)', color: 'var(--accent-gold)', borderRadius: '6px', fontSize: '0.85rem', cursor: 'pointer', border: '1px solid rgba(212, 175, 55, 0.3)' }}>
+                    {uploadingId === item.id ? <Loader2 size={14} className="spin" /> : <Edit2 size={14} />}
+                    {uploadingId === item.id ? 'Subiendo...' : 'Cambiar Foto'}
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      onChange={(e) => handleImageUpload(e, item.id)} 
+                      style={{ display: 'none' }} 
+                      disabled={uploadingId === item.id}
+                    />
+                  </label>
+
+                  {item.imagen_url && (
+                    <button 
+                      onClick={async () => {
+                        if (!window.confirm("¿Seguro que quieres quitar esta imagen?")) return;
+                        setUploadingId(item.id);
+                        const tableName = activeTab === 'ejercicios' ? 'ejercicios_biblioteca' : 'sistemas_entrenamiento';
+                        const { error } = await supabase.from(tableName).update({ imagen_url: null }).eq('id', item.id);
+                        if (!error) {
+                          setItems(items.map(i => i.id === item.id ? { ...i, imagen_url: null } : i));
+                        }
+                        setUploadingId(null);
+                      }}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '6px 12px', background: 'rgba(229, 80, 57, 0.1)', color: '#e55039', borderRadius: '6px', fontSize: '0.85rem', cursor: 'pointer', border: '1px solid rgba(229, 80, 57, 0.3)' }}
+                      disabled={uploadingId === item.id}
+                    >
+                      Quitar Imagen
+                    </button>
+                  )}
+                </div>
               </div>
 
             </div>
