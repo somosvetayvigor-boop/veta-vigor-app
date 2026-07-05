@@ -177,7 +177,7 @@ export default function Paywall() {
       } else {
         // Compra en PWA (Web) -> Redirigir a Landing Page de Stripe
         // Aquí puedes cambiar el URL a tu dominio real de la landing page
-        const landingPageUrl = "https://vetayvigor.com"; // <-- REEMPLAZAR CON TU URL REAL
+        const landingPageUrl = "https://vetayvigor.com/#membresias"; // <-- REEMPLAZAR CON TU URL REAL
         
         if (window.confirm("Serás redirigido a nuestra página oficial para realizar tu pago de forma segura. ¿Continuar?")) {
            window.open(landingPageUrl, '_blank');
