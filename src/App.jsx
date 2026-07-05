@@ -505,7 +505,7 @@ function App() {
         });
 
         // Track ultimo ingreso y revisar si hay un RESET forzado por el admin
-        supabase.from('perfiles').select('nivel, plan_membresia, foto_antes').eq('id', session.user.id).single().then(({ data }) => {
+        supabase.from('perfiles').select('nivel, plan_membresia, foto_antes, foto_despues, avatar_url').eq('id', session.user.id).single().then(({ data }) => {
           if (data?.nivel === 'RESET') {
             // Borrar el progreso local del usuario (onboarding)
             supabase.auth.updateUser({ data: { onboarding_complete: false, cuestionario_complete: false, expediente_completado: false } }).then(() => {
@@ -528,6 +528,17 @@ function App() {
           // Sincronizar expediente_completado si ya subieron foto en el pasado y no lo tienen en auth
           if (data?.foto_antes && !session.user.user_metadata?.expediente_completado) {
             updates.expediente_completado = true;
+          }
+
+          // Sincronizar fotos entre dispositivos
+          if (data?.foto_antes && data.foto_antes !== session.user.user_metadata?.foto_antes) {
+            updates.foto_antes = data.foto_antes;
+          }
+          if (data?.foto_despues && data.foto_despues !== session.user.user_metadata?.foto_despues) {
+            updates.foto_despues = data.foto_despues;
+          }
+          if (data?.avatar_url && data.avatar_url !== session.user.user_metadata?.avatar_url) {
+            updates.avatar_url = data.avatar_url;
           }
 
           if (Object.keys(updates).length > 0) {
