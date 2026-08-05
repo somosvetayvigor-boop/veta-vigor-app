@@ -66,7 +66,7 @@ export default function UserChatModal({ onClose, session, chatId }) {
           if (prev.find(m => m.id === payload.new.id)) return prev;
           return [...prev, payload.new];
         });
-        if (payload.new.emisor_id !== session.user.id) {
+        if (payload.new.emisor_id !== session?.user.id) {
           marcarMensajesComoVistos(chat.id);
         }
       })
@@ -90,7 +90,7 @@ export default function UserChatModal({ onClose, session, chatId }) {
       .from('mensajes_coaching')
       .update({ visto: true })
       .eq('chat_id', cId)
-      .neq('emisor_id', session.user.id);
+      .neq('emisor_id', session?.user.id);
   };
 
   const handleImageSelect = (e) => {
@@ -136,7 +136,7 @@ export default function UserChatModal({ onClose, session, chatId }) {
       .from('mensajes_coaching')
       .insert([{
         chat_id: chat.id,
-        emisor_id: session.user.id,
+        emisor_id: session?.user.id,
         mensaje: nuevoMensaje.trim() || '📸 Foto',
         imagen_url: imageUrl
       }]);
@@ -177,7 +177,7 @@ export default function UserChatModal({ onClose, session, chatId }) {
         {/* Messages */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
           {mensajes.map(msg => {
-            const isMe = msg.emisor_id === session.user.id;
+            const isMe = msg.emisor_id === session?.user.id;
             return (
               <div key={msg.id} style={{ alignSelf: isMe ? 'flex-end' : 'flex-start', maxWidth: '85%' }}>
                 <div style={{ fontSize: '0.75rem', color: isMe ? 'transparent' : 'var(--accent-gold)', marginBottom: '3px', fontWeight: 'bold' }}>

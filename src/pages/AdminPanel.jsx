@@ -7,12 +7,14 @@ import AdminAtletas from '../components/AdminAtletas';
 import AdminReportes from '../components/AdminReportes';
 import AdminArticulos from '../components/AdminArticulos';
 import AdminBiblioteca from '../components/AdminBiblioteca';
-import { Newspaper } from 'lucide-react';
+import AdminEntrenadores from '../components/AdminEntrenadores';
+import AdminRetos from '../components/AdminRetos';
+import { Newspaper, Flame, Send } from 'lucide-react';
 
 export default function AdminPanel({ session }) {
   const navigate = useNavigate();
   const isAdmin = session?.user?.email === 'somos.vetayvigor@gmail.com';
-  const [activeTab, setActiveTab] = useState('atletas'); // atletas, sistemas, reportes, biblioteca
+  const [activeTab, setActiveTab] = useState('retos'); // entrenadores, atletas, sistemas, reportes, biblioteca, articulos, retos
 
   if (!isAdmin) {
     return (
@@ -37,13 +39,40 @@ export default function AdminPanel({ session }) {
       {/* Tabs */}
       <div style={{ display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '10px', marginBottom: '20px' }}>
         <button 
+          onClick={() => setActiveTab('retos')} 
+          style={{ 
+            background: activeTab === 'retos' ? 'var(--accent-gold)' : 'rgba(255,255,255,0.1)', 
+            color: activeTab === 'retos' ? 'black' : 'white',
+            padding: '10px 15px', borderRadius: '8px', border: 'none', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap'
+          }}>
+          <Flame size={18} /> Retos 21 Días
+        </button>
+        <button 
+          onClick={() => setActiveTab('motor')} 
+          style={{ 
+            background: activeTab === 'motor' ? '#e55039' : 'rgba(255,255,255,0.1)', 
+            color: activeTab === 'motor' ? 'white' : 'white',
+            padding: '10px 15px', borderRadius: '8px', border: 'none', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap'
+          }}>
+          <Send size={18} /> Motor Push
+        </button>
+        <button 
+          onClick={() => setActiveTab('entrenadores')} 
+          style={{ 
+            background: activeTab === 'entrenadores' ? 'var(--accent-gold)' : 'rgba(255,255,255,0.1)', 
+            color: activeTab === 'entrenadores' ? 'black' : 'white',
+            padding: '10px 15px', borderRadius: '8px', border: 'none', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap'
+          }}>
+          <Users size={18} /> Entrenadores
+        </button>
+        <button 
           onClick={() => setActiveTab('atletas')} 
           style={{ 
             background: activeTab === 'atletas' ? 'var(--accent-gold)' : 'rgba(255,255,255,0.1)', 
             color: activeTab === 'atletas' ? 'black' : 'white',
             padding: '10px 15px', borderRadius: '8px', border: 'none', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap'
           }}>
-          <Users size={18} /> Atletas Registrados
+          <Users size={18} /> Atletas Normales
         </button>
         <button 
           onClick={() => setActiveTab('sistemas')} 
@@ -84,6 +113,41 @@ export default function AdminPanel({ session }) {
       </div>
 
       {/* Tab Content */}
+      {activeTab === 'motor' && (
+        <div style={{ background: '#1a1a1e', border: '1px solid #e55039', borderRadius: '12px', padding: '20px', marginBottom: '20px' }}>
+          <h2 style={{ color: 'white', marginTop: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Send color="#e55039" /> Central del Motor Push
+          </h2>
+          <p style={{ color: 'var(--text-muted)' }}>
+            El motor de notificaciones del Reto 21 Días funciona automáticamente cada hora evaluando las fechas y misiones pendientes.
+            Sin embargo, puedes forzar una ejecución manual aquí como contingencia. La seguridad de idempotencia evitará que se envíen mensajes duplicados.
+          </p>
+          <div style={{ display: 'flex', justifyContent: 'flex-start', marginTop: '20px' }}>
+            <button 
+              onClick={async () => {
+                if (window.confirm("¿Estás seguro de ejecutar el motor push ahora? Se evaluarán todas las reglas de fecha y hora actual.")) {
+                  try {
+                    const res = await fetch('/api/cron_reto21', { method: 'POST', headers: { 'Authorization': 'Bearer secret-vigor-21' } });
+                    const data = await res.json();
+                    alert("Motor ejecutado. Revisa la consola (F12) para ver los logs detallados.");
+                    console.log("Logs del Motor Push:", data.logs);
+                  } catch (e) {
+                    alert("Error ejecutando motor: " + e.message);
+                  }
+                }
+              }}
+              style={{ background: '#e55039', color: 'white', border: 'none', padding: '15px 25px', borderRadius: '8px', fontWeight: 'bold', fontSize: '1.1rem', cursor: 'pointer' }}
+            >
+              Ejecutar Motor Manualmente
+            </button>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'retos' && <AdminRetos />}
+
+      {activeTab === 'entrenadores' && <AdminEntrenadores />}
+
       {activeTab === 'atletas' && <AdminAtletas session={session} />}
 
       {activeTab === 'sistemas' && <AdminGestorSistemas />}

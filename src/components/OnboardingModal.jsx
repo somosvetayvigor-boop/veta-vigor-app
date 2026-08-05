@@ -10,6 +10,7 @@ export default function OnboardingModal({ session, onComplete }) {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [showPhotoPrompt, setShowPhotoPrompt] = useState(false);
+  const [step, setStep] = useState(1); // 1 = Datos basicos, 2 = Rol
 
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files[0]) {
@@ -55,7 +56,7 @@ export default function OnboardingModal({ session, onComplete }) {
       // 1. Upload Avatar if selected
       if (avatarFile) {
         const fileExt = avatarFile.name.split('.').pop();
-        const fileName = `${session.user.id}-${Math.random()}.${fileExt}`;
+        const fileName = `${session?.user.id}-${Math.random()}.${fileExt}`;
         const filePath = `${fileName}`;
 
         const { error: uploadError } = await supabase.storage
@@ -76,12 +77,12 @@ export default function OnboardingModal({ session, onComplete }) {
         .from('perfiles')
         .upsert([
           { 
-            id: session.user.id, 
+            id: session?.user.id, 
             username: username.toLowerCase().trim(), 
             avatar_url: avatar_url,
             display_preference: displayPref,
-            email: session.user.email,
-            full_name: session.user.user_metadata?.nombre || session.user.user_metadata?.nombre_completo || ''
+            email: session?.user.email,
+            full_name: session?.user.user_metadata?.nombre || session?.user.user_metadata?.nombre_completo || ''
           }
         ], { onConflict: 'id' });
 
@@ -92,23 +93,46 @@ export default function OnboardingModal({ session, onComplete }) {
         throw profileError;
       }
 
-      // 3. Update auth metadata so we know onboarding is done and we have the data
+      // 3. Instead of completing onboarding, move to step 2
+      setStep(2);
+    } catch (error) {
+      console.error(error);
+      setErrorMsg("Ocurrió un error al guardar tu perfil.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRoleSelection = async (role) => {
+    setLoading(true);
+    try {
+      // Set role in perfiles table
+      await supabase.from('perfiles').update({ rol_usuario: role }).eq('id', session?.user.id);
+      
+      // Update local storage
+      localStorage.setItem('user_role', role);
+
+      // Finish onboarding
       const { error: updateError } = await supabase.auth.updateUser({
         data: { 
           onboarding_complete: true,
           username: username.toLowerCase().trim(),
-          avatar_url: avatar_url,
           display_preference: displayPref
         }
       });
 
       if (updateError) throw updateError;
-
-      // Finish
-      onComplete();
-
+      
+      // Llamamos a onComplete para que el componente padre cierre el modal o siga con el cuestionario
+      if (onComplete) {
+        onComplete();
+      } else {
+        // Fallback: recargar la pagina
+        window.location.reload();
+      }
     } catch (error) {
-      setErrorMsg(error.message || "Ocurrió un error al guardar tu perfil.");
+      console.error(error);
+      setErrorMsg("Ocurrió un error al guardar tu rol.");
     } finally {
       setLoading(false);
     }
@@ -130,9 +154,10 @@ export default function OnboardingModal({ session, onComplete }) {
           Configura tu identidad en Veta & Vigor.
         </p>
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          
-          {/* Avatar Upload */}
+        {step === 1 ? (
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            
+            {/* Avatar Upload */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <div 
               onClick={handlePhotoTap}
@@ -146,7 +171,7 @@ export default function OnboardingModal({ session, onComplete }) {
               {avatarPreview ? (
                 <img src={avatarPreview} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               ) : session?.user?.user_metadata?.avatar_url ? (
-                <img src={session.user.user_metadata.avatar_url} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <img src={session?.user.user_metadata.avatar_url} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               ) : (
                 <Camera size={30} color="var(--accent-gold)" />
               )}
@@ -258,8 +283,46 @@ export default function OnboardingModal({ session, onComplete }) {
             }}
           >
             <LogOut size={16} /> Cerrar Sesión
-          </button>
-        </form>
+            </button>
+          </form>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginTop: '10px' }}>
+            <h3 style={{ textAlign: 'center', marginBottom: '5px' }}>¿Cuál es tu objetivo en la app?</h3>
+            <p style={{ color: 'var(--text-muted)', textAlign: 'center', fontSize: '0.9rem', marginBottom: '10px' }}>
+              Elige cómo usarás Veta & Vigor. Podrás cambiar esto más adelante en tu perfil.
+            </p>
+
+            <button 
+              onClick={() => handleRoleSelection('atleta_normal')}
+              disabled={loading}
+              style={{ background: 'linear-gradient(135deg, rgba(212, 175, 55, 0.15) 0%, rgba(0,0,0,0.5) 100%)', border: '1px solid var(--accent-gold)', padding: '20px', borderRadius: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', cursor: 'pointer', position: 'relative', overflow: 'hidden' }}
+            >
+              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '4px', background: 'var(--accent-gold)' }}></div>
+              <div style={{ background: 'rgba(212, 175, 55, 0.2)', padding: '15px', borderRadius: '50%' }}>
+                <i className="fa-solid fa-dumbbell" style={{ fontSize: '24px', color: 'var(--accent-gold)' }}></i>
+              </div>
+              <h4 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--accent-gold)' }}>Quiero Entrenar</h4>
+              <p style={{ margin: 0, fontSize: '0.85rem', color: '#ccc', textAlign: 'center' }}>
+                Busco mejorar mi físico, cumplir misiones y participar en la comunidad.
+              </p>
+              <div style={{ background: 'var(--accent-gold)', color: 'black', padding: '3px 10px', borderRadius: '10px', fontSize: '0.7rem', fontWeight: 'bold', marginTop: '5px' }}>Opción Recomendada</div>
+            </button>
+
+            <button 
+              onClick={() => handleRoleSelection('entrenador')}
+              disabled={loading}
+              style={{ background: 'var(--bg-card)', border: '1px solid rgba(255,255,255,0.1)', padding: '20px', borderRadius: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', cursor: 'pointer' }}
+            >
+              <div style={{ background: 'rgba(255,255,255,0.05)', padding: '15px', borderRadius: '50%' }}>
+                <i className="fa-solid fa-users" style={{ fontSize: '24px', color: 'white' }}></i>
+              </div>
+              <h4 style={{ margin: 0, fontSize: '1.1rem', color: 'white' }}>Soy Entrenador</h4>
+              <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)', textAlign: 'center' }}>
+                Quiero usar el Panel de Coach para profesionalizar y gestionar a mis propios alumnos.
+              </p>
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

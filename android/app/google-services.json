@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1087025286969",
+    "project_id": "veta-y-vigor-f4aa8",
+    "storage_bucket": "veta-y-vigor-f4aa8.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1087025286969:android:416f5b953722143b77a2e8",
+        "android_client_info": {
+          "package_name": "dev.workers.somos_vetayvigor.vetayvigor_assetlinks.twa"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC0174D2VOOy5JMO3DIJqkMFUYB0qDsi4Y"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

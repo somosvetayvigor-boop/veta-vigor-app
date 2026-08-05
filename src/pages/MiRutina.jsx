@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
-import { Loader, PlayCircle, CalendarDays, Coffee, Edit3, X, ChevronRight, Music, Zap, Lock } from 'lucide-react';
+import { Loader, PlayCircle, CalendarDays, Coffee, Edit3, X, ChevronRight, Music, Zap, Lock, Headphones } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import ExpedienteModal from '../components/ExpedienteModal';
 import DescansoActivoModal from '../components/DescansoActivoModal';
+import { requestNotificationPermissions, scheduleTrainingReminder, cancelTrainingReminder, scheduleDailyMotivation } from '../utils/notifications';
+import { DatabaseManager } from '../utils/DatabaseManager';
 
 export default function MiRutina({ session }) {
   const navigate = useNavigate();
@@ -16,6 +18,9 @@ export default function MiRutina({ session }) {
   const [allCalendarios, setAllCalendarios] = useState({});
   const [diasEntrenadosSemana, setDiasEntrenadosSemana] = useState(0);
   const [totalEntrenamientos, setTotalEntrenamientos] = useState(0);
+  const [racha, setRacha] = useState(0);
+  const [isFreeUser, setIsFreeUser] = useState(true);
+  const [coachBrand, setCoachBrand] = useState(null);
   const [ultimoEntrenamiento, setUltimoEntrenamiento] = useState(null);
 
   // Estados para modales
@@ -46,32 +51,91 @@ export default function MiRutina({ session }) {
 
   const checkTodayStatus = async () => {
     try {
-      if (!navigator.onLine) {
-        // Modo offline: Asumimos que ya hizo checkin o saltamos la comprobación
-        // para que pueda ver sus rutinas descargadas en caché
-        setHasCheckedInToday(true);
-        await loadRutinas();
-        return;
-      }
-
       const today = new Date();
       const todayStr = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
-
-      const { data, error } = await supabase
-        .from('checkins')
-        .select('id')
-        .eq('user_id', session.user.id)
-        .eq('fecha', todayStr)
-        .maybeSingle();
-
-      if (error && error.code !== 'PGRST116') throw error; 
       
-      if (data) {
+      // 1. Check local cache IMMEDIATELY to prevent modal from showing on timeout
+      const localCheckin = await DatabaseManager.getCheckin(session?.user.id, todayStr);
+      if (localCheckin) {
         setHasCheckedInToday(true);
       }
-      await loadRutinas();
+
+      const initPromise = (async () => {
+        if (!navigator.onLine) {
+          setHasCheckedInToday(true);
+          await loadRutinas();
+          return;
+        }
+
+        const { data, error } = await supabase
+          .from('checkins')
+          .select('id, nivel')
+          .eq('user_id', session?.user.id)
+          .eq('fecha', todayStr)
+          .maybeSingle();
+
+        if (error && error.code !== 'PGRST116') throw error; 
+        
+        if (data) {
+          setHasCheckedInToday(true);
+          await DatabaseManager.saveCheckin(session?.user.id, todayStr, data.nivel || 3);
+        }
+        
+        // Calcular Racha (Llama Viva)
+        const { data: allCheckins, error: checkinsError } = await supabase
+          .from('checkins')
+          .select('fecha')
+          .eq('user_id', session?.user.id)
+          .order('fecha', { ascending: false })
+          .limit(30);
+          
+        if (!checkinsError && allCheckins) {
+          let currentStreak = 0;
+          let checkDate = new Date();
+          const hasToday = allCheckins.some(c => c.fecha === todayStr);
+          if (!hasToday) checkDate.setDate(checkDate.getDate() - 1);
+          
+          let usedToken = false;
+
+          for (let i = 0; i < 30; i++) {
+            const dateStr = checkDate.getFullYear() + '-' + String(checkDate.getMonth() + 1).padStart(2, '0') + '-' + String(checkDate.getDate()).padStart(2, '0');
+            if (allCheckins.some(c => c.fecha === dateStr)) {
+              currentStreak++;
+              checkDate.setDate(checkDate.getDate() - 1);
+            } else {
+              if (!usedToken) {
+                const { data: inv } = await supabase
+                  .from('inventario_usuarios')
+                  .select('id, tienda_items!inner(nombre)')
+                  .eq('user_id', session?.user.id)
+                  .eq('tienda_items.nombre', 'Ficha de Reposo')
+                  .limit(1);
+                  
+                if (inv && inv.length > 0) {
+                  const fichaId = inv[0].id;
+                  await supabase.from('inventario_usuarios').delete().eq('id', fichaId);
+                  await supabase.from('checkins').insert([{ user_id: session?.user.id, fecha: dateStr, nivel: 3 }]);
+                  
+                  currentStreak++;
+                  checkDate.setDate(checkDate.getDate() - 1);
+                  usedToken = true;
+                  setTimeout(() => alert("¡El Gremio ha consumido tu Ficha de Reposo! Tu Llama Viva ha sido salvada del frío."), 2000);
+                  continue;
+                }
+              }
+              break;
+            }
+          }
+          setRacha(currentStreak);
+        }
+
+        await loadRutinas();
+      })();
+
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000));
+      await Promise.race([initPromise, timeoutPromise]);
     } catch (error) {
-      console.error("Error fetching checkin status:", error);
+      console.warn("Network timeout or error on startup, falling back to cache:", error);
     } finally {
       setLoading(false);
     }
@@ -79,43 +143,58 @@ export default function MiRutina({ session }) {
 
   const loadRutinas = async () => {
     try {
-      const metadata = session.user.user_metadata;
-      let nivel = metadata?.nivel;
-      const sistemaId = metadata?.sistema_activo;
-      const dias = metadata?.dias_entrenamiento || '>3';
+      const metadata = session?.user.user_metadata || {};
+      const userRole = localStorage.getItem('user_role') || 'atleta_normal';
+      const isAlumno = userRole === 'alumno_entrenador';
 
-      // 0. Fetch Real Subscription
+      // 0. Fetch Real Source of Truth (siempre usar BD central para evitar bugs de tokens caducados)
       const { data: perfilData } = await supabase
         .from('perfiles')
-        .select('plan_membresia, calendario_personalizado')
-        .eq('id', session.user.id)
+        .select('plan_membresia, calendario_personalizado, sistema_activo, nivel, dias_entrenamiento')
+        .eq('id', session?.user.id)
         .single();
+
+      let nivel = isAlumno ? 'Entrenador' : (perfilData?.nivel || metadata?.nivel);
+      // Para los alumnos, su calendario se guarda bajo la clave 'entrenador'
+      const sistemaId = isAlumno ? 'entrenador' : (perfilData?.sistema_activo || metadata?.sistema_activo);
+      const dias = isAlumno ? '7' : (perfilData?.dias_entrenamiento || metadata?.dias_entrenamiento || '>3');
         
       const suscripcionReal = perfilData?.plan_membresia || metadata?.suscripcion || metadata?.plan_membresia;
       const isAdmin = session?.user?.email === 'somos.vetayvigor@gmail.com';
-      const hasPaidPlan = ['Socio Argentum', 'Socio Aurum', 'Plan Platinum', 'Socio Fundador Vitalicio'].includes(suscripcionReal);
+      const isEntrenador = localStorage.getItem('user_role') === 'entrenador';
+      const hasPaidPlan = suscripcionReal?.includes('Pro') || suscripcionReal?.includes('Élite') || ['Socio Argentum', 'Socio Aurum', 'Plan Platinum', 'Socio Fundador Vitalicio', 'Prueba Gratis (7 Días)'].includes(suscripcionReal);
       const isFreeUser = !isAdmin && !hasPaidPlan;
 
       // Si es usuario gratis, solo le corresponde la rutina de regalo (Semilla)
-      if (isFreeUser && nivel && !['Semilla', 'General'].includes(nivel)) {
+      if (isFreeUser && nivel && !['Semilla', 'General'].includes(nivel) && !isAlumno) {
         nivel = 'Semilla';
       }
 
-      if (!nivel || !sistemaId) return;
+      if (!nivel || !sistemaId) {
+        if (!isFreeUser) navigate('/sistemas');
+        return;
+      }
 
       const cacheKey = `veta_vigor_mis_datos_${sistemaId}`;
 
-      // 1. Intentar cargar de caché si estamos offline
-      if (!navigator.onLine) {
-        const cached = localStorage.getItem(cacheKey);
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          setTodasRutinas(parsed.todasRutinas || []);
-          setCustomCal(parsed.customCal || {});
-          setAllCalendarios(parsed.allCalendarios || {});
-          setDiasEntrenadosSemana(parsed.diasEntrenadosSemana || 0);
-          buildCalendar(parsed.todasRutinas || [], dias, parsed.customCal || {});
+      // 1. Intentar cargar de caché INMEDIATAMENTE para evitar pantallas de carga largas
+      const cached = await DatabaseManager.getRoutines(sistemaId);
+      if (cached) {
+        try {
+          if (cached && cached.todasRutinas) {
+            setTodasRutinas(cached.todasRutinas || []);
+            setCustomCal(cached.customCal || {});
+            setAllCalendarios(cached.allCalendarios || {});
+            setDiasEntrenadosSemana(cached.diasEntrenadosSemana || 0);
+            buildCalendar(cached.todasRutinas || [], dias, cached.customCal || {});
+            setLoading(false); // Libera la UI inmediatamente gracias al caché
+          }
+        } catch(e) {
+          console.warn("Cache corrupto, ignorando.");
         }
+      }
+
+      if (!navigator.onLine) {
         return;
       }
 
@@ -130,7 +209,7 @@ export default function MiRutina({ session }) {
       const { data: historial } = await supabase
         .from('historial_entrenamientos')
         .select('created_at')
-        .eq('user_id', session.user.id)
+        .eq('user_id', session?.user.id)
         .gte('created_at', startOfWeek.toISOString());
 
       const trainedDays = historial ? new Set(historial.map(h => h.created_at.split('T')[0])).size : 0;
@@ -140,7 +219,7 @@ export default function MiRutina({ session }) {
       const { data: historialTotal } = await supabase
         .from('historial_entrenamientos')
         .select('created_at')
-        .eq('user_id', session.user.id)
+        .eq('user_id', session?.user.id)
         .order('created_at', { ascending: false });
 
       if (historialTotal && historialTotal.length > 0) {
@@ -158,25 +237,43 @@ export default function MiRutina({ session }) {
       setCustomCal(savedCustomCal);
 
       // 3. Cargar rutinas
-      const { data, error } = await supabase
-        .from('rutinas')
-        .select('*')
-        .eq('nivel', nivel)
-        .eq('sistema_id', sistemaId)
-        .order('nombre');
+      let data = [];
+      let error = null;
+      if (isAlumno) {
+        const routineIds = Object.values(savedCustomCal).filter(id => id);
+        if (routineIds.length > 0) {
+          const res = await supabase.from('rutinas').select('*').in('id', routineIds);
+          data = res.data;
+          error = res.error;
+        }
+
+        // Fetch coach brand
+        const { data: rel } = await supabase.from('relacion_entrenador_alumno').select('perfiles!relacion_entrenador_alumno_entrenador_id_fkey(full_name, logo_entrenador)').eq('alumno_id', session?.user.id).eq('estado', 'activo').single();
+        if (rel?.perfiles) {
+          setCoachBrand({ name: rel.perfiles.full_name, logo: rel.perfiles.logo_entrenador });
+        }
+      } else {
+        const res = await supabase
+          .from('rutinas')
+          .select('*')
+          .or(`and(nivel.eq.${nivel},sistema_id.eq.${sistemaId}),user_id.eq.${session?.user.id}`)
+          .order('nombre');
+        data = res.data;
+        error = res.error;
+      }
 
       if (error) throw error;
       
-      setTodasRutinas(data);
-      buildCalendar(data, dias, savedCustomCal);
+      setTodasRutinas(data || []);
+      buildCalendar(data || [], dias, savedCustomCal);
 
       // Guardar en caché
-      localStorage.setItem(cacheKey, JSON.stringify({ 
+      await DatabaseManager.saveRoutines(sistemaId, { 
         todasRutinas: data || [], 
         customCal: savedCustomCal, 
         allCalendarios: allCals,
         diasEntrenadosSemana: trainedDays
-      }));
+      });
 
       // Cargar artículos de explora
       const { data: artData } = await supabase
@@ -192,6 +289,15 @@ export default function MiRutina({ session }) {
   };
 
   const buildCalendar = (rutinas, dias, custom) => {
+    const isAlumno = localStorage.getItem('user_role') === 'alumno_entrenador';
+    const hasCustomRoutines = Object.values(custom).some(id => id);
+    
+    // Si es alumno y el entrenador no le ha asignado ninguna rutina, el calendario está vacío
+    if (isAlumno && !hasCustomRoutines) {
+      setSemana([]);
+      return;
+    }
+
     let completas = rutinas.filter(r => r.nombre.toLowerCase().includes('completo') || r.enfoque?.toLowerCase().includes('completo'));
     let superiores = rutinas.filter(r => r.nombre.toLowerCase().includes('superior'));
     let inferiores = rutinas.filter(r => r.nombre.toLowerCase().includes('inferior'));
@@ -264,14 +370,14 @@ export default function MiRutina({ session }) {
     setShowModal(false);
     
     try {
-      const sistemaId = session.user.user_metadata?.sistema_activo;
+      const sistemaId = session?.user.user_metadata?.sistema_activo;
       const newCustomCal = { ...customCal, [diaToChange]: rutinaId };
       const updatedDB = { ...allCalendarios, [sistemaId]: newCustomCal };
       
       const { error } = await supabase
         .from('perfiles')
         .update({ calendario_personalizado: updatedDB })
-        .eq('id', session.user.id);
+        .eq('id', session?.user.id);
         
       if (error) throw error;
       
@@ -279,7 +385,7 @@ export default function MiRutina({ session }) {
       setAllCalendarios(updatedDB);
       
       // Rebuild ui
-      const dias = session.user.user_metadata?.dias_entrenamiento || '>3';
+      const dias = session?.user.user_metadata?.dias_entrenamiento || '>3';
       buildCalendar(todasRutinas, dias, newCustomCal);
     } catch (err) {
       console.error("Error updating custom calendar", err);
@@ -294,34 +400,45 @@ export default function MiRutina({ session }) {
     try {
       const today = new Date();
       const todayStr = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+      
+      // Guardar en cache local INMEDIATAMENTE
+      await DatabaseManager.saveCheckin(session?.user.id, todayStr, disposicion);
+      
+      // Optimistically let the user in to avoid being trapped on errors
+      setHasCheckedInToday(true);
 
       if (!navigator.onLine) {
         const { addToOfflineQueue } = await import('../utils/OfflineManager');
-        addToOfflineQueue('INSERT_CHECKIN', { user_id: session.user.id, nivel: disposicion, fecha: todayStr });
-        setHasCheckedInToday(true);
+        addToOfflineQueue('INSERT_CHECKIN', { user_id: session?.user.id, nivel: disposicion, fecha: todayStr });
         return;
       }
 
       const { error } = await supabase
         .from('checkins')
         .insert([
-          { user_id: session.user.id, nivel: disposicion, fecha: todayStr }
+          { user_id: session?.user.id, nivel: disposicion, fecha: todayStr }
         ]);
 
-      if (error) throw error;
-      setHasCheckedInToday(true);
+      if (error) {
+        // Log the error but don't throw to prevent unhandled rejection state
+        console.warn("Supabase checkin error (likely stale token or network). Queuing offline.", error);
+        const { addToOfflineQueue } = await import('../utils/OfflineManager');
+        addToOfflineQueue('INSERT_CHECKIN', { user_id: session?.user.id, nivel: disposicion, fecha: todayStr });
+      }
     } catch (error) {
       console.error("Error saving checkin:", error);
+      // Failsafe ensure user isn't trapped
+      setHasCheckedInToday(true);
     } finally {
       setSaving(false);
     }
   };
 
   if (loading && semana.length === 0) {
-    return <div style={{ display: 'flex', height: '80vh', justifyContent: 'center', alignItems: 'center' }}><Loader className="fa-spin gold-gradient-text" size={40} /></div>;
+    return <div style={{ display: 'flex', height: '80vh', justifyContent: 'center', alignItems: 'center' }}><Loader className="gold-gradient-text" style={{ animation: 'rotate 1s linear infinite' }} color="#D4AF37" size={40} /></div>;
   }
 
-  const nivel = session.user.user_metadata?.nivel || "Asignado";
+  const nivel = session?.user.user_metadata?.nivel || "Asignado";
 
   if (!hasCheckedInToday) {
     return (
@@ -335,7 +452,7 @@ export default function MiRutina({ session }) {
           
           {saving && (
             <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 10, display: 'flex', justifyContent: 'center', alignItems: 'center', borderRadius: '16px' }}>
-              <Loader className="fa-spin gold-gradient-text" size={40} />
+              <Loader className="gold-gradient-text" style={{ animation: 'rotate 1s linear infinite' }} color="#D4AF37" size={40} />
             </div>
           )}
 
@@ -393,25 +510,57 @@ export default function MiRutina({ session }) {
     );
   }
 
+  // --- Renderizado de la Llama Viva ---
+  const renderLlamaViva = () => {
+    const isCold = racha === 0;
+    const color = isCold ? '#888' : (racha >= 5 ? '#ff4757' : 'var(--accent-gold)');
+    const mensaje = isCold ? 'Tu llama se apaga...' : `La Llama Viva: ${racha} ${racha === 1 ? 'día' : 'días'}`;
+    const icon = isCold ? '❄️' : '🔥';
+    
+    return (
+      <div style={{ background: '#1c1c20', padding: '15px 20px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', border: isCold ? '1px solid #333' : `1px solid ${color}` }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+          <div style={{ fontSize: '1.8rem', animation: isCold ? 'none' : 'pulse 2s infinite' }}>{icon}</div>
+          <div>
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>La Llama Viva</div>
+            <div style={{ fontSize: '1rem', fontWeight: 'bold', color: '#fff' }}>{mensaje}</div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // --- Renderizado del Semáforo ---
   const renderSemaforo = () => {
-    const metaStr = session.user.user_metadata?.dias_entrenamiento || '>3';
-    const goalDays = metaStr === '3' ? 3 : 4;
+    const isAlumno = localStorage.getItem('user_role') === 'alumno_entrenador';
+    const metaStr = session?.user.user_metadata?.dias_entrenamiento || '>3';
+    
+    // Si es alumno, la meta son los días que el entrenador le asignó (rutinas personalizadas activas)
+    let goalDays = 4;
+    if (isAlumno) {
+      goalDays = Object.values(customCal).filter(id => id).length;
+      if (goalDays === 0) goalDays = 1; // Para evitar división entre 0 si no tiene rutina aún
+    } else {
+      goalDays = metaStr === '3' ? 3 : 4;
+    }
     
     let color = '#e55039'; // Rojo por defecto
     let mensaje = '¡Arranca tu semana!';
+    
+    const porcentaje = diasEntrenadosSemana / goalDays;
 
-    if (goalDays === 3) {
-      if (diasEntrenadosSemana === 0) { color = '#e55039'; mensaje = 'Sin actividad'; }
-      else if (diasEntrenadosSemana === 1) { color = '#f6b93b'; mensaje = '1 de 3 días'; } // Amarillo
-      else if (diasEntrenadosSemana === 2) { color = '#f6b93b'; mensaje = '2 de 3 días'; } // Amarillo
-      else if (diasEntrenadosSemana >= 3) { color = '#78e08f'; mensaje = '¡Meta Alcanzada!'; } // Verde
+    if (diasEntrenadosSemana === 0) {
+      color = '#e55039'; // Rojo
+      mensaje = 'Sin actividad';
+    } else if (porcentaje >= 1) {
+      color = '#78e08f'; // Verde
+      mensaje = '¡Meta Alcanzada!';
+    } else if (porcentaje >= 0.5) {
+      color = '#f6b93b'; // Amarillo
+      mensaje = `${diasEntrenadosSemana} de ${goalDays} días`;
     } else {
-      if (diasEntrenadosSemana === 0) { color = '#e55039'; mensaje = 'Sin actividad'; }
-      else if (diasEntrenadosSemana === 1) { color = '#fa8231'; mensaje = '1 de 4 días'; } // Naranja
-      else if (diasEntrenadosSemana === 2) { color = '#f6b93b'; mensaje = '2 de 4 días'; } // Amarillo
-      else if (diasEntrenadosSemana === 3) { color = '#f6b93b'; mensaje = '3 de 4 días'; } // Amarillo
-      else if (diasEntrenadosSemana >= 4) { color = '#78e08f'; mensaje = '¡Meta Alcanzada!'; } // Verde
+      color = '#fa8231'; // Naranja
+      mensaje = `${diasEntrenadosSemana} de ${goalDays} días`;
     }
 
     return (
@@ -435,13 +584,27 @@ export default function MiRutina({ session }) {
 
   const renderFraseDelDia = () => {
     const frases = [
-      { text: "Ningún ciudadano tiene derecho a ser un aficionado en el entrenamiento físico. Qué desgracia es para un hombre envejecer sin ver la belleza y la fuerza de la que su cuerpo es capaz.", author: "Sócrates" },
-      { text: "El descanso no es la pausa del progreso, es el taller silencioso donde la fuerza se asienta y el cuerpo se reconstruye.", author: "VETA & VIGOR" },
-      { text: "El dolor de la disciplina pesa onzas, el dolor del arrepentimiento pesa toneladas. Tú eliges qué peso levantar hoy.", author: "Jim Rohn" },
-      { text: "El árbol más fuerte no crece en un ambiente controlado; desarrolla su mejor madera bajo los vientos más duros.", author: "VETA & VIGOR" },
-      { text: "Aquel que conquista a los demás es fuerte; pero aquel que se conquista a sí mismo y domina su propio peso, es verdaderamente poderoso.", author: "Lao Tse" },
-      { text: "No somos lo que hacemos de vez en cuando, somos lo que hacemos repetidamente. La excelencia, entonces, no es un acto, es un hábito.", author: "Aristóteles" },
-      { text: "La madera revela su verdadera veta al ser trabajada; el atleta revela su verdadero vigor al ser probado.", author: "Filosofía V&V" }
+      { text: "Raíces Profundas: Antes de intentar elevarte, asegúrate de que tu base sea inquebrantable. Toda gran estructura comienza desde el suelo.", author: "Filosofía V&V" },
+      { text: "La Veta del Carácter: Así como la madera revela su historia y resistencia en sus vetas, tu cuerpo y tu mente reflejan la disciplina inquebrantable de tus hábitos.", author: "Filosofía V&V" },
+      { text: "Estructura Interna Oculta: La verdadera fuerza no siempre se ve por fuera. Se sostiene sobre tendones reforzados, articulaciones sanas y una voluntad de acero que soporta cualquier carga.", author: "Filosofía V&V" },
+      { text: "Progreso Orgánico: El crecimiento real toma tiempo y consistencia, igual que un árbol fuerte. No hay atajos para la verdadera maestría.", author: "Filosofía V&V" },
+      { text: "Solidez Estructural: Cuida tu postura en cada repetición. Un cuerpo correctamente alineado es capaz de soportar y generar fuerzas extraordinarias.", author: "Filosofía V&V" },
+      { text: "Resiliencia ante la Fricción: El roce, la resistencia y el esfuerzo constante no te desgastan; son las herramientas que pulen tu mejor versión.", author: "Filosofía V&V" },
+      { text: "El Poder del Reposo: El descanso no es debilidad. Es el espacio necesario donde las fibras se reparan y la fuerza se asienta.", author: "Filosofía V&V" },
+      { text: "Fuerza Natural: Tu propio cuerpo es la máquina más sofisticada que existe. Domínalo por completo antes de buscar cargas externas.", author: "Filosofía V&V" },
+      { text: "Vigor Inagotable: La verdadera fuerza no es un estallido momentáneo de energía, es la capacidad de sostener el esfuerzo día tras día.", author: "Filosofía V&V" },
+      { text: "Gravedad como Maestra: No luches contra la gravedad; úsala a tu favor para esculpir tu fuerza y desafiar tus propios límites.", author: "Filosofía V&V" },
+      { text: "Consistencia de Roble: Preséntate a entrenar incluso en los días donde la motivación escasea. El vigor se construye cuando la disciplina supera a la pereza.", author: "Filosofía V&V" },
+      { text: "Forjando el Núcleo: Toda la fuerza de tus extremidades nace de un centro (core) estable y poderoso. Trabaja tu centro como el tronco que sostiene tus ramas.", author: "Filosofía V&V" },
+      { text: "Vencer la Resistencia: Cada punto de estancamiento, cada repetición que falla, es simplemente el paso previo a romper tu límite anterior.", author: "Filosofía V&V" },
+      { text: "Sin Excusas, Sin Adornos: Tu cuerpo, el suelo y unas barras son todo lo que necesitas. La simplicidad del entorno exige la máxima complejidad del esfuerzo.", author: "Filosofía V&V" },
+      { text: "Conexión Mente-Músculo: El movimiento perfecto nace cuando la intención de tu mente y la contracción de tus fibras son una sola entidad.", author: "Filosofía V&V" },
+      { text: "Calidad sobre Cantidad: Una repetición ejecutada con técnica impecable y control absoluto vale más que diez hechas con pura inercia.", author: "Filosofía V&V" },
+      { text: "Tensión Isométrica: Aprende a encontrar el poder absoluto en la quietud. Sostener tu cuerpo en el espacio requiere un control mental tan fuerte como el físico.", author: "Filosofía V&V" },
+      { text: "Simetría y Equilibrio: Busca siempre la armonía en tu entrenamiento. Equilibra la tensión y la relajación, el empuje y el tirón, la mente y el músculo.", author: "Filosofía V&V" },
+      { text: "Fluidez del Movimiento: El objetivo final de la calistenia es que lo increíblemente difícil se vea suave y natural, como si el esfuerzo no existiera.", author: "Filosofía V&V" },
+      { text: "Adaptabilidad Constante: Si un ángulo es demasiado exigente, ajusta la palanca, respira y vuelve a intentar. Sé flexible en el método, pero rígido en la meta.", author: "Filosofía V&V" },
+      { text: "Legado en Movimiento: No entrenes solo para la foto de hoy. Entrena con Veta y Vigor para que tu cuerpo te responda con poder, movilidad y libertad el resto de tu vida.", author: "Filosofía V&V" }
     ];
     // Seleccionar frase basada en el día del año
     const dayOfYear = Math.floor((new Date() - new Date(new Date().getFullYear(), 0, 0)) / 1000 / 60 / 60 / 24);
@@ -456,14 +619,14 @@ export default function MiRutina({ session }) {
   };
 
   const renderStatsCard = () => {
-    const nivelName = session.user.user_metadata?.nivel || 'Semilla';
-    const cicloActual = parseInt(session.user.user_metadata?.ciclo_entrenamientos) || 0;
-    const frecuencia = session.user.user_metadata?.dias_entrenamiento || '>3';
+    const nivelName = session?.user.user_metadata?.nivel || 'Semilla';
+    const cicloActual = parseInt(session?.user.user_metadata?.ciclo_entrenamientos) || 0;
+    const frecuencia = session?.user.user_metadata?.dias_entrenamiento || '>3';
     const metaCiclo = frecuencia === '3' ? 18 : 24;
     
     // Obtener la fuerza máxima real guardada por la calculadora de 1RM
-    const fuerzaSup = parseFloat(session.user.user_metadata?.fuerza_tren_superior) || 0;
-    const fuerzaInf = parseFloat(session.user.user_metadata?.fuerza_tren_inferior) || 0;
+    const fuerzaSup = parseFloat(session?.user.user_metadata?.fuerza_tren_superior) || 0;
+    const fuerzaInf = parseFloat(session?.user.user_metadata?.fuerza_tren_inferior) || 0;
     const fuerzaMaxima = Math.max(fuerzaSup, fuerzaInf);
     const fuerzaMaximaStr = fuerzaMaxima > 0 ? `${fuerzaMaxima.toFixed(2)} KG` : 'Sin registros';
     
@@ -475,11 +638,19 @@ export default function MiRutina({ session }) {
       ultimaFechaStr = dateObj.toLocaleDateString('es-ES', opciones);
     }
 
+    const isAlumnoCoach = localStorage.getItem('user_role') === 'alumno_entrenador';
+
     return (
       <div className="card" style={{ marginBottom: '20px', padding: '15px 20px', background: 'linear-gradient(145deg, #15151a 0%, #1a1a24 100%)', border: '1px solid rgba(212, 175, 55, 0.15)' }}>
-        <h2 style={{ fontSize: '1.4rem', color: '#fff', margin: '0 0 15px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          Tu Nivel 💪 <span className="gold-gradient-text">{nivelName}</span> 💥
-        </h2>
+        {!isAlumnoCoach ? (
+          <h2 style={{ fontSize: '1.4rem', color: '#fff', margin: '0 0 15px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            Tu Madera 💪 <span className="gold-gradient-text">{nivelName}</span> 💥
+          </h2>
+        ) : (
+          <h2 style={{ fontSize: '1.4rem', color: '#fff', margin: '0 0 15px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            Tus Estadísticas 📊
+          </h2>
+        )}
         
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', color: '#e0e0e0', fontSize: '0.95rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -488,23 +659,25 @@ export default function MiRutina({ session }) {
             <strong style={{ color: '#fff' }}>{ultimaFechaStr}</strong>
           </div>
           
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span>⚡</span> 
-              <span style={{ color: 'var(--text-muted)' }}>Ciclo de nivel:</span> 
-              <strong style={{ color: '#fff' }}>{cicloActual} / {metaCiclo}</strong>
+          {!isAlumnoCoach && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span>⚡</span> 
+                <span style={{ color: 'var(--text-muted)' }}>Ciclo de madera:</span> 
+                <strong style={{ color: '#fff' }}>{cicloActual} / {metaCiclo}</strong>
+              </div>
+              {/* Barra de Progreso Dinámica */}
+              <div style={{ width: '100%', height: '8px', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: '4px', marginTop: '2px', overflow: 'hidden' }}>
+                <div style={{ 
+                  width: `${Math.min(100, Math.max(0, (cicloActual / metaCiclo) * 100))}%`, 
+                  height: '100%', 
+                  background: 'var(--accent-gold)', 
+                  borderRadius: '4px', 
+                  transition: 'width 0.5s ease-in-out'
+                }} />
+              </div>
             </div>
-            {/* Barra de Progreso Dinámica */}
-            <div style={{ width: '100%', height: '8px', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: '4px', marginTop: '2px', overflow: 'hidden' }}>
-              <div style={{ 
-                width: `${Math.min(100, Math.max(0, (cicloActual / metaCiclo) * 100))}%`, 
-                height: '100%', 
-                background: 'var(--accent-gold)', 
-                borderRadius: '4px', 
-                transition: 'width 0.5s ease-in-out'
-              }} />
-            </div>
-          </div>
+          )}
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <span>🏆</span> 
@@ -526,15 +699,26 @@ export default function MiRutina({ session }) {
   const suscripcion = session?.user?.user_metadata?.suscripcion || session?.user?.user_metadata?.plan_membresia;
   
   const esVIP = isAdmin ||
-                ['Socio Argentum', 'Socio Aurum', 'Plan Platinum', 'Socio Fundador Vitalicio'].includes(suscripcion);
-
+                localStorage.getItem('user_role') === 'alumno_entrenador' ||
+                suscripcion?.includes('Entrenador Pro') ||
+                suscripcion?.includes('Entrenador Élite') ||
+                ['Socio Argentum', 'Socio Aurum', 'Plan Platinum', 'Socio Fundador Vitalicio', 'Prueba Gratis (7 Días)'].includes(suscripcion);
   return (
     <div className="container" style={{ paddingBottom: '90px' }}>
-      <h1 className="gold-gradient-text" style={{ fontSize: '2rem', marginBottom: '15px', marginTop: '20px', textAlign: 'center' }}>Mi Calendario</h1>
+      {coachBrand?.logo ? (
+        <div style={{ textAlign: 'center', marginTop: '20px', marginBottom: '15px' }}>
+          <img src={coachBrand.logo} alt={coachBrand.name} style={{ height: '50px', objectFit: 'contain' }} />
+          <h1 className="gold-gradient-text" style={{ fontSize: '1.2rem', marginTop: '10px' }}>Mi Calendario</h1>
+          <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>by {coachBrand.name}</p>
+        </div>
+      ) : (
+        <h1 className="gold-gradient-text" style={{ fontSize: '2rem', marginBottom: '15px', marginTop: '20px', textAlign: 'center' }}>Mi Calendario</h1>
+      )}
       
       {esVIP && renderFraseDelDia()}
       {esVIP && renderStatsCard()}
       
+      {esVIP && renderLlamaViva()}
       {esVIP && renderSemaforo()}
       
       {/* Botones de Playlists */}
@@ -627,7 +811,7 @@ export default function MiRutina({ session }) {
             </button>
             
             <h2 className="gold-gradient-text" style={{ margin: '0 0 5px 0', fontSize: '1.4rem' }}>
-              Cambiar Rutina
+              Cambiar Misión
             </h2>
             <p style={{ color: 'var(--text-muted)', marginBottom: '20px' }}>
               Elige una alternativa compatible para el Día {diaToChange + 1}.
@@ -659,6 +843,28 @@ export default function MiRutina({ session }) {
                   <ChevronRight size={20} color="var(--accent-gold)" />
                 </div>
               ))}
+              
+              {localStorage.getItem('user_role') !== 'alumno_entrenador' && (
+                <button 
+                  onClick={() => {
+                    const isAdmin = session?.user?.email === 'somos.vetayvigor@gmail.com';
+                    const suscripcion = session?.user?.user_metadata?.suscripcion || session?.user?.user_metadata?.plan_membresia;
+                    const userRole = localStorage.getItem('user_role') || 'atleta_normal';
+                    const esPro = isAdmin || suscripcion?.includes('Pro') || suscripcion?.includes('Élite') || ['Socio Argentum', 'Socio Aurum', 'Plan Platinum', 'Socio Fundador Vitalicio', 'Prueba Gratis (7 Días)'].includes(suscripcion);
+                    
+                    const misPersonalizadas = todasRutinas.filter(r => r.user_id === session?.user?.id);
+                    if (!esPro && misPersonalizadas.length >= 1) {
+                      alert('Con el plan gratuito solo puedes crear 1 misión personalizada. Adquiere una suscripción para crear misiones ilimitadas.');
+                      return;
+                    }
+                    navigate('/crear-rutina');
+                  }}
+                  className="btn-primary" 
+                  style={{ marginTop: '10px', padding: '12px' }}
+                >
+                  + Crear Misión Personalizada
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -671,19 +877,25 @@ export default function MiRutina({ session }) {
         <h1 className="gold-gradient-text" style={{ fontSize: '1.8rem', margin: 0 }}>Tu Calendario V&V</h1>
       </div>
       <p style={{ color: 'var(--text-muted)' }}>
-        Nivel <strong>{nivel}</strong>. Aquí tienes la estructura óptima para tu semana. Sigue el orden de los días.
+        Madera <strong>{nivel}</strong>. Aquí tienes la estructura óptima para tu semana. Sigue el orden de los días.
       </p>
       
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '20px' }}>
         {semana.length === 0 ? (
           <div className="card" style={{ padding: '30px', textAlign: 'center' }}>
-            {!esVIP ? (
+            {localStorage.getItem('user_role') === 'alumno_entrenador' ? (
+              <>
+                <CalendarDays size={40} color="var(--accent-gold)" style={{ marginBottom: '15px' }} />
+                <h3 className="gold-gradient-text" style={{ fontSize: '1.2rem', marginBottom: '10px' }}>Esperando a tu Entrenador</h3>
+                <p style={{ color: 'var(--text-muted)' }}>Tu Coach Vigor aún no ha programado tus misiones para esta semana. ¡Vuelve pronto!</p>
+              </>
+            ) : !esVIP ? (
               <>
                 <Lock size={40} color="var(--accent-gold)" style={{ marginBottom: '15px' }} />
                 <h3 className="gold-gradient-text" style={{ fontSize: '1.2rem', marginBottom: '10px' }}>Tu Calendario está Bloqueado</h3>
                 <p style={{ color: 'var(--text-muted)' }}>Para seguir un plan de entrenamiento completo y registrar tu progreso, adquiere una membresía VIP.</p>
                 <button onClick={() => navigate('/sistemas')} className="btn-primary" style={{ marginTop: '15px' }}>
-                  Ir a Sistemas para ver mi Rutina de Regalo
+                  Ir a Sistemas para ver mi Misión de Regalo
                 </button>
               </>
             ) : (
@@ -707,7 +919,16 @@ export default function MiRutina({ session }) {
             }
 
             const handleEnterRoutine = (id) => {
-              const meta = session.user.user_metadata || {};
+              // 1. Validar si ya entrenó hoy
+              const todayStr = new Date().toLocaleDateString();
+              const lastTrainedStr = ultimoEntrenamiento ? new Date(ultimoEntrenamiento).toLocaleDateString() : null;
+              
+              if (todayStr === lastTrainedStr && session?.user?.email !== 'somos.vetayvigor@gmail.com') {
+                alert('¡Ya completaste una misión hoy! Debes esperar a mañana para realizar tu siguiente entrenamiento. ¡Tu cuerpo necesita descanso para asimilar el esfuerzo!');
+                return;
+              }
+
+              const meta = session?.user.user_metadata || {};
               if (!meta.expediente_completado) {
                 setShowExpediente(true);
                 return;
@@ -734,7 +955,7 @@ export default function MiRutina({ session }) {
                   <h4 style={{ margin: '0 0 3px 0', color: 'var(--accent-gold)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px' }}>
                     Día {index + 1}
                   </h4>
-                  <h3 style={{ margin: '0 0 5px 0', fontSize: '1.15rem', color: '#fff' }}>{dia?.nombre || 'Rutina'}</h3>
+                  <h3 style={{ margin: '0 0 5px 0', fontSize: '1.15rem', color: '#fff' }}>{dia?.nombre || 'Misión'}</h3>
                   <span className="badge" style={{ fontSize: '0.7rem' }}>{dia?.enfoque || 'Cuerpo Completo'}</span>
                 </div>
                 
@@ -757,6 +978,70 @@ export default function MiRutina({ session }) {
             );
           })
         )}
+      </div>
+
+      {/* BOTON CREAR RUTINA EN EL CALENDARIO PRINCIPAL */}
+      {localStorage.getItem('user_role') !== 'alumno_entrenador' && (
+        <div style={{ marginTop: '20px', padding: '0 5px' }}>
+          <button 
+            onClick={() => {
+              const isAdmin = session?.user?.email === 'somos.vetayvigor@gmail.com';
+              const suscripcion = session?.user?.user_metadata?.suscripcion || session?.user?.user_metadata?.plan_membresia;
+              const userRole = localStorage.getItem('user_role') || 'atleta_normal';
+              const esPro = isAdmin || suscripcion?.includes('Pro') || suscripcion?.includes('Élite') || ['Socio Argentum', 'Socio Aurum', 'Plan Platinum', 'Socio Fundador Vitalicio', 'Prueba Gratis (7 Días)'].includes(suscripcion);
+              
+              const misPersonalizadas = todasRutinas.filter(r => r.user_id === session?.user?.id);
+              if (!esPro && misPersonalizadas.length >= 1) {
+                alert('Con el plan gratuito solo puedes crear 1 misión personalizada. Adquiere una suscripción para crear misiones ilimitadas.');
+                return;
+              }
+              navigate('/crear-rutina');
+            }}
+            className="btn-primary" 
+            style={{ width: '100%', padding: '15px', display: 'flex', justifyContent: 'center', gap: '10px', fontSize: '1rem', background: 'linear-gradient(45deg, #2c2c2c, #1a1a1a)', border: '1px dashed var(--accent-gold)' }}
+          >
+            <span style={{ color: 'var(--accent-gold)' }}>+</span> Crear Rutina Personalizada
+          </button>
+        </div>
+      )}
+
+      {/* BANNER DE ASTROLABION */}
+      <div style={{ marginTop: '30px', padding: '0 5px' }}>
+        <div 
+          onClick={() => window.open('https://play.google.com/store/apps/details?id=com.astrolabiobooks.app.twa', '_blank')}
+          style={{
+            background: 'linear-gradient(135deg, #0f2027, #203a43, #2c5364)',
+            borderRadius: '16px',
+            padding: '20px',
+            position: 'relative',
+            overflow: 'hidden',
+            cursor: 'pointer',
+            boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
+            border: '1px solid rgba(255,255,255,0.1)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '12px'
+          }}
+        >
+          {/* Overlay brillante */}
+          <div style={{ position: 'absolute', top: '-50%', left: '-50%', width: '200%', height: '200%', background: 'radial-gradient(circle, rgba(255,255,255,0.05) 0%, transparent 60%)', opacity: 0.8, pointerEvents: 'none' }} />
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', zIndex: 1 }}>
+            <div style={{ padding: '2px', background: 'rgba(255,255,255,0.1)', borderRadius: '12px', backdropFilter: 'blur(5px)', display: 'flex' }}>
+              <img src="/astrolabio-logo.jpg" alt="Astrolabio Logo" style={{ width: '32px', height: '32px', borderRadius: '10px', objectFit: 'cover' }} />
+            </div>
+            <h3 style={{ margin: 0, color: '#fff', fontSize: '1.2rem', fontWeight: 'bold' }}>Astrolabio</h3>
+          </div>
+          
+          <p style={{ margin: 0, color: 'rgba(255,255,255,0.85)', fontSize: '0.95rem', lineHeight: '1.5', zIndex: 1 }}>
+            Este contenido premium de audio está disponible en <strong>Astrolabio</strong>, nuestra app dedicada al crecimiento personal y mentalidad.
+          </p>
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '5px', zIndex: 1 }}>
+            <span style={{ color: '#00d2ff', fontSize: '0.9rem', fontWeight: 'bold' }}>¡Descárgala gratis y escucha el episodio!</span>
+            <ChevronRight size={18} color="#00d2ff" />
+          </div>
+        </div>
       </div>
 
       {/* EXPLORA V&V (ARTICULOS) */}

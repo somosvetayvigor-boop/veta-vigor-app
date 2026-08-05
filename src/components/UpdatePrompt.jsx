@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 
 const UpdatePrompt = () => {
@@ -7,11 +7,10 @@ const UpdatePrompt = () => {
     updateServiceWorker,
   } = useRegisterSW({
     onRegistered(r) {
-      // Opcional: checar periódicamente por actualizaciones
       if (r) {
         setInterval(() => {
           r.update();
-        }, 60 * 60 * 1000); // Revisar cada hora
+        }, 60 * 60 * 1000);
       }
     },
     onRegisterError(error) {
@@ -19,7 +18,51 @@ const UpdatePrompt = () => {
     },
   });
 
+  const isUpdating = useRef(false);
+  const [updateText, setUpdateText] = useState('Actualizar');
+
   if (!needRefresh) return null;
+
+  const handleUpdate = async () => {
+    if (isUpdating.current) return;
+    isUpdating.current = true;
+    setUpdateText('Actualizando...');
+
+    try {
+      // Step 1: Try the standard approach first
+      await updateServiceWorker(true);
+      
+      // Step 2: Brave fallback — if controllerchange didn't fire within 1.5s,
+      // do a hard nuclear reset: unregister ALL SWs, clear ALL caches, then reload
+      setTimeout(async () => {
+        try {
+          // Unregister all service workers so Brave doesn't serve stale content
+          const registrations = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(registrations.map(r => r.unregister()));
+          
+          // Delete all caches
+          const cacheNames = await caches.keys();
+          await Promise.all(cacheNames.map(name => caches.delete(name)));
+        } catch (e) {
+          console.log('Brave fallback cleanup error (non-critical):', e);
+        }
+        
+        // Force a full reload bypassing any remaining cache
+        // The SW will re-register automatically on next load via vite-plugin-pwa
+        window.location.href = window.location.origin + window.location.pathname + '?_sw_update=' + Date.now();
+      }, 1500);
+    } catch (e) {
+      console.log('SW update error, forcing hard reload:', e);
+      // Last resort: just nuke everything
+      try {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(registrations.map(r => r.unregister()));
+        const cacheNames = await caches.keys();
+        await Promise.all(cacheNames.map(name => caches.delete(name)));
+      } catch (_) {}
+      window.location.href = window.location.origin + window.location.pathname + '?_sw_update=' + Date.now();
+    }
+  };
 
   return (
     <div style={{
@@ -51,10 +94,11 @@ const UpdatePrompt = () => {
           X
         </button>
         <button 
-          style={{ backgroundColor: 'var(--accent-gold)', color: '#000', padding: '5px 15px', borderRadius: '15px', fontWeight: 'bold' }}
-          onClick={() => updateServiceWorker(true)}
+          style={{ backgroundColor: 'var(--accent-gold)', color: '#000', padding: '5px 15px', borderRadius: '15px', fontWeight: 'bold', cursor: 'pointer' }}
+          onClick={handleUpdate}
+          disabled={isUpdating.current}
         >
-          Actualizar
+          {updateText}
         </button>
       </div>
     </div>

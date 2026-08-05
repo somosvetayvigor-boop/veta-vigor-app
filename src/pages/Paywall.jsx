@@ -5,15 +5,23 @@ import { Purchases } from '@revenuecat/purchases-capacitor';
 import { Capacitor } from '@capacitor/core';
 import { supabase } from '../supabaseClient';
 
-export default function Paywall() {
+export default function Paywall({ forced = false, onDismiss = null }) {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [packages, setPackages] = useState([]);
   const [session, setSession] = useState(null);
+  const [currentPlan, setCurrentPlan] = useState('');
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
+      if (session?.user) {
+        const metaPlan = session.user.user_metadata?.suscripcion || session.user.user_metadata?.plan_membresia || '';
+        if (metaPlan) setCurrentPlan(metaPlan);
+        supabase.from('perfiles').select('plan_membresia').eq('id', session.user.id).single().then(({ data }) => {
+          if (data?.plan_membresia) setCurrentPlan(data.plan_membresia);
+        });
+      }
     });
 
     const fetchOfferings = async () => {
@@ -21,8 +29,12 @@ export default function Paywall() {
         if (Capacitor.isNativePlatform()) {
           const offerings = await Purchases.getOfferings();
           if (offerings.current !== null && offerings.current.availablePackages.length !== 0) {
-            console.log("Offerings loaded:", offerings.current.availablePackages);
-            setPackages(offerings.current.availablePackages);
+            const athletePackages = offerings.current.availablePackages.filter(pkg => {
+              const id = pkg.product.identifier.toLowerCase();
+              return !id.includes('pro') && !id.includes('elite') && !id.includes('élite');
+            });
+            console.log("Athlete Offerings loaded:", athletePackages);
+            setPackages(athletePackages);
           }
         }
       } catch (e) {
@@ -148,8 +160,16 @@ export default function Paywall() {
       })
     : hardcodedPlans;
 
-  // Ordenar para que Vitalicio siempre quede al final si queremos (opcional),
-  // pero ya vienen en el orden del array de RevenueCat, lo cual es ideal.
+  const isCurrentPlan = (plan) => {
+    if (!currentPlan) return false;
+    const cp = currentPlan.toLowerCase();
+    const pName = (plan.name || '').toLowerCase();
+    const pId = (plan.id || '').toLowerCase();
+    if (cp.includes('argentum') && (pName.includes('argentum') || pId.includes('argentum'))) return true;
+    if (cp.includes('aurum') && (pName.includes('aurum') || pId.includes('platinum_anual'))) return true;
+    if ((cp.includes('vitalicio') || cp.includes('platinum')) && (pName.includes('vitalicio') || pId.includes('vitalicio') || pName.includes('platinum'))) return true;
+    return cp === pName;
+  };
 
   const handlePurchase = async (plan) => {
     setLoading(true);
@@ -167,7 +187,7 @@ export default function Paywall() {
         else if (productId === 'argentum_mensual:base-mensual') newPlanName = 'Socio Argentum';
 
         if (newPlanName && session?.user?.id) {
-           await supabase.from('perfiles').update({ plan_membresia: newPlanName }).eq('id', session.user.id);
+           await supabase.from('perfiles').update({ plan_membresia: newPlanName }).eq('id', session?.user.id);
            await supabase.auth.updateUser({ data: { suscripcion: newPlanName } });
            alert(`¡Pago exitoso! Bienvenido a Veta & Vigor ${newPlanName}`);
            window.location.reload();
@@ -193,9 +213,27 @@ export default function Paywall() {
     }
   };
 
+  const isForced = forced || new URLSearchParams(window.location.search).get('forced') === 'true';
+
+  const handleNotNow = async () => {
+    if (session?.user?.id) {
+      await supabase.from('perfiles').update({
+        force_paywall: false,
+        last_paywall_shown_date: new Date().toISOString()
+      }).eq('id', session.user.id);
+    }
+    if (onDismiss) {
+      onDismiss();
+    } else {
+      navigate('/');
+    }
+  };
+
   return (
     <div style={{
       minHeight: '100vh',
+      height: '100vh',
+      overflowY: 'auto',
       backgroundColor: 'var(--bg-dark)',
       color: 'var(--text-light)',
       paddingBottom: '40px',
@@ -208,27 +246,29 @@ export default function Paywall() {
         padding: '40px 20px',
         textAlign: 'center'
       }}>
-        <button 
-          onClick={() => navigate(-1)}
-          style={{
-            position: 'absolute',
-            top: '20px',
-            left: '20px',
-            background: 'rgba(0,0,0,0.5)',
-            border: 'none',
-            color: 'white',
-            borderRadius: '50%',
-            width: '40px',
-            height: '40px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            zIndex: 10
-          }}
-        >
-          <ArrowLeft size={24} />
-        </button>
+        {!isForced && (
+          <button 
+            onClick={() => navigate(-1)}
+            style={{
+              position: 'absolute',
+              top: '20px',
+              left: '20px',
+              background: 'rgba(0,0,0,0.5)',
+              border: 'none',
+              color: 'white',
+              borderRadius: '50%',
+              width: '40px',
+              height: '40px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              zIndex: 10
+            }}
+          >
+            <ArrowLeft size={24} />
+          </button>
+        )}
         
         <Crown size={48} color="var(--accent-gold)" style={{ margin: '0 auto 15px' }} />
         <h1 style={{ fontSize: '2.5rem', fontWeight: 'bold', margin: '0 0 10px 0' }}>
@@ -248,73 +288,94 @@ export default function Paywall() {
         maxWidth: '500px',
         margin: '0 auto'
       }}>
-        {displayPlans.map((plan) => (
-          <div key={plan.id} style={{
-            background: 'var(--bg-card)',
-            borderRadius: '16px',
-            padding: '25px',
-            border: plan.popular ? '2px solid var(--accent-gold)' : '1px solid rgba(255,255,255,0.1)',
-            position: 'relative',
-            boxShadow: plan.popular ? '0 0 20px rgba(197, 160, 89, 0.2)' : 'none',
-            overflow: 'hidden'
-          }}>
-            {plan.popular && (
-              <div style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                background: 'var(--accent-gold)',
-                color: 'black',
-                textAlign: 'center',
-                padding: '4px',
-                fontSize: '0.8rem',
-                fontWeight: 'bold',
-                letterSpacing: '1px',
-                textTransform: 'uppercase'
-              }}>
-                Cupos Limitados 💎
-              </div>
-            )}
+        {displayPlans.map((plan) => {
+          const active = isCurrentPlan(plan);
+          return (
+            <div key={plan.id} style={{
+              background: 'var(--bg-card)',
+              borderRadius: '16px',
+              padding: '25px',
+              border: active ? '2px solid #4ade80' : (plan.popular ? '2px solid var(--accent-gold)' : '1px solid rgba(255,255,255,0.1)'),
+              position: 'relative',
+              boxShadow: active ? '0 0 20px rgba(74, 222, 128, 0.2)' : (plan.popular ? '0 0 20px rgba(197, 160, 89, 0.2)' : 'none'),
+              overflow: 'hidden'
+            }}>
+              {active ? (
+                <div style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  background: '#4ade80',
+                  color: 'black',
+                  textAlign: 'center',
+                  padding: '4px',
+                  fontSize: '0.8rem',
+                  fontWeight: 'bold',
+                  letterSpacing: '1px',
+                  textTransform: 'uppercase'
+                }}>
+                  ✅ TU PLAN ACTUAL
+                </div>
+              ) : plan.popular && (
+                <div style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  background: 'var(--accent-gold)',
+                  color: 'black',
+                  textAlign: 'center',
+                  padding: '4px',
+                  fontSize: '0.8rem',
+                  fontWeight: 'bold',
+                  letterSpacing: '1px',
+                  textTransform: 'uppercase'
+                }}>
+                  Cupos Limitados 💎
+                </div>
+              )}
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginTop: plan.popular ? '15px' : '0', marginBottom: '15px' }}>
-              <div style={{
-                width: '50px',
-                height: '50px',
-                borderRadius: '50%',
-                background: 'rgba(255,255,255,0.05)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                border: `1px solid ${plan.color}`
-              }}>
-                {plan.icon}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginTop: (active || plan.popular) ? '15px' : '0', marginBottom: '15px' }}>
+                <div style={{
+                  width: '50px',
+                  height: '50px',
+                  borderRadius: '50%',
+                  background: 'rgba(255,255,255,0.05)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  border: `1px solid ${active ? '#4ade80' : plan.color}`
+                }}>
+                  {plan.icon}
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 'bold', color: active ? '#4ade80' : 'white' }}>{plan.name}</h3>
+                  <span style={{ fontSize: '0.8rem', color: '#aaa' }}>{plan.subtitle}</span>
+                </div>
               </div>
-              <div>
-                <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 'bold' }}>{plan.name}</h3>
-                <span style={{ fontSize: '0.8rem', color: '#aaa' }}>{plan.subtitle}</span>
+
+              <div style={{ marginBottom: '20px' }}>
+                <span style={{ fontSize: '2.5rem', fontWeight: 'bold' }}>{plan.price}</span>
+                <span style={{ fontSize: '1rem', color: '#aaa', marginLeft: '5px' }}>{plan.period}</span>
               </div>
-            </div>
 
-            <div style={{ marginBottom: '20px' }}>
-              <span style={{ fontSize: '2.5rem', fontWeight: 'bold' }}>{plan.price}</span>
-              <span style={{ fontSize: '1rem', color: '#aaa', marginLeft: '5px' }}>{plan.period}</span>
-            </div>
-
-            <button
-              onClick={() => handlePurchase(plan)}
-              disabled={loading}
-              className="btn-primary"
-              style={{
-                width: '100%',
-                background: plan.popular ? 'var(--accent-gold)' : 'rgba(255,255,255,0.1)',
-                color: plan.popular ? 'black' : 'white',
-                border: plan.popular ? 'none' : '1px solid rgba(255,255,255,0.2)',
-                marginBottom: '25px'
-              }}
-            >
-              {loading ? 'Procesando...' : (plan.popular ? 'Adquirir Vitalicio' : 'Suscribirse')}
-            </button>
+              <button
+                onClick={() => !active && handlePurchase(plan)}
+                disabled={loading || active}
+                className="btn-primary"
+                style={{
+                  width: '100%',
+                  background: active ? 'rgba(74, 222, 128, 0.15)' : (plan.popular ? 'var(--accent-gold)' : 'rgba(255,255,255,0.1)'),
+                  color: active ? '#4ade80' : (plan.popular ? 'black' : 'white'),
+                  border: active ? '1px solid #4ade80' : (plan.popular ? 'none' : '1px solid rgba(255,255,255,0.2)'),
+                  marginBottom: '25px',
+                  cursor: active ? 'default' : 'pointer',
+                  fontWeight: 'bold'
+                }}
+              >
+                {active ? '✓ Plan Contratado' : (loading ? 'Procesando...' : (plan.popular ? 'Adquirir Vitalicio' : 'Suscribirse'))}
+              </button>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {plan.features.map((feature, idx) => (
@@ -332,13 +393,31 @@ export default function Paywall() {
             </div>
 
           </div>
-        ))}
+        );
+      })}
       </div>
       
       <div style={{ textAlign: 'center', marginTop: '30px', padding: '0 20px' }}>
-        <p style={{ fontSize: '0.8rem', color: '#666', lineHeight: '1.5' }}>
+        <p style={{ fontSize: '0.8rem', color: '#666', lineHeight: '1.5', marginBottom: '20px' }}>
           El pago se cargará de forma segura a través de tu cuenta de Google Play. Las suscripciones se renuevan automáticamente al final del periodo a menos que se cancelen con 24 horas de antelación.
         </p>
+        
+        {isForced && (
+          <button 
+            onClick={handleNotNow}
+            style={{ 
+              background: 'transparent', 
+              border: 'none', 
+              color: '#888', 
+              textDecoration: 'underline', 
+              fontSize: '0.9rem', 
+              cursor: 'pointer',
+              padding: '10px'
+            }}
+          >
+            Quizás en otro momento, continuar con mi plan gratuito
+          </button>
+        )}
       </div>
     </div>
   );

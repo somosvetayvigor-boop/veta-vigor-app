@@ -26,7 +26,7 @@ export default function Onboarding({ session, onComplete }) {
     
     try {
       const fileExt = file.name.split('.').pop();
-      const fileName = `${session.user.id}_antes_${Date.now()}.${fileExt}`;
+      const fileName = `${session?.user.id}_antes_${Date.now()}.${fileExt}`;
       
       const { error: uploadError } = await supabase.storage
         .from('fotos_progreso')
@@ -55,7 +55,7 @@ export default function Onboarding({ session, onComplete }) {
       };
       
       await supabase.auth.updateUser({ data: updateData });
-      await supabase.from('perfiles').update(updateData).eq('id', session.user.id);
+      await supabase.from('perfiles').update(updateData).eq('id', session?.user.id);
       
       onComplete(updateData);
     } catch (e) {

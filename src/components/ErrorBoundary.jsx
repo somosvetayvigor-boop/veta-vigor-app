@@ -9,11 +9,26 @@ class ErrorBoundary extends React.Component {
   }
 
   static getDerivedStateFromError(error) {
-    return { hasError: true };
+    if (error && error.message && error.message.includes('Failed to fetch dynamically imported module')) {
+      return { hasError: true, isViteChunkError: true };
+    }
+    return { hasError: true, isViteChunkError: false };
   }
 
   async componentDidCatch(error, errorInfo) {
     console.error("ErrorBoundary caught an error", error, errorInfo);
+    
+    // Si es un error de Vite por caché (versión nueva), intentamos recargar 1 vez
+    if (this.state.isViteChunkError) {
+      if (!sessionStorage.getItem('vite-reload-error-boundary')) {
+        sessionStorage.setItem('vite-reload-error-boundary', 'true');
+        window.location.reload(true);
+        return;
+      } else {
+        sessionStorage.removeItem('vite-reload-error-boundary');
+        // Si ya falló, permitimos que continúe y muestre la pantalla de error normal
+      }
+    }
     
     try {
       const { data: sessionData } = await supabase.auth.getSession();
@@ -41,6 +56,10 @@ class ErrorBoundary extends React.Component {
   }
 
   render() {
+    if (this.state.isViteChunkError && !sessionStorage.getItem('vite-reload-error-boundary')) {
+      return null; // Evita mostrar la pantalla roja la primera vez; la página se recargará
+    }
+
     if (this.state.hasError) {
       return (
         <div style={{ padding: '30px', textAlign: 'center', color: 'white', backgroundColor: '#0f0f11', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
@@ -55,10 +74,28 @@ class ErrorBoundary extends React.Component {
             </p>
           )}
           <button 
-            onClick={() => window.location.href = '/'}
+            onClick={async () => {
+              try {
+                if ('serviceWorker' in navigator) {
+                  const registrations = await navigator.serviceWorker.getRegistrations();
+                  for (let registration of registrations) {
+                    await registration.unregister();
+                  }
+                }
+                if ('caches' in window) {
+                  const keys = await caches.keys();
+                  for (let key of keys) {
+                    await caches.delete(key);
+                  }
+                }
+              } catch (e) {
+                console.error('Error clearing cache', e);
+              }
+              window.location.reload(true);
+            }}
             style={{ marginTop: '20px', padding: '12px 24px', backgroundColor: 'var(--accent-gold)', color: 'black', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}
           >
-            Reiniciar Aplicación
+            Limpiar Caché y Reiniciar
           </button>
         </div>
       );

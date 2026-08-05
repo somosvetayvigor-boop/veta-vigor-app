@@ -23,7 +23,7 @@ export default function MisGanancias({ session }) {
       const { data, error } = await supabase
         .from('perfiles')
         .select('codigo_referido, referidos_count, ganancias, comision_personalizada')
-        .eq('id', session.user.id)
+        .eq('id', session?.user.id)
         .single();
       
       if (!error && data) {
@@ -38,7 +38,7 @@ export default function MisGanancias({ session }) {
   };
 
   const shareCode = async () => {
-    const defaultCode = dbData.codigo_referido || `VETA-${session.user.user_metadata?.username || 'VIGOR'}`.toUpperCase().substring(0,10);
+    const defaultCode = dbData.codigo_referido || `VETA-${session?.user.user_metadata?.username || 'VIGOR'}`.toUpperCase().substring(0,10);
     const textToShare = `¡Únete a Veta & Vigor! Usa mi código de referido ${defaultCode} al registrarte y construyamos nuestra mejor versión juntos.`;
     
     if (navigator.share) {

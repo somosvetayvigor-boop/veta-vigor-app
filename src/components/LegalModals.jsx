@@ -19,22 +19,23 @@ export default function LegalModals({ type, onClose }) {
         <div style={{ overflowY: 'auto', flex: 1, paddingRight: '10px', fontSize: '0.85rem', color: '#ccc', lineHeight: '1.6' }}>
           {type === 'privacy' ? (
             <>
-              <p><strong>Última actualización: 13 de junio de 2026</strong></p>
+              <p><strong>Última actualización: Agosto de 2026</strong></p>
               <h4 style={{ color: 'var(--accent-gold)', marginTop: '15px' }}>1. Identidad y Domicilio del Responsable</h4>
               <p>Veta & Vigor (en adelante "El Responsable"), con domicilio en Mérida, Yucatán, México, es responsable del tratamiento y protección de sus datos personales, los cuales serán manejados bajo estrictas medidas de confidencialidad y seguridad de acuerdo con la Ley Federal de Protección de Datos Personales en Posesión de los Particulares (LFPDPPP) y estándares internacionales aplicables.</p>
               
               <h4 style={{ color: 'var(--accent-gold)', marginTop: '15px' }}>2. Datos Personales que se Recaban</h4>
               <p>Para brindarle acceso a nuestra aplicación, gestionar su membresía y su participación en nuestros programas (como retos y progresiones), recabaremos los siguientes datos:</p>
               <ul style={{ paddingLeft: '20px', marginBottom: '10px' }}>
-                <li><strong>Datos de Identificación y Contacto:</strong> Nombre completo, correo electrónico y apodo o nombre de usuario (para visualización en la comunidad).</li>
+                <li><strong>Datos de Identificación y Contacto:</strong> Nombre completo, correo electrónico, número de teléfono celular (WhatsApp) y apodo o nombre de usuario (para visualización en la comunidad).</li>
                 <li><strong>Datos Sensibles (Físicos y de Salud):</strong> Peso, estatura, medidas corporales (contornos), edad y fotografías de progreso físico (imágenes de "antes y después"). Al proporcionar estos datos, usted otorga su consentimiento expreso para su tratamiento conforme a este aviso.</li>
               </ul>
               
               <h4 style={{ color: 'var(--accent-gold)', marginTop: '15px' }}>3. Finalidad del Uso de los Datos</h4>
               <p>Sus datos serán utilizados exclusivamente para las siguientes finalidades:</p>
               <ul style={{ paddingLeft: '20px', marginBottom: '10px' }}>
-                <li><strong>Finalidades Primarias (Necesarias para el servicio):</strong> Crear su perfil de usuario, calcular algoritmos de progresión física (asignación de niveles), dar seguimiento automatizado a su plan de entrenamiento, evaluar su evolución física a través de las medidas y fotografías proporcionadas, y mantener el correcto funcionamiento de la plataforma web.</li>
+                <li><strong>Finalidades Primarias (Necesarias para el servicio):</strong> Crear su perfil de usuario, calcular algoritmos de progresión física (asignación de maderas), dar seguimiento automatizado a su plan de entrenamiento, evaluar su evolución física a través de las medidas y fotografías proporcionadas, y mantener el correcto funcionamiento de la plataforma web.</li>
                 <li><strong>Finalidades Secundarias (Voluntarias):</strong> Fomentar la motivación dentro de la tribu. Su "Apodo" y fotografías de progreso podrán ser visibles únicamente dentro de los muros internos de la aplicación para otros miembros de la comunidad, dependiendo de su configuración de privacidad y nivel de membresía.</li>
+                <li><strong>Comunicaciones y Publicidad (WhatsApp):</strong> Al proporcionarnos su número de teléfono celular y aceptar nuestros términos en promociones específicas, el usuario otorga su consentimiento expreso para que Veta & Vigor le envíe mensajes de texto o WhatsApp con fines de notificaciones de la plataforma, promociones, ofertas especiales y material publicitario. El usuario podrá solicitar la baja de estas comunicaciones en cualquier momento.</li>
               </ul>
               <div style={{ background: 'rgba(255,255,255,0.05)', padding: '10px', borderRadius: '8px', borderLeft: '3px solid var(--accent-gold)', marginBottom: '10px' }}>
                 <strong>Garantía de Privacidad de Imagen:</strong> Ninguna fotografía de progreso corporal será compartida, vendida, ni utilizada en redes sociales públicas (Instagram, Facebook, material publicitario, etc.) sin solicitar y obtener previamente un permiso por escrito adicional y específico por parte suya.
@@ -44,7 +45,7 @@ export default function LegalModals({ type, onClose }) {
               <p>Sus datos personales y fotografías se almacenan en servidores en la nube de alta seguridad con encriptación de extremo a extremo. Los datos sensibles y fotografías se conservarán únicamente mientras su cuenta permanezca activa. Si usted decide eliminar su cuenta, todas sus fotografías, medidas y registros físicos serán destruidos y purgados de nuestros servidores de forma permanente e irrecuperable.</p>
               
               <h4 style={{ color: 'var(--accent-gold)', marginTop: '15px' }}>5. Derechos ARCO</h4>
-              <p>Usted tiene derecho en todo momento a conocer qué datos tenemos (Acceso), a corregirlos (Rectificación), a solicitar que eliminemos sus fotografías, medidas o cuenta completa de nuestra base de datos (Cancelación), o a oponerse a su uso para finalidades secundarias (Oposición).</p>
+              <p>Usted tiene derecho en todo momento a conocer qué datos tenemos (Acceso), a corregirlos (Rectificación), a solicitar que eliminemos sus fotografías, medidas o cuenta completa de nuestra base de datos (Cancelación), o a oponerse a su uso para finalidades secundarias, incluyendo la baja de comunicaciones de WhatsApp (Oposición).</p>
               <p>Para ejercer cualquiera de estos derechos, envíe un correo electrónico a: <strong>somos.vetayvigor@gmail.com</strong></p>
               
               <h4 style={{ color: 'var(--accent-gold)', marginTop: '15px' }}>6. Cambios al Aviso de Privacidad</h4>
@@ -52,7 +53,7 @@ export default function LegalModals({ type, onClose }) {
             </>
           ) : (
             <>
-              <p><strong>Última actualización: 13 de junio de 2026</strong></p>
+              <p><strong>Última actualización: Agosto de 2026</strong></p>
               <p>Bienvenido a Veta & Vigor. Al registrarte, acceder o utilizar nuestra aplicación web progresiva (PWA) y sitio web (en adelante, la "Plataforma"), aceptas estar legalmente sujeto a los siguientes Términos y Condiciones. Si no estás de acuerdo con alguna parte de estos términos, no debes utilizar nuestros servicios ni registrar tus datos físicos.</p>
               
               <h4 style={{ color: 'var(--accent-gold)', marginTop: '15px' }}>1. Uso de la Plataforma y Cuenta de Usuario</h4>
@@ -64,7 +65,7 @@ export default function LegalModals({ type, onClose }) {
               </div>
               <ul style={{ paddingLeft: '20px', marginBottom: '10px' }}>
                 <li><strong>Propósito Educativo:</strong> Veta & Vigor proporciona rutinas de entrenamiento, algoritmos de progresión y consejos únicamente con fines informativos y educativos. NO somos proveedores de atención médica, fisioterapeutas ni rehabilitadores.</li>
-                <li><strong>Declaración de Salud:</strong> Al utilizar esta aplicación y seguir los niveles de entrenamiento (Semilla, Pino, Tzalam, Roble), declaras expresa y voluntariamente que te encuentras en buenas condiciones físicas para realizar los ejercicios propuestos.</li>
+                <li><strong>Declaración de Salud:</strong> Al utilizar esta aplicación y seguir los maderas de entrenamiento (Semilla, Pino, Tzalam, Roble), declaras expresa y voluntariamente que te encuentras en buenas condiciones físicas para realizar los ejercicios propuestos.</li>
                 <li><strong>Asesoría Médica:</strong> Debes consultar a un médico o profesional de la salud antes de comenzar cualquier programa de ejercicios, especialmente si tienes condiciones médicas preexistentes, lesiones en articulaciones o columna, o si estás embarazada.</li>
                 <li><strong>Asunción de Riesgo:</strong> El uso de las rutinas y sistemas de entrenamiento (incluyendo Carga de Hierro y Vigor Corporal) es bajo tu propio y exclusivo riesgo. Veta & Vigor, sus creadores, desarrolladores, entrenadores y afiliados no se hacen responsables, legal ni financieramente, por ninguna lesión, daño físico, desgarro muscular o problema de salud directo o indirecto que pueda resultar de la ejecución de los ejercicios mostrados en la Plataforma.</li>
               </ul>

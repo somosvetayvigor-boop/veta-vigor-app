@@ -1,15 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import LegalModals from '../components/LegalModals';
-import { Eye, EyeOff, Smartphone, Share, PlusSquare } from 'lucide-react';
+import { Eye, EyeOff, Smartphone, Share, PlusSquare, Mail } from 'lucide-react';
 
 export default function Login() {
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
+  const [confirmEmail, setConfirmEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
+  const [isEnteringOtp, setIsEnteringOtp] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
   const [name, setName] = useState('');
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [legalModal, setLegalModal] = useState(null);
@@ -49,17 +53,35 @@ export default function Login() {
     setLoading(true);
 
     try {
-      if (isResetting) {
-        const { error } = await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: window.location.origin,
+      if (isEnteringOtp) {
+        const { error } = await supabase.auth.verifyOtp({
+          email,
+          token: otpCode,
+          type: 'recovery'
         });
         if (error) throw error;
-        alert('Se ha enviado un enlace de recuperación a tu correo.');
-        setIsResetting(false);
+        
+        const { error: updateError } = await supabase.auth.updateUser({
+          password: newPassword
+        });
+        if (updateError) throw updateError;
+        
+        alert('¡Contraseña actualizada con éxito!');
+      } else if (isResetting) {
+        const { error } = await supabase.auth.resetPasswordForEmail(email);
+        if (error) throw error;
+        alert('Se ha enviado un código de 6 dígitos a tu correo.');
+        setIsEnteringOtp(true);
       } else {
         const timestamp = new Date().toISOString();
 
         if (isSignUp) {
+          if (email !== confirmEmail) {
+            alert('Los correos electrónicos no coinciden. Por favor, verifícalos.');
+            setLoading(false);
+            return;
+          }
+
           const { data, error } = await supabase.auth.signUp({
             email,
             password,
@@ -114,11 +136,40 @@ export default function Login() {
 
       <div style={{ backgroundColor: 'var(--bg-card)', padding: '30px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.02)' }}>
         <h2 style={{ marginBottom: '20px', textAlign: 'center' }}>
-          {isResetting ? 'Recuperar Contraseña' : (isSignUp ? 'Crear Cuenta' : 'Iniciar Sesión')}
+          {isEnteringOtp ? 'Ingresa el Código' : (isResetting ? 'Recuperar Contraseña' : (isSignUp ? 'Crear Cuenta' : 'Iniciar Sesión'))}
         </h2>
         
         <form onSubmit={handleAuth}>
-          {!isResetting && isSignUp && (
+          {isEnteringOtp && (
+            <div style={{ marginBottom: '15px' }}>
+              <p style={{ fontSize: '0.85rem', color: '#ccc', textAlign: 'center', marginBottom: '15px' }}>
+                Enviamos un correo a <b>{email}</b>. Pega el código aquí:
+              </p>
+              <input 
+                type="text" 
+                placeholder="Código de recuperación" 
+                className="input-field" 
+                value={otpCode}
+                onChange={(e) => setOtpCode(e.target.value.replace(/[^0-9]/g, ''))}
+                maxLength="10"
+                required 
+              />
+              <input 
+                type="password"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                minLength="6"
+                maxLength="6"
+                placeholder="Tu Nuevo PIN (6 números)" 
+                className="input-field" 
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value.replace(/[^0-9]/g, ''))}
+                required 
+              />
+            </div>
+          )}
+
+          {!isEnteringOtp && !isResetting && isSignUp && (
             <input 
               type="text" 
               placeholder="Tu Nombre Completo" 
@@ -128,22 +179,38 @@ export default function Login() {
               required 
             />
           )}
-          <input 
-            type="email" 
-            placeholder="Correo Electrónico" 
-            className="input-field" 
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required 
-          />
-          {!isResetting && (
+          {!isEnteringOtp && (
+            <input 
+              type="email" 
+              placeholder="Correo Electrónico" 
+              className="input-field" 
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required 
+            />
+          )}
+          {!isEnteringOtp && !isResetting && isSignUp && (
+            <input 
+              type="email" 
+              placeholder="Confirma tu Correo" 
+              className="input-field" 
+              value={confirmEmail}
+              onChange={(e) => setConfirmEmail(e.target.value)}
+              required 
+            />
+          )}
+          {!isEnteringOtp && !isResetting && (
             <div style={{ position: 'relative', width: '100%', marginBottom: '15px' }}>
               <input 
                 type={showPassword ? 'text' : 'password'} 
-                placeholder="Contraseña" 
+                inputMode="numeric"
+                pattern="[0-9]*"
+                minLength="6"
+                maxLength="6"
+                placeholder="PIN numérico (6 dígitos)" 
                 className="input-field" 
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => setPassword(e.target.value.replace(/[^0-9]/g, ''))}
                 required 
                 style={{ width: '100%', paddingRight: '45px', marginBottom: 0 }}
               />
@@ -188,26 +255,34 @@ export default function Login() {
             </div>
           )}
 
-          <button type="submit" className="btn-primary" disabled={loading || (!isResetting && !acceptedTerms)} style={{ opacity: ((!isResetting && !acceptedTerms) || loading) ? 0.5 : 1 }}>
-            {loading ? 'Cargando...' : (isResetting ? 'Enviar Enlace' : (isSignUp ? 'Crear Cuenta' : 'Entrar al Cuartel'))}
+          <button type="submit" className="btn-primary" disabled={loading || (!isResetting && !isEnteringOtp && !acceptedTerms)} style={{ opacity: ((!isResetting && !isEnteringOtp && !acceptedTerms) || loading) ? 0.5 : 1 }}>
+            {loading ? 'Cargando...' : (isEnteringOtp ? 'Registrar Nueva Contraseña' : (isResetting ? 'Enviar Código' : (isSignUp ? 'Crear Cuenta' : 'Entrar al Cuartel')))}
           </button>
         </form>
 
         <div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'center' }}>
-          {!isResetting && !isSignUp && (
-            <button 
-              type="button"
-              onClick={() => setIsResetting(true)}
-              style={{ background: 'transparent', color: 'var(--accent-gold)', fontSize: '0.85rem', textDecoration: 'none', border: 'none', cursor: 'pointer' }}
-            >
-              ¿Olvidaste tu contraseña?
-            </button>
+          {!isEnteringOtp && !isResetting && !isSignUp && (
+            <div style={{ textAlign: 'center', marginBottom: '10px' }}>
+              <button 
+                type="button"
+                onClick={() => setIsResetting(true)}
+                style={{ background: 'transparent', color: 'var(--accent-gold)', fontSize: '0.85rem', textDecoration: 'none', border: 'none', cursor: 'pointer', marginBottom: '5px' }}
+              >
+                ¿Olvidaste tu contraseña?
+              </button>
+              <p style={{ margin: 0, fontSize: '0.75rem', color: '#888', lineHeight: '1.4' }}>
+                Si tenías contraseña de letras, usa esta opción<br/>para crear tu nuevo PIN numérico.
+              </p>
+            </div>
           )}
 
           <button 
             type="button"
             onClick={() => {
-              if (isResetting) {
+              if (isEnteringOtp) {
+                setIsEnteringOtp(false);
+                setIsResetting(false);
+              } else if (isResetting) {
                 setIsResetting(false);
               } else {
                 setIsSignUp(!isSignUp);
@@ -215,7 +290,7 @@ export default function Login() {
             }}
             style={{ background: 'transparent', color: 'var(--text-muted)', fontSize: '0.9rem', textDecoration: 'underline', border: 'none', cursor: 'pointer' }}
           >
-            {isResetting ? 'Volver a Iniciar Sesión' : (isSignUp ? '¿Ya tienes cuenta? Inicia Sesión' : '¿Nuevo recluta? Regístrate gratis')}
+            {isEnteringOtp || isResetting ? 'Volver a Iniciar Sesión' : (isSignUp ? '¿Ya tienes cuenta? Inicia Sesión' : '¿Nuevo recluta? Regístrate gratis')}
           </button>
         </div>
       </div>
@@ -267,7 +342,27 @@ export default function Login() {
         </div>
       )}
 
-      <div style={{ textAlign: 'center', marginTop: '40px', color: '#555', fontSize: '0.75rem' }}>
+      <div style={{ textAlign: 'center', marginTop: '30px' }}>
+        <a 
+          href="mailto:somos.vetayvigor@gmail.com?subject=Soporte%20Veta%20y%20Vigor"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            color: 'var(--text-muted)',
+            textDecoration: 'none',
+            fontSize: '0.9rem',
+            padding: '10px 20px',
+            borderRadius: '20px',
+            backgroundColor: 'rgba(255,255,255,0.05)',
+            border: '1px solid rgba(255,255,255,0.1)'
+          }}
+        >
+          <Mail size={16} /> ¿Problemas para entrar? Contactar Soporte
+        </a>
+      </div>
+
+      <div style={{ textAlign: 'center', marginTop: '20px', color: '#555', fontSize: '0.75rem' }}>
         <p>© {new Date().getFullYear()} Veta & Vigor. Todos los derechos reservados.</p>
       </div>
 

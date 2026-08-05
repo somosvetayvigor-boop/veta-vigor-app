@@ -4,8 +4,17 @@ const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 async function checkSQL() {
-  const { data, error } = await supabase.rpc('run_sql', { query: "SELECT routine_definition FROM information_schema.routines WHERE routine_name = 'on_auth_user_created'" });
-  if (error) console.log(error);
-  else console.log(data);
+  const query = `
+    DROP POLICY IF EXISTS "Admin update ejercicios" ON ejercicios_biblioteca;
+    DROP POLICY IF EXISTS "Admin update sistemas" ON sistemas_entrenamiento;
+    DROP POLICY IF EXISTS "Admin all ejercicios" ON ejercicios_biblioteca;
+    DROP POLICY IF EXISTS "Admin all sistemas" ON sistemas_entrenamiento;
+
+    CREATE POLICY "Admin all ejercicios" ON ejercicios_biblioteca FOR ALL USING (auth.email() = 'somos.vetayvigor@gmail.com');
+    CREATE POLICY "Admin all sistemas" ON sistemas_entrenamiento FOR ALL USING (auth.email() = 'somos.vetayvigor@gmail.com');
+  `;
+  const { data, error } = await supabase.rpc('exec_sql', { sql_query: query });
+  if (error) console.log('Error:', error);
+  else console.log('Success:', data);
 }
 checkSQL();

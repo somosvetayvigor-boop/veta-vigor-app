@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
-import { ImagePlus, Search, Edit2, Loader2, Save } from 'lucide-react';
+import { ImagePlus, Search, Edit2, Loader2, Save, Check, Link } from 'lucide-react';
 
 export default function AdminBiblioteca() {
-  const [activeTab, setActiveTab] = useState('ejercicios'); // 'ejercicios' or 'sistemas'
+  const [activeTab, setActiveTab] = useState('ejercicios'); // 'ejercicios', 'sistemas', 'pendientes'
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -16,15 +16,30 @@ export default function AdminBiblioteca() {
 
   const fetchItems = async () => {
     setLoading(true);
-    let tableName = activeTab === 'ejercicios' ? 'ejercicios_biblioteca' : 'sistemas_entrenamiento';
     
-    const { data, error } = await supabase
-      .from(tableName)
-      .select('id, nombre, imagen_url')
-      .order('nombre');
+    if (activeTab === 'pendientes') {
+      const { data, error } = await supabase
+        .from('ejercicios_biblioteca')
+        .select('*')
+        .eq('is_custom', true)
+        .eq('status', 'pendiente')
+        .order('nombre');
+      if (!error && data) setItems(data);
+    } else {
+      let tableName = activeTab === 'ejercicios' ? 'ejercicios_biblioteca' : 'sistemas_entrenamiento';
       
-    if (!error && data) {
-      setItems(data);
+      const selectQuery = activeTab === 'ejercicios' 
+        ? 'id, nombre, imagen_url, instrucciones, musculos_trabajados, equipo_necesario' 
+        : 'id, nombre, imagen_url';
+
+      const { data, error } = await supabase
+        .from(tableName)
+        .select(selectQuery)
+        .order('nombre');
+        
+      if (!error && data) {
+        setItems(data);
+      }
     }
     setLoading(false);
   };
@@ -40,19 +55,16 @@ export default function AdminBiblioteca() {
     const fileName = `${folder}/${id}_${Date.now()}.${fileExt}`;
 
     try {
-      // 1. Subir a Supabase Storage (bucket: imagenes)
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('imagenes')
         .upload(fileName, file, { cacheControl: '3600', upsert: true });
 
       if (uploadError) throw uploadError;
 
-      // 2. Obtener URL pública
       const { data: { publicUrl } } = supabase.storage
         .from('imagenes')
         .getPublicUrl(fileName);
 
-      // 3. Actualizar la base de datos
       const { error: dbError } = await supabase
         .from(tableName)
         .update({ imagen_url: publicUrl })
@@ -60,16 +72,58 @@ export default function AdminBiblioteca() {
 
       if (dbError) throw dbError;
 
-      // 4. Actualizar el estado local
       setItems(items.map(item => item.id === id ? { ...item, imagen_url: publicUrl } : item));
       alert('¡Imagen actualizada con éxito!');
 
     } catch (error) {
       console.error('Error uploading image:', error);
-      alert(`Error al subir imagen: ${error.message}. Asegúrate de haber creado el bucket "imagenes" público en Supabase.`);
+      alert(`Error al subir imagen: ${error.message}.`);
     } finally {
       setUploadingId(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const aprobarEjercicio = async (id) => {
+    try {
+      const { error } = await supabase
+        .from('ejercicios_biblioteca')
+        .update({ status: 'aprobado', is_custom: false })
+        .eq('id', id);
+      
+      if (error) throw error;
+      setItems(items.filter(item => item.id !== id));
+      alert('Ejercicio aprobado y añadido a la biblioteca global.');
+    } catch (err) {
+      alert('Error al aprobar: ' + err.message);
+    }
+  };
+
+  const fusionarEjercicio = async (id_temporal) => {
+    const id_oficial = prompt("Ingresa el ID del ejercicio oficial (ej. 'press-banca'):");
+    if (!id_oficial) return;
+
+    try {
+      // 1. Actualizar rutinas que usan el temporal
+      const { error: errorUpdate } = await supabase
+        .from('rutina_ejercicios')
+        .update({ ejercicio_id: id_oficial })
+        .eq('ejercicio_id', id_temporal);
+        
+      if (errorUpdate) throw errorUpdate;
+
+      // 2. Eliminar el temporal
+      const { error: errorDelete } = await supabase
+        .from('ejercicios_biblioteca')
+        .delete()
+        .eq('id', id_temporal);
+        
+      if (errorDelete) throw errorDelete;
+
+      setItems(items.filter(item => item.id !== id_temporal));
+      alert('Ejercicio fusionado con éxito.');
+    } catch (err) {
+      alert('Error al fusionar: ' + err.message);
     }
   };
 
@@ -80,7 +134,7 @@ export default function AdminBiblioteca() {
   return (
     <div style={{ backgroundColor: '#1a1a1a', padding: '20px', borderRadius: '12px' }}>
       <h2 className="gold-gradient-text" style={{ margin: '0 0 20px 0', fontSize: '1.5rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <ImagePlus size={24} /> Gestor de Imágenes
+        <ImagePlus size={24} /> Gestor de Biblioteca
       </h2>
 
       {/* Selector de Pestañas Interno */}
@@ -98,6 +152,13 @@ export default function AdminBiblioteca() {
           style={{ flex: 1 }}
         >
           Sistemas
+        </button>
+        <button 
+          onClick={() => setActiveTab('pendientes')}
+          className={activeTab === 'pendientes' ? 'btn-primary' : 'btn-secondary'}
+          style={{ flex: 1, backgroundColor: activeTab === 'pendientes' ? '#e55039' : undefined }}
+        >
+          Pendientes
         </button>
       </div>
 
@@ -134,36 +195,65 @@ export default function AdminBiblioteca() {
               <div style={{ flex: 1 }}>
                 <h4 style={{ margin: '0 0 8px 0', fontSize: '1rem', color: 'white' }}>{item.nombre}</h4>
                 
+                {activeTab !== 'sistemas' && (
+                  <p style={{ fontSize: '0.8rem', color: '#aaa', margin: '0 0 10px 0' }}>
+                    <strong>Músculo:</strong> {item.musculos_trabajados || 'N/A'} 
+                    {item.equipo_necesario && <span> | <strong>Equipo:</strong> {item.equipo_necesario}</span>}
+                    <br/>
+                    <strong>Desc:</strong> {item.instrucciones || 'Sin descripción'}
+                  </p>
+                )}
+                
                 <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '6px 12px', background: 'rgba(212, 175, 55, 0.1)', color: 'var(--accent-gold)', borderRadius: '6px', fontSize: '0.85rem', cursor: 'pointer', border: '1px solid rgba(212, 175, 55, 0.3)' }}>
-                    {uploadingId === item.id ? <Loader2 size={14} className="spin" /> : <Edit2 size={14} />}
-                    {uploadingId === item.id ? 'Subiendo...' : 'Cambiar Foto'}
-                    <input 
-                      type="file" 
-                      accept="image/*" 
-                      onChange={(e) => handleImageUpload(e, item.id)} 
-                      style={{ display: 'none' }} 
-                      disabled={uploadingId === item.id}
-                    />
-                  </label>
+                  {activeTab !== 'pendientes' ? (
+                    <>
+                      <label style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '6px 12px', background: 'rgba(212, 175, 55, 0.1)', color: 'var(--accent-gold)', borderRadius: '6px', fontSize: '0.85rem', cursor: 'pointer', border: '1px solid rgba(212, 175, 55, 0.3)' }}>
+                        {uploadingId === item.id ? <Loader2 size={14} className="spin" /> : <Edit2 size={14} />}
+                        {uploadingId === item.id ? 'Subiendo...' : 'Cambiar Foto'}
+                        <input 
+                          type="file" 
+                          accept="image/*" 
+                          onChange={(e) => handleImageUpload(e, item.id)} 
+                          style={{ display: 'none' }} 
+                          disabled={uploadingId === item.id}
+                        />
+                      </label>
 
-                  {item.imagen_url && (
-                    <button 
-                      onClick={async () => {
-                        if (!window.confirm("¿Seguro que quieres quitar esta imagen?")) return;
-                        setUploadingId(item.id);
-                        const tableName = activeTab === 'ejercicios' ? 'ejercicios_biblioteca' : 'sistemas_entrenamiento';
-                        const { error } = await supabase.from(tableName).update({ imagen_url: null }).eq('id', item.id);
-                        if (!error) {
-                          setItems(items.map(i => i.id === item.id ? { ...i, imagen_url: null } : i));
-                        }
-                        setUploadingId(null);
-                      }}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '6px 12px', background: 'rgba(229, 80, 57, 0.1)', color: '#e55039', borderRadius: '6px', fontSize: '0.85rem', cursor: 'pointer', border: '1px solid rgba(229, 80, 57, 0.3)' }}
-                      disabled={uploadingId === item.id}
-                    >
-                      Quitar Imagen
-                    </button>
+                      {item.imagen_url && (
+                        <button 
+                          onClick={async () => {
+                            if (!window.confirm("¿Seguro que quieres quitar esta imagen?")) return;
+                            setUploadingId(item.id);
+                            const tableName = activeTab === 'ejercicios' ? 'ejercicios_biblioteca' : 'sistemas_entrenamiento';
+                            const { error } = await supabase.from(tableName).update({ imagen_url: null }).eq('id', item.id);
+                            if (!error) {
+                              setItems(items.map(i => i.id === item.id ? { ...i, imagen_url: null } : i));
+                            }
+                            setUploadingId(null);
+                          }}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '6px 12px', background: 'rgba(229, 80, 57, 0.1)', color: '#e55039', borderRadius: '6px', fontSize: '0.85rem', cursor: 'pointer', border: '1px solid rgba(229, 80, 57, 0.3)' }}
+                          disabled={uploadingId === item.id}
+                        >
+                          Quitar Imagen
+                        </button>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <button 
+                        onClick={() => aprobarEjercicio(item.id)}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '6px 12px', background: 'rgba(46, 204, 113, 0.2)', color: '#2ecc71', borderRadius: '6px', fontSize: '0.85rem', cursor: 'pointer', border: '1px solid #2ecc71' }}
+                      >
+                        <Check size={14} /> Aprobar Global
+                      </button>
+                      
+                      <button 
+                        onClick={() => fusionarEjercicio(item.id)}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '6px 12px', background: 'rgba(52, 152, 219, 0.2)', color: '#3498db', borderRadius: '6px', fontSize: '0.85rem', cursor: 'pointer', border: '1px solid #3498db' }}
+                      >
+                        <Link size={14} /> Fusionar/Reemplazar
+                      </button>
+                    </>
                   )}
                 </div>
               </div>

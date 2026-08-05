@@ -259,13 +259,13 @@ export default function AdminGestorSistemas() {
         </>
       )}
 
-      {/* CAPA 3: CONSTRUCTOR DE LA RUTINA */}
+      {/* CAPA 3: CONSTRUCTOR DE LA MISIÓN */}
       {selectedRutina && !editingEjercicio && (
         <>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
             <div>
               <button onClick={() => setSelectedRutina(null)} style={{ background: 'none', border: 'none', color: 'var(--accent-gold)', padding: 0, marginBottom: '5px', cursor: 'pointer' }}>
-                ← Volver a Rutinas
+                ← Volver a Misiones
               </button>
               <h2 style={{ fontSize: '1.4rem', margin: 0 }}>{selectedRutina.nombre}</h2>
             </div>
@@ -300,11 +300,11 @@ export default function AdminGestorSistemas() {
             )}
           </div>
 
-          <h3 style={{ margin: '0 0 15px 0', fontSize: '1.2rem', borderBottom: '1px solid #444', paddingBottom: '10px' }}>Ejercicios en esta Rutina</h3>
+          <h3 style={{ margin: '0 0 15px 0', fontSize: '1.2rem', borderBottom: '1px solid #444', paddingBottom: '10px' }}>Ejercicios en esta Misión</h3>
           
           {loadingEjercicios ? <p>Cargando ejercicios...</p> : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {rutinaEjercicios.length === 0 ? <p style={{ color: 'var(--text-muted)' }}>Rutina vacía. Agrega ejercicios arriba.</p> : null}
+              {rutinaEjercicios.length === 0 ? <p style={{ color: 'var(--text-muted)' }}>Misión vacía. Agrega ejercicios arriba.</p> : null}
               {rutinaEjercicios.map((re, i) => (
                 <div 
                   key={re.id} 
@@ -355,7 +355,7 @@ export default function AdminGestorSistemas() {
             </div>
             
             <div>
-              <label style={{ color: 'var(--accent-gold)', fontSize: '0.9rem', fontWeight: 'bold' }}>Repeticiones (Solo esta Rutina)</label>
+              <label style={{ color: 'var(--accent-gold)', fontSize: '0.9rem', fontWeight: 'bold' }}>Repeticiones (Solo esta Misión)</label>
               <input 
                 value={editForm.repeticiones_objetivo} 
                 onChange={e => setEditForm({...editForm, repeticiones_objetivo: e.target.value})}
@@ -403,10 +403,10 @@ export default function AdminGestorSistemas() {
             </div>
 
             <button onClick={saveEditModal} className="btn-primary" style={{ padding: '15px', fontSize: '1.1rem', display: 'flex', justifyContent: 'center', gap: '10px', marginTop: '10px' }}>
-              <Save size={20} /> Guardar Cambios
+              <Save size={20} /> Registrar Cambios
             </button>
             <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center', marginTop: '-5px' }}>
-              Los cambios (excepto repeticiones) afectarán a todas las rutinas que usen este ejercicio.
+              Los cambios (excepto repeticiones) afectarán a todas las misiones que usen este ejercicio.
             </p>
           </div>
         </div>
