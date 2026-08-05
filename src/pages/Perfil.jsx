@@ -493,7 +493,7 @@ export default function Perfil({ session }) {
                 gap: '5px'
               }}
             >
-              🪙 {meta.puntos_forja || 0} Monedas | La Prueba
+              🪙 {meta.monedas_forja || meta.puntos_forja || 0} Monedas | La Prueba
             </button>
           </div>
           
