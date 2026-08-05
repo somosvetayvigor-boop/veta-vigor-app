@@ -25,7 +25,7 @@ export default function LaPrueba({ session }) {
         .single();
         
       if (perfil) {
-        setMonedas(perfil.monedas_forja || perfil.puntos_forja || 0); // Fallback a puntos_forja antiguo
+        setMonedas(perfil.monedas_forja ?? perfil.puntos_forja ?? 0); // Fallback a puntos_forja antiguo
         setXp(perfil.xp || 0);
       }
 
