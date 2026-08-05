@@ -105,15 +105,19 @@ export default function MiRutina({ session }) {
             } else {
               if (!usedToken) {
                 const { data: inv } = await supabase
-                  .from('inventario_usuarios')
-                  .select('id, tienda_items!inner(nombre)')
+                  .from('rpg_inventario')
+                  .select('item_id, cantidad')
                   .eq('user_id', session?.user.id)
-                  .eq('tienda_items.nombre', 'Ficha de Reposo')
+                  .eq('item_id', 'ficha_reposo')
                   .limit(1);
                   
-                if (inv && inv.length > 0) {
-                  const fichaId = inv[0].id;
-                  await supabase.from('inventario_usuarios').delete().eq('id', fichaId);
+                if (inv && inv.length > 0 && inv[0].cantidad > 0) {
+                  const currentCantidad = inv[0].cantidad;
+                  if (currentCantidad > 1) {
+                    await supabase.from('rpg_inventario').update({ cantidad: currentCantidad - 1 }).eq('user_id', session?.user.id).eq('item_id', 'ficha_reposo');
+                  } else {
+                    await supabase.from('rpg_inventario').delete().eq('user_id', session?.user.id).eq('item_id', 'ficha_reposo');
+                  }
                   await supabase.from('checkins').insert([{ user_id: session?.user.id, fecha: dateStr, nivel: 3 }]);
                   
                   currentStreak++;
