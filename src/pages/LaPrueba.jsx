@@ -20,7 +20,7 @@ export default function LaPrueba({ session }) {
       // Perfil (XP y Monedas)
       const { data: perfil } = await supabase
         .from('perfiles')
-        .select('puntos_forja, monedas_forja, xp')
+        .select('puntos_forja, xp')
         .eq('id', session.user.id)
         .single();
         
