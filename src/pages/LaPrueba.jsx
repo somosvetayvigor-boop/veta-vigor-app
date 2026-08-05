@@ -20,13 +20,13 @@ export default function LaPrueba({ session }) {
       // Perfil (XP y Monedas)
       const { data: perfil } = await supabase
         .from('perfiles')
-        .select('puntos_forja, xp')
+        .select('puntos_forja, xp_actual')
         .eq('id', session.user.id)
         .single();
         
       if (perfil) {
         setMonedas(perfil.monedas_forja ?? perfil.puntos_forja ?? 0); // Fallback a puntos_forja antiguo
-        setXp(perfil.xp || 0);
+        setXp(perfil.xp_actual || 0);
       }
 
       // Inventario
