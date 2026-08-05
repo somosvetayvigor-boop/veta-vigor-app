@@ -83,12 +83,16 @@ export default function LaPrueba({ session }) {
       if (!data.success) {
         alert(data.error);
       } else {
-        if (data.golem_muerto) {
-          alert(`¡HAS VENCIDO AL GÓLEM DEL LASTRE! Has ganado ${data.recompensa} Monedas.`);
-        } else {
-          alert(`¡Golpe asestado! Al Gólem le queda ${data.golpes_restantes_vida} de vida.`);
-        }
-        await loadDatos();
+        setIsHit(true);
+        setTimeout(async () => {
+          setIsHit(false);
+          if (data.golem_muerto) {
+            alert(`¡HAS VENCIDO AL GÓLEM DEL LASTRE! Has ganado ${data.recompensa} Monedas.`);
+          } else {
+            alert(`¡Golpe asestado! Al Gólem le queda ${data.golpes_restantes_vida} de vida.`);
+          }
+          await loadDatos();
+        }, 400);
       }
     } catch (err) {
       alert("Error al atacar al Gólem.");
