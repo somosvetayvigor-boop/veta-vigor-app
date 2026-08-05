@@ -11,10 +11,7 @@ export default function ExpedienteModal({ session, onComplete, onSkip }) {
   const [fotoAntes, setFotoAntes] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
 
-  const isFormValid = 
-    form.peso && 
-    form.porcentaje_grasa && 
-    form.masa_muscular;
+  const isFormValid = !!form.peso;
 
   const uploadPhoto = async (e) => {
     const file = e.target.files[0];
@@ -23,7 +20,7 @@ export default function ExpedienteModal({ session, onComplete, onSkip }) {
     
     try {
       const fileExt = file.name.split('.').pop();
-      const fileName = `${session.user.id}_antes_${Date.now()}.${fileExt}`;
+      const fileName = `${session?.user.id}_antes_${Date.now()}.${fileExt}`;
       
       const { error: uploadError } = await supabase.storage
         .from('fotos_progreso')
@@ -53,7 +50,7 @@ export default function ExpedienteModal({ session, onComplete, onSkip }) {
       };
       
       await supabase.auth.updateUser({ data: updateData });
-      await supabase.from('perfiles').update(updateData).eq('id', session.user.id);
+      await supabase.from('perfiles').update(updateData).eq('id', session?.user.id);
       
       onComplete();
     } catch (e) {
@@ -117,14 +114,22 @@ export default function ExpedienteModal({ session, onComplete, onSkip }) {
               <input type="number" required value={form.peso} onChange={e => setForm({...form, peso: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.3)', color: '#fff', marginTop: '5px' }} />
             </div>
             <div>
-              <label style={{ color: '#888', fontSize: '0.85rem' }}>Grasa (%) *</label>
-              <input type="number" required value={form.porcentaje_grasa} onChange={e => setForm({...form, porcentaje_grasa: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.3)', color: '#fff', marginTop: '5px' }} />
+              <label style={{ color: '#888', fontSize: '0.85rem' }}>Grasa (%)</label>
+              <input type="number" value={form.porcentaje_grasa} onChange={e => setForm({...form, porcentaje_grasa: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.3)', color: '#fff', marginTop: '5px' }} />
             </div>
             <div>
-              <label style={{ color: '#888', fontSize: '0.85rem' }}>Musculatura (kg) *</label>
-              <input type="number" required value={form.masa_muscular} onChange={e => setForm({...form, masa_muscular: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.3)', color: '#fff', marginTop: '5px' }} />
+              <label style={{ color: '#888', fontSize: '0.85rem' }}>Musculatura (kg)</label>
+              <input type="number" value={form.masa_muscular} onChange={e => setForm({...form, masa_muscular: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.3)', color: '#fff', marginTop: '5px' }} />
             </div>
           </div>
+
+          {isFormValid && (!form.porcentaje_grasa || !form.masa_muscular || !fotoAntes) && (
+            <div style={{ backgroundColor: 'rgba(212, 175, 55, 0.1)', border: '1px dashed var(--accent-gold)', borderRadius: '10px', padding: '12px', marginTop: '5px' }}>
+              <p style={{ color: 'var(--accent-gold)', fontSize: '0.85rem', margin: 0, textAlign: 'center', lineHeight: '1.4' }}>
+                ⚠️ <strong>Nota:</strong> Es muy sugerible completar todos tus datos y foto inicial para que el algoritmo de la app funcione mejor y midas tu progreso real.
+              </p>
+            </div>
+          )}
 
           <button 
             onClick={handleSave} 

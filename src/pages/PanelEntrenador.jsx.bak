@@ -1,0 +1,344 @@
+import React, { useState, useEffect } from 'react';
+import { supabase } from '../supabaseClient';
+import { Users, Plus, ChevronRight, CheckCircle, XCircle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+
+export default function PanelEntrenador({ session }) {
+  const [alumnos, setAlumnos] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [nuevoCorreo, setNuevoCorreo] = useState('');
+  const [agregando, setAgregando] = useState(false);
+  const navigate = useNavigate();
+
+  const suscripcion = session?.user?.user_metadata?.suscripcion || session?.user?.user_metadata?.plan_membresia || '';
+  const isVIPorPlatinum = suscripcion.includes('Platinum') || suscripcion.includes('Vitalicio');
+
+  useEffect(() => {
+    fetchAlumnos();
+  }, [session?.user?.id]);
+
+  const fetchAlumnos = async () => {
+    if (!session?.user?.id) return;
+    setLoading(true);
+    
+    // Obtener los alumnos vinculados a este entrenador
+    const { data, error } = await supabase
+      .from('relacion_entrenador_alumno')
+      .select('id, estado, fecha_vinculacion, alumno_id, mensaje_desvinculacion, perfiles:alumno_id(full_name, email, avatar_url, nivel)')
+      .eq('entrenador_id', session.user.id)
+      .order('fecha_vinculacion', { ascending: false });
+
+    if (!error && data) {
+      // Buscar inactividad
+      const activeStudentIds = data.filter(r => r.estado === 'activo').map(r => r.alumno_id);
+      let ultimasRutinas = {};
+      
+      if (activeStudentIds.length > 0) {
+        const { data: historialData } = await supabase
+          .from('historial_rutinas')
+          .select('user_id, created_at')
+          .in('user_id', activeStudentIds)
+          .eq('completada', true);
+          
+        if (historialData) {
+          historialData.forEach(h => {
+            if (!ultimasRutinas[h.user_id] || new Date(h.created_at) > new Date(ultimasRutinas[h.user_id])) {
+              ultimasRutinas[h.user_id] = h.created_at;
+            }
+          });
+        }
+      }
+      
+      const alumnosConInactividad = data.map(alumno => {
+        let diasInactivo = 0;
+        if (alumno.estado === 'activo') {
+          const ultimaR = ultimasRutinas[alumno.alumno_id];
+          if (ultimaR) {
+            const diffTime = Math.abs(new Date() - new Date(ultimaR));
+            diasInactivo = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          } else {
+            const diffTime = Math.abs(new Date() - new Date(alumno.fecha_vinculacion));
+            diasInactivo = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          }
+        }
+        return { ...alumno, diasInactivo };
+      });
+      
+      setAlumnos(alumnosConInactividad);
+    } else {
+      console.error("Error fetching alumnos:", error);
+    }
+    setLoading(false);
+  };
+
+  const eliminarDefinitivamente = async (relacionId) => {
+    if (!window.confirm("¿Estás seguro de eliminar este registro permanentemente de tu lista?")) return;
+    await supabase.from('relacion_entrenador_alumno').delete().eq('id', relacionId);
+    fetchAlumnos();
+  };
+
+  const agregarAlumno = async (e) => {
+    e.preventDefault();
+    if (!nuevoCorreo.trim()) return;
+    
+    // Validar limites del plan
+    const suscripcion = session?.user?.user_metadata?.suscripcion || session?.user?.user_metadata?.plan_membresia || '';
+    let limit = 2; // Plan Base
+    if (suscripcion.includes('Pro')) limit = 20;
+    if (suscripcion.includes('Élite') || suscripcion.includes('Platinum') || suscripcion.includes('Vitalicio')) limit = 100;
+    
+    const activeCount = alumnos.filter(a => a.estado === 'activo').length;
+    
+    if (activeCount >= limit) {
+      alert(`Has alcanzado el límite de ${limit} alumnos de tu plan actual. Para agregar más, mejora tu plan en la pantalla de Suscripción para Entrenadores.`);
+      navigate('/paywall-coach');
+      return;
+    }
+    
+    setAgregando(true);
+
+    // 1. Buscar si existe el perfil con ese correo
+    const { data: perfilData, error: perfilError } = await supabase
+      .from('perfiles')
+      .select('id, rol_usuario')
+      .eq('email', nuevoCorreo.trim().toLowerCase())
+      .single();
+
+    if (perfilError || !perfilData) {
+      alert("No se encontró a nadie con ese correo. Asegúrate de que el alumno ya haya descargado la app y se haya registrado primero.");
+      setAgregando(false);
+      return;
+    }
+
+    if (perfilData.rol_usuario === 'entrenador') {
+      alert("No puedes agregar a otro entrenador como tu alumno.");
+      setAgregando(false);
+      return;
+    }
+
+    // 2. Verificar si ya es alumno tuyo
+    const { data: relacionExistente } = await supabase
+      .from('relacion_entrenador_alumno')
+      .select('id, estado')
+      .eq('entrenador_id', session.user.id)
+      .eq('alumno_id', perfilData.id)
+      .maybeSingle();
+
+    if (relacionExistente) {
+      if (relacionExistente.estado === 'inactivo') {
+        // Reactivarlo
+        await supabase
+          .from('relacion_entrenador_alumno')
+          .update({ estado: 'activo' })
+          .eq('id', relacionExistente.id);
+        
+        await supabase.from('perfiles').update({ rol_usuario: 'alumno_entrenador' }).eq('id', perfilData.id);
+        alert("¡Alumno reactivado con éxito!");
+        setNuevoCorreo('');
+        fetchAlumnos();
+      } else {
+        alert("Este usuario ya es tu alumno activo.");
+      }
+      setAgregando(false);
+      return;
+    }
+
+    // 3. Crear nueva vinculación
+    const { error: insertError } = await supabase
+      .from('relacion_entrenador_alumno')
+      .insert([{
+        entrenador_id: session.user.id,
+        alumno_id: perfilData.id,
+        estado: 'activo'
+      }]);
+
+    if (!insertError) {
+      // 4. Cambiar su rol a alumno_entrenador
+      await supabase.from('perfiles').update({ rol_usuario: 'alumno_entrenador' }).eq('id', perfilData.id);
+      
+      alert("¡Alumno vinculado con éxito! Ahora él/ella solo verá tus rutinas en su app.");
+      setNuevoCorreo('');
+      fetchAlumnos();
+    } else {
+      alert("Error al vincular: " + insertError.message);
+    }
+    
+    setAgregando(false);
+  };
+
+  const cambiarEstado = async (relacionId, alumnoId, nuevoEstado) => {
+    const confirmMsg = nuevoEstado === 'inactivo' 
+      ? "¿Dar de baja a este alumno? Perderá acceso a tus rutinas y se le ofrecerá suscribirse a la app completa."
+      : "¿Reactivar a este alumno?";
+      
+    if (!window.confirm(confirmMsg)) return;
+
+    const { error } = await supabase
+      .from('relacion_entrenador_alumno')
+      .update({ estado: nuevoEstado })
+      .eq('id', relacionId);
+
+    if (!error) {
+      // Actualizar el rol del usuario
+      const nuevoRol = nuevoEstado === 'inactivo' ? 'atleta_normal' : 'alumno_entrenador';
+      await supabase.from('perfiles').update({ rol_usuario: nuevoRol }).eq('id', alumnoId);
+      
+      fetchAlumnos();
+    }
+  };
+
+  return (
+    <div className="container" style={{ paddingBottom: '90px', paddingTop: '20px' }}>
+      <h1 className="gold-gradient-text" style={{ fontSize: '2rem', marginBottom: '5px' }}>Mis Alumnos</h1>
+      <p style={{ color: 'var(--text-muted)', marginBottom: '20px' }}>
+        Gestiona tus clientes. Aquí puedes dar de alta nuevos alumnos con su correo.
+      </p>
+
+      {isVIPorPlatinum && (
+        <div style={{ background: 'linear-gradient(135deg, rgba(212, 175, 55, 0.2) 0%, rgba(0,0,0,0.8) 100%)', border: '1px solid var(--accent-gold)', padding: '15px', borderRadius: '12px', marginBottom: '20px', display: 'flex', gap: '15px', alignItems: 'center' }}>
+          <div style={{ flexShrink: 0, color: 'var(--accent-gold)' }}>
+            <i className="fa-solid fa-gift" style={{ fontSize: '24px' }}></i>
+          </div>
+          <div>
+            <h4 style={{ margin: '0 0 5px 0', color: 'var(--accent-gold)' }}>¡Mes de Entrenador Élite de Regalo!</h4>
+            <p style={{ margin: 0, fontSize: '0.85rem', color: '#ccc' }}>Por ser usuario VIP tienes un mes de prueba de <strong>100 alumnos</strong>. Al terminar el mes, se te cobrará el plan o podrás ajustarlo desde tus Ajustes para evitar cargos extras.</p>
+          </div>
+        </div>
+      )}
+
+      {/* Formulario Agregar Alumno */}
+      <div style={{ background: 'var(--bg-card)', padding: '20px', borderRadius: '16px', marginBottom: '30px', border: '1px solid rgba(255,255,255,0.05)' }}>
+        <h3 style={{ fontSize: '1.1rem', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Users size={18} color="var(--accent-gold)" /> Vincular Alumno
+        </h3>
+        <form onSubmit={agregarAlumno} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <input 
+            type="email" 
+            placeholder="Correo del alumno registrado en la app" 
+            className="input-field"
+            value={nuevoCorreo}
+            onChange={(e) => setNuevoCorreo(e.target.value)}
+            style={{ margin: 0, width: '100%' }}
+          />
+          <button type="submit" className="btn-primary" disabled={agregando} style={{ padding: '15px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', width: '100%' }}>
+            {agregando ? <i className="fa-solid fa-spinner fa-spin"></i> : <Plus size={20} />} 
+            Dar de Alta
+          </button>
+        </form>
+      </div>
+
+      {/* Lista de Alumnos */}
+      <h3 style={{ fontSize: '1.2rem', marginBottom: '15px' }}>Tus Alumnos Activos ({alumnos.filter(a => a.estado === 'activo').length})</h3>
+      
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: '20px' }}><i className="fa-solid fa-circle-notch fa-spin gold-gradient-text"></i></div>
+      ) : alumnos.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '40px 20px', background: 'rgba(0,0,0,0.2)', borderRadius: '12px' }}>
+          <p style={{ color: 'var(--text-muted)' }}>Todavía no tienes alumnos vinculados.</p>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+          {alumnos.map(rel => {
+            const perfil = rel.perfiles;
+            if (!perfil) return null;
+            const activo = rel.estado === 'activo';
+            
+            return (
+              <div key={rel.id} style={{ 
+                background: 'var(--bg-card)', 
+                padding: '20px', 
+                borderRadius: '16px',
+                borderLeft: `4px solid ${activo ? 'var(--accent-gold)' : '#e55039'}`,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '15px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                  <img 
+                    src={perfil.avatar_url || 'https://via.placeholder.com/60'} 
+                    alt="avatar" 
+                    style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', filter: activo ? 'none' : 'grayscale(100%)' }}
+                  />
+                  <div style={{ flex: 1 }}>
+                    <h4 style={{ margin: 0, fontSize: '1.1rem', color: activo ? 'white' : '#888' }}>
+                      {perfil.full_name || 'Usuario sin nombre'}
+                    </h4>
+                    <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)' }}>{perfil.email}</p>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '5px', fontSize: '0.75rem', color: activo ? '#4cd137' : '#e55039' }}>
+                      {activo ? <CheckCircle size={12} /> : <XCircle size={12} />}
+                      {rel.estado === 'desvinculado' ? 'Se ha desvinculado' : activo ? 'Activo y Entrenando' : 'Dado de baja'}
+                    </div>
+                  </div>
+                </div>
+                
+                {rel.estado === 'desvinculado' && (
+                  <div style={{ background: 'rgba(229, 80, 57, 0.1)', border: '1px solid #e55039', color: '#e55039', padding: '10px', borderRadius: '8px', fontSize: '0.9rem' }}>
+                    {rel.mensaje_desvinculacion || "El alumno decidió no continuar con su entrenamiento."}
+                  </div>
+                )}
+                
+                {rel.diasInactivo > 32 && activo && (
+                  <div style={{ background: 'rgba(229, 80, 57, 0.1)', border: '1px solid #e55039', color: '#e55039', padding: '10px', borderRadius: '8px', fontSize: '0.9rem' }}>
+                    <i className="fa-solid fa-triangle-exclamation"></i> Este alumno lleva inactivo {rel.diasInactivo} días. Favor de eliminar de la lista si ya no es su alumno.
+                  </div>
+                )}
+                
+                <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
+                  {activo && (
+                    <button 
+                      onClick={() => navigate(`/coach/asignar/${rel.alumno_id}`)}
+                      className="btn-primary"
+                      style={{ flex: 1, padding: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                    >
+                      <i className="fa-solid fa-calendar-days"></i> Programar Rutina
+                    </button>
+                  )}
+                  
+                  {rel.estado !== 'desvinculado' && (
+                    <button 
+                      onClick={() => cambiarEstado(rel.id, rel.alumno_id, activo ? 'inactivo' : 'activo')}
+                      style={{ 
+                        flex: activo ? 0.3 : 1,
+                        padding: '10px', 
+                        background: 'rgba(255,255,255,0.05)',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        color: activo ? '#e55039' : '#4cd137',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                    >
+                      {activo ? 'Baja' : 'Reactivar Alumno'}
+                    </button>
+                  )}
+                  
+                  {!activo && (
+                    <button 
+                      onClick={() => eliminarDefinitivamente(rel.id)}
+                      style={{ 
+                        flex: 1,
+                        padding: '10px', 
+                        background: 'rgba(229, 80, 57, 0.2)',
+                        border: '1px solid rgba(229, 80, 57, 0.5)',
+                        color: '#e55039',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                    >
+                      <i className="fa-solid fa-trash-can" style={{marginRight: '5px'}}></i> Eliminar de la lista
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}

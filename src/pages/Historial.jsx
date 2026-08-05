@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, ChevronDown, ChevronRight, Calendar, Loader } from 'lucide-react';
+import { ChevronLeft, ChevronDown, ChevronRight, Calendar, Loader, Flame } from 'lucide-react';
+import GaleriaReto from '../components/GaleriaReto';
 
 export default function Historial({ session }) {
   const navigate = useNavigate();
   const [history, setHistory] = useState({});
   const [loading, setLoading] = useState(true);
   const [expandedDates, setExpandedDates] = useState({});
+  const [activeTab, setActiveTab] = useState('rutinas'); // 'rutinas' or 'reto'
 
   useEffect(() => {
     const fetchHistory = async () => {
@@ -18,7 +20,7 @@ export default function Historial({ session }) {
             id, created_at, series_log,
             ejercicios_biblioteca:ejercicio_id (nombre, musculos_trabajados)
           `)
-          .eq('user_id', session.user.id)
+          .eq('user_id', session?.user.id)
           .order('created_at', { ascending: false });
 
         if (error) throw error;
@@ -56,7 +58,7 @@ export default function Historial({ session }) {
     };
 
     fetchHistory();
-  }, [session.user.id]);
+  }, [session?.user.id]);
 
   const toggleDate = (dateKey) => {
     setExpandedDates(prev => ({
@@ -83,35 +85,52 @@ export default function Historial({ session }) {
 
       <div style={{ marginBottom: '30px' }}>
         <h1 className="gold-gradient-text" style={{ fontSize: '2rem', margin: '0 0 10px 0', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <Calendar size={28} /> Mi Historial
+          <Calendar size={28} /> Mi Progreso
         </h1>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem' }}>
-          Revisa tus entrenamientos pasados, analiza tus marcas y celebra tu constancia.
+          Revisa tus entrenamientos pasados y tu progreso en el Reto Vigor 21.
         </p>
       </div>
 
-      {dates.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '40px 20px', background: 'rgba(255,255,255,0.03)', borderRadius: '15px', border: '1px solid rgba(255,255,255,0.05)' }}>
-          <div style={{ fontSize: '3rem', marginBottom: '15px' }}>🍃</div>
-          <h3 style={{ color: '#fff', marginBottom: '10px' }}>Aún no hay registros</h3>
-          <p style={{ color: '#888' }}>Tus entrenamientos finalizados aparecerán aquí. ¡Es hora de sembrar la primera semilla!</p>
-          <button onClick={() => navigate('/dashboard')} className="btn-primary" style={{ marginTop: '20px', padding: '10px 20px' }}>
-            Ir a Entrenar
-          </button>
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-          {dates.map((dateKey) => {
-            const isExpanded = !!expandedDates[dateKey];
-            const exercises = history[dateKey];
+      <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+        <button 
+          onClick={() => setActiveTab('rutinas')}
+          style={{ flex: 1, padding: '12px', borderRadius: '12px', border: '1px solid rgba(212, 175, 55, 0.3)', background: activeTab === 'rutinas' ? 'rgba(212, 175, 55, 0.2)' : 'rgba(255,255,255,0.05)', color: activeTab === 'rutinas' ? 'var(--accent-gold)' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+          <Calendar size={18} /> Rutinas
+        </button>
+        <button 
+          onClick={() => setActiveTab('reto')}
+          style={{ flex: 1, padding: '12px', borderRadius: '12px', border: '1px solid rgba(212, 175, 55, 0.3)', background: activeTab === 'reto' ? 'rgba(212, 175, 55, 0.2)' : 'rgba(255,255,255,0.05)', color: activeTab === 'reto' ? 'var(--accent-gold)' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+          <Flame size={18} /> Reto Vigor
+        </button>
+      </div>
 
-            return (
-              <div key={dateKey} style={{ 
-                background: 'rgba(20, 20, 20, 0.6)', 
-                borderRadius: '16px', 
-                border: '1px solid rgba(255,255,255,0.08)',
-                overflow: 'hidden'
-              }}>
+      {activeTab === 'reto' ? (
+        <GaleriaReto userId={session?.user.id} />
+      ) : (
+        <>
+          {dates.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '40px 20px', background: 'rgba(255,255,255,0.03)', borderRadius: '15px', border: '1px solid rgba(255,255,255,0.05)' }}>
+              <div style={{ fontSize: '3rem', marginBottom: '15px' }}>💪</div>
+              <h3 style={{ color: '#fff', marginBottom: '10px' }}>Aún no hay registros</h3>
+              <p style={{ color: '#888' }}>Tus entrenamientos finalizados aparecerán aquí. ¡Es hora de sembrar la primera semilla!</p>
+              <button onClick={() => navigate('/')} className="btn-primary" style={{ marginTop: '20px', padding: '10px 20px' }}>
+                Ir a Entrenar
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+              {dates.map((dateKey) => {
+                const isExpanded = !!expandedDates[dateKey];
+                const exercises = history[dateKey];
+
+                return (
+                  <div key={dateKey} style={{ 
+                    background: 'rgba(20, 20, 20, 0.6)', 
+                    borderRadius: '16px', 
+                    border: '1px solid rgba(255,255,255,0.08)',
+                    overflow: 'hidden'
+                  }}>
                 {/* Cabecera del Acordeón */}
                 <div 
                   onClick={() => toggleDate(dateKey)}
@@ -191,6 +210,8 @@ export default function Historial({ session }) {
             );
           })}
         </div>
+          )}
+        </>
       )}
     </div>
   );

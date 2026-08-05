@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../supabaseClient';
-import { User, Clock, Calendar, X, MessageCircle, FolderOpen, Award, CheckCircle } from 'lucide-react';
+import { User, Clock, Calendar, X, MessageCircle, FolderOpen, Award, CheckCircle, Crown } from 'lucide-react';
 import AdminChatModal from './AdminChatModal';
 import AdminExpedienteModal from './AdminExpedienteModal';
 
@@ -30,10 +30,18 @@ export default function AdminAtletas({ session }) {
       .order('ultimo_ingreso', { ascending: false, nullsFirst: false });
       
     if (!error && data) {
-      setAtletas(data);
+      // Traer celulares de la tabla segura
+      const { data: privadosData } = await supabase.from('datos_privados').select('user_id, whatsapp');
+      
+      const mergedAtletas = data.map(atleta => {
+        const priv = privadosData?.find(p => p.user_id === atleta.id);
+        return { ...atleta, whatsapp: priv?.whatsapp || null };
+      });
+
+      setAtletas(mergedAtletas);
       // Calcular prospectos (los que tienen más entrenamientos registrados en checkins, pero para simplificar tomamos los que han ingresado recientemente y no están en el muro este mes)
       const mesActual = new Date().toLocaleString('es-ES', { month: 'long', year: 'numeric' });
-      const potenciales = data.filter(a => a.nivel !== 'RESET' && a.avatar_url).slice(0, 5); // Simplificación: top 5 activos con foto
+      const potenciales = mergedAtletas.filter(a => a.nivel !== 'RESET' && a.avatar_url).slice(0, 5); // Simplificación: top 5 activos con foto
       setProspectos(potenciales);
     }
     
@@ -135,6 +143,40 @@ export default function AdminAtletas({ session }) {
     }
   };
 
+  const lanzarPaywall = async (atletaId) => {
+    try {
+      const { error } = await supabase
+        .from('perfiles')
+        .update({ force_paywall: true })
+        .eq('id', atletaId);
+      
+      if (error) throw error;
+      
+      alert('¡Paywall programado! El usuario lo verá la próxima vez que entre.');
+      fetchAtletas();
+    } catch (error) {
+      console.error("Error al lanzar paywall:", error);
+      alert('Error al lanzar paywall.');
+    }
+  };
+
+  const lanzarPruebaPlatinum = async (atletaId) => {
+    try {
+      const { error } = await supabase
+        .from('perfiles')
+        .update({ force_platinum_trial: true })
+        .eq('id', atletaId);
+      
+      if (error) throw error;
+      
+      alert('¡Prueba Platinum regalada! El usuario verá la oferta la próxima vez que entre.');
+      fetchAtletas();
+    } catch (error) {
+      console.error("Error al regalar Platinum:", error);
+      alert('Error al regalar prueba Platinum.');
+    }
+  };
+
   const formatDate = (dateString) => {
     if (!dateString) return 'Desconocida';
     const d = new Date(dateString);
@@ -231,9 +273,16 @@ export default function AdminAtletas({ session }) {
             <div style={{ flex: 1 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div>
-                  <h3 style={{ margin: '0 0 5px 0', fontSize: '1.1rem', color: '#fff' }}>
-                    {atleta.full_name || atleta.username || 'Atleta Sin Nombre'}
-                  </h3>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', marginBottom: '5px' }}>
+                    <h3 style={{ margin: 0, fontSize: '1.1rem', color: '#fff' }}>
+                      {atleta.full_name || atleta.username || 'Atleta Sin Nombre'}
+                    </h3>
+                    {atleta.whatsapp && (
+                      <a href={`https://wa.me/${atleta.whatsapp}`} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: '#25D366', color: '#fff', padding: '3px 8px', borderRadius: '12px', fontSize: '0.75rem', textDecoration: 'none', fontWeight: 'bold' }}>
+                        <MessageCircle size={14} /> {atleta.whatsapp}
+                      </a>
+                    )}
+                  </div>
                   <p style={{ margin: '0 0 5px 0', fontSize: '0.85rem', color: '#aaa' }}>{atleta.email || 'Correo oculto'}</p>
                   <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>@{atleta.username || 'usuario'}</p>
                 </div>
@@ -281,6 +330,48 @@ export default function AdminAtletas({ session }) {
                     <option value="Socio Fundador Vitalicio">Fundador Vitalicio (Élite)</option>
                   </select>
                 </div>
+
+                {(!atleta.plan_membresia || atleta.plan_membresia === 'Atleta Base (Gratis)') && (
+                  <div style={{ padding: '10px', background: 'rgba(212, 175, 55, 0.05)', borderRadius: '8px', border: '1px solid rgba(212, 175, 55, 0.2)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    
+                    {/* PAYWALL */}
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                        <span style={{ fontSize: '0.8rem', color: '#ccc' }}>Estado Paywall:</span>
+                        <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: atleta.force_paywall ? '#f1c40f' : (!atleta.last_paywall_shown_date || (new Date() - new Date(atleta.last_paywall_shown_date))/(1000*60*60*24) > 30 ? '#2ecc71' : '#e74c3c') }}>
+                          {atleta.force_paywall ? 'Pendiente (Lo verá)' : (!atleta.last_paywall_shown_date ? 'Nunca mostrado' : `Hace ${Math.floor((new Date() - new Date(atleta.last_paywall_shown_date))/(1000*60*60*24))} días`)}
+                        </span>
+                      </div>
+                      {!atleta.force_paywall && (
+                        <button 
+                          onClick={() => lanzarPaywall(atleta.id)}
+                          style={{ width: '100%', padding: '8px', borderRadius: '6px', background: 'var(--accent-gold)', border: 'none', color: '#000', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer' }}
+                        >
+                          Lanzar Paywall Ahora
+                        </button>
+                      )}
+                    </div>
+
+                    {/* REGALO PLATINUM */}
+                    <div style={{ borderTop: '1px solid rgba(212, 175, 55, 0.2)', paddingTop: '10px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                        <span style={{ fontSize: '0.8rem', color: '#ccc' }}>Regalo Platinum:</span>
+                        <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: atleta.force_platinum_trial ? '#f1c40f' : '#2ecc71' }}>
+                          {atleta.force_platinum_trial ? 'Pendiente' : 'No enviado'}
+                        </span>
+                      </div>
+                      {!atleta.force_platinum_trial && (
+                        <button 
+                          onClick={() => lanzarPruebaPlatinum(atleta.id)}
+                          style={{ width: '100%', padding: '8px', borderRadius: '6px', background: 'linear-gradient(135deg, #1abc9c, #16a085)', border: 'none', color: '#fff', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}
+                        >
+                          <Crown size={14} /> Regalar 7 Días Platinum
+                        </button>
+                      )}
+                    </div>
+
+                  </div>
+                )}
 
                 <button 
                   onClick={() => toggleBloqueoChat(atleta.id, atleta.chat_bloqueado)}

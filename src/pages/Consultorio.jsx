@@ -38,7 +38,7 @@ export default function Consultorio({ session }) {
     const nivel = perfil?.nivel || session.user.user_metadata?.nivel || 'Semilla';
     setUserLevel(nivel);
 
-    const isVip = plan === 'Socio Fundador Vitalicio' || plan === 'Plan Platinum' || plan.toLowerCase().includes('administrador');
+  const isVip = plan === 'Socio Fundador Vitalicio' || plan === 'Plan Platinum' || plan === 'Prueba Gratis (7 Días)' || plan === 'Entrenador Élite' || plan === 'Entrenador Pro' || plan.toLowerCase().includes('administrador');
     setHasAccess(isVip);
 
     if (!isVip) {

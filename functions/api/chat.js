@@ -1,3 +1,16 @@
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+};
+
+export async function onRequest(context) {
+  if (context.request.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+  return onRequestPost(context);
+}
+
 export async function onRequestPost(context) {
   try {
     const { request, env } = context;
@@ -44,58 +57,87 @@ Reglas absolutas que debes cumplir:
       }
     };
 
-    let modelName = env.GEMINI_MODEL_NAME || 'gemini-1.5-pro';
-    let response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${API_KEY}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(geminiBody)
-    });
+    const candidateModels = [
+      env.GEMINI_MODEL_NAME,
+      'gemini-1.5-flash',
+      'gemini-1.5-pro',
+      'gemini-1.5-flash-latest',
+      'gemini-1.5-pro-latest',
+      'gemini-2.0-flash',
+      'gemini-pro'
+    ].filter(Boolean);
 
-    // Auto-recuperación: Si el modelo falla por nombre obsoleto (404), buscar modelos vivos
-    if (!response.ok && response.status === 404) {
-      console.log("Modelo no encontrado, intentando auto-recuperación...");
+    let response = null;
+
+    // 1. Probar la lista de modelos candidatos más rápidos y modernos
+    for (const model of candidateModels) {
+      try {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(geminiBody)
+        });
+        if (res.ok) {
+          response = res;
+          break;
+        } else if (res.status !== 404 && !response) {
+          response = res;
+        }
+      } catch (e) {
+        console.error(`Error intentando modelo ${model}:`, e);
+      }
+    }
+
+    // 2. Si ninguno de los candidatos funcionó, consultar la API de modelos disponibles en Google y probar uno por uno
+    if (!response || !response.ok) {
+      console.log("Ningún candidato local funcionó, probando catálogo oficial de Google...");
       try {
         const modelsRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${API_KEY}`);
         if (modelsRes.ok) {
           const modelsData = await modelsRes.json();
-          // Encontrar un modelo válido (gemini-1.5 o superior)
-          const validModel = modelsData.models?.find(m => 
-            m.supportedGenerationMethods?.includes('generateContent') && 
-            m.name.includes('gemini') && 
-            !m.name.includes(modelName) &&
-            !m.name.includes('vision')
-          );
-          
-          if (validModel) {
-            modelName = validModel.name.replace('models/', '');
-            console.log("Reintentando con modelo alternativo:", modelName);
-            response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${API_KEY}`, {
+          const liveModels = (modelsData.models || [])
+            .filter(m => m.supportedGenerationMethods?.includes('generateContent') && m.name.includes('gemini') && !m.name.includes('vision'))
+            .map(m => m.name.replace('models/', ''));
+
+          for (const liveModel of liveModels) {
+            if (candidateModels.includes(liveModel)) continue;
+            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${liveModel}:generateContent?key=${API_KEY}`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(geminiBody)
             });
+            if (res.ok) {
+              response = res;
+              break;
+            }
           }
         }
       } catch (e) {
-        console.error("Fallo en auto-recuperación:", e);
+        console.error("Fallo al consultar lista de modelos:", e);
       }
     }
 
-    if (!response.ok) {
-      const errorText = await response.text();
+    if (!response || !response.ok) {
+      const errorText = response ? await response.text() : "No se pudo contactar a ningún modelo de Gemini.";
       console.error("Gemini API Error:", errorText);
-      return new Response(JSON.stringify({ error: `Gemini falló en responder: ${errorText}` }), { status: 500 });
+      return new Response(JSON.stringify({ error: `Gemini falló en responder: ${errorText}` }), { 
+        status: 500,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
     }
 
     const data = await response.json();
     const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text || "No hay respuesta.";
 
     return new Response(JSON.stringify({ reply: replyText }), {
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json', ...corsHeaders }
     });
     
   } catch (error) {
     console.error("Error general en el worker:", error);
-    return new Response(JSON.stringify({ error: error.message }), { status: 500 });
+    return new Response(JSON.stringify({ error: error.message }), { 
+      status: 500,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders }
+    });
   }
 }

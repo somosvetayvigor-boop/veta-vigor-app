@@ -166,6 +166,35 @@ export default function AdminChatModal({ onClose, atleta, adminSession }) {
       const ta = document.getElementById('adminchat-textarea');
       if (ta) ta.style.height = 'auto';
       fetchMensajes(currentChatId);
+      
+      // Enviar Notificación Push vía OneSignal REST API
+      try {
+        const targetId = atleta.id;
+        console.log("Enviando push a external_id:", targetId);
+        const osResponse = await fetch('https://api.onesignal.com/notifications', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Basic ${import.meta.env.VITE_ONESIGNAL_API_KEY}`
+          },
+          body: JSON.stringify({
+            app_id: "f0e7f7a8-6da8-4592-92a7-542f731a91f0",
+            include_aliases: {
+               external_id: [targetId]
+            },
+            target_channel: "push",
+            headings: { "en": "Mensaje del Coach", "es": "Mensaje del Coach" },
+            contents: { "en": "Tienes un nuevo mensaje en el chat 1-a-1.", "es": "Tienes un nuevo mensaje en el chat 1-a-1." }
+          })
+        });
+        const osResult = await osResponse.json();
+        console.log("OneSignal Response COMPLETA:", JSON.stringify(osResult));
+        if (osResult.errors || osResult.recipients === 0) {
+          console.error("OneSignal Errors:", osResult.errors);
+        }
+      } catch (err) {
+        console.error("Error enviando push de OneSignal:", err);
+      }
     }
     setIsUploading(false);
   };

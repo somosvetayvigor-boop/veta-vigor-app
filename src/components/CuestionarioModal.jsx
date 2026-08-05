@@ -42,8 +42,9 @@ const QUESTIONS = [
 ];
 
 export default function CuestionarioModal({ session, onComplete }) {
-  const [step, setStep] = useState(0); 
-  // 0: Dias, 1-4: questions, 5: system select, 6: calculating, 7: result
+  const [step, setStep] = useState(-1); 
+  // -1: Origen, 0: Dias, 1-4: questions, 5: system select, 6: calculating, 7: result
+  const [origen, setOrigen] = useState('');
   const [diasEntrenamiento, setDiasEntrenamiento] = useState('');
   const [points, setPoints] = useState(0);
   const [sistemas, setSistemas] = useState([]);
@@ -60,6 +61,11 @@ export default function CuestionarioModal({ session, onComplete }) {
     };
     fetchSistemas();
   }, []);
+
+  const handleOrigen = (o) => {
+    setOrigen(o);
+    setStep(0);
+  };
 
   const handleDias = (dias) => {
     setDiasEntrenamiento(dias);
@@ -97,7 +103,7 @@ export default function CuestionarioModal({ session, onComplete }) {
       const { error: profileError } = await supabase
         .from('perfiles')
         .update({ nivel, sistema_activo: sistema_id, dias_entrenamiento: dias })
-        .eq('id', session.user.id);
+        .eq('id', session?.user.id);
         
       if (profileError) throw profileError;
 
@@ -106,7 +112,8 @@ export default function CuestionarioModal({ session, onComplete }) {
         data: { 
           nivel: nivel,
           sistema_activo: sistema_id,
-          dias_entrenamiento: dias
+          dias_entrenamiento: dias,
+          origen: origen
         }
       });
 
@@ -123,6 +130,11 @@ export default function CuestionarioModal({ session, onComplete }) {
       data: { cuestionario_complete: true }
     });
     onComplete();
+    if (origen === 'Reto21') {
+      window.location.href = '/reto-21-dias';
+    } else {
+      window.location.href = '/';
+    }
   };
 
   const OptionButton = ({ text, onClick }) => (
@@ -150,6 +162,25 @@ export default function CuestionarioModal({ session, onComplete }) {
   );
 
   const renderContent = () => {
+    // Origen
+    if (step === -1) {
+      return (
+        <div className="fade-in">
+          <Target size={40} color="var(--accent-gold)" style={{ margin: '0 auto 15px auto', display: 'block' }} />
+          <h3 className="gold-gradient-text" style={{ fontSize: '1.4rem', marginBottom: '20px', textAlign: 'center' }}>
+            ¿Qué te trae a Veta & Vigor?
+          </h3>
+          <p style={{ fontSize: '1.1rem', marginBottom: '30px', textAlign: 'center', color: 'var(--text-muted)' }}>
+            Selecciona tu principal objetivo.
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+            <OptionButton text="Vengo por el Reto de 21 Días" onClick={() => handleOrigen('Reto21')} />
+            <OptionButton text="Quiero mi misión de entrenamiento" onClick={() => handleOrigen('Rutina')} />
+          </div>
+        </div>
+      );
+    }
+
     // Dias
     if (step === 0) {
       return (
@@ -253,10 +284,10 @@ export default function CuestionarioModal({ session, onComplete }) {
             {nivelAsignado}
           </h1>
           <p style={{ fontSize: '1.1rem', color: '#fff', marginBottom: '30px', lineHeight: '1.6' }}>
-            Hemos configurado tu calendario con rutinas de nivel <strong>{nivelAsignado}</strong> distribuidas para <strong>{diasEntrenamiento === '3' ? '3 días' : 'más de 3 días'}</strong> a la semana.
+            Hemos configurado tu calendario con misiones de madera <strong>{nivelAsignado}</strong> distribuidas para <strong>{diasEntrenamiento === '3' ? '3 días' : 'más de 3 días'}</strong> a la semana.
           </p>
           <button onClick={finalizeOnboarding} className="btn-primary" style={{ width: '100%', padding: '15px', fontSize: '1.1rem', fontWeight: 'bold' }}>
-            INICIAR ENTRENAMIENTO
+            {origen === 'Reto21' ? 'IR AL RETO 21 DÍAS' : 'INICIAR ENTRENAMIENTO'}
           </button>
         </div>
       );

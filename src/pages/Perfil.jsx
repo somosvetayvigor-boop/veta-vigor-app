@@ -3,7 +3,10 @@ import { createPortal } from 'react-dom';
 import { supabase } from '../supabaseClient';
 import { useNavigate } from 'react-router-dom';
 import LegalModals from '../components/LegalModals';
-import { User, LogOut, Settings, X, Camera, Edit2, Upload, Activity, Flame, Bell, Calendar } from 'lucide-react';
+import { addToOfflineQueue } from '../utils/OfflineManager';
+import { User, LogOut, Settings, X, Camera, Edit2, Upload, Activity, Flame, Bell, Calendar, Leaf } from 'lucide-react';
+import { DatabaseManager } from '../utils/DatabaseManager';
+import { getLevelProgress, getRpgTitle } from '../utils/ProgressionEngine';
 
 export default function Perfil({ session }) {
   const navigate = useNavigate();
@@ -27,6 +30,7 @@ export default function Perfil({ session }) {
   
   const [meta, setMeta] = useState(session?.user?.user_metadata || {});
   const [checkinHoy, setCheckinHoy] = useState(null);
+  const [inventario, setInventario] = useState([]);
 
   const handleUpdateName = async (e) => {
     e.preventDefault();
@@ -43,7 +47,7 @@ export default function Perfil({ session }) {
       await supabase.from('perfiles').update({
         nombre_completo: newName,
         username: newUsername
-      }).eq('id', session.user.id);
+      }).eq('id', session?.user.id);
       
       if (data?.user) setMeta(data.user.user_metadata);
       setEditNameModal(false);
@@ -84,42 +88,74 @@ export default function Perfil({ session }) {
 
   React.useEffect(() => {
     const fetchUser = async () => {
-      // 1. Intentar leer de caché inmediatamente
-      const cachedMeta = localStorage.getItem('veta_vigor_perfil_meta');
-      if (cachedMeta) setMeta(JSON.parse(cachedMeta));
+      try {
+        // 1. Intentar leer de caché inmediatamente
+        const cachedMeta = await DatabaseManager.getProfile(session?.user.id);
+        if (cachedMeta) setMeta(cachedMeta);
 
-      if (navigator.onLine) {
-        const { data, error } = await supabase.auth.getUser();
-        const user = data?.user;
-        if (user) {
-          // Obtener los datos más recientes desde la tabla perfiles
-          const { data: perfilData } = await supabase.from('perfiles').select('*').eq('id', user.id).maybeSingle();
-          
-          const combinedMeta = { 
-            ...user.user_metadata, 
-            ...perfilData, 
-            suscripcion: perfilData?.plan_membresia || user.user_metadata.suscripcion 
-          };
-          
-          setMeta(combinedMeta);
-          localStorage.setItem('veta_vigor_perfil_meta', JSON.stringify(combinedMeta));
+        if (navigator.onLine) {
+          const { data, error } = await supabase.auth.getUser();
+          const user = data?.user;
+          if (user) {
+            // Obtener los datos más recientes desde la tabla perfiles
+            const { data: perfilData, error: perfilError } = await supabase.from('perfiles').select('*').eq('id', user.id).maybeSingle();
+            
+            if (perfilError) {
+              console.warn("No se pudo descargar perfil, usando caché", perfilError);
+            } else {
+              const combinedMeta = { 
+                ...user.user_metadata, 
+                ...perfilData, 
+                suscripcion: perfilData?.plan_membresia || user.user_metadata.suscripcion 
+              };
+              
+              setMeta(combinedMeta);
+              await DatabaseManager.saveProfile(session?.user.id, combinedMeta);
+            }
+          }
         }
-      }
 
-      const today = new Date();
-      const todayStr = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
-      
-      const { data: checkinData } = await supabase
-        .from('checkins')
-        .select('nivel')
-        .eq('user_id', session.user.id)
-        .eq('fecha', todayStr)
-        .maybeSingle();
+        const today = new Date();
+        const todayStr = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
         
-      if (checkinData) setCheckinHoy(checkinData.nivel);
+        const localCheckin = await DatabaseManager.getCheckin(session?.user.id, todayStr);
+        if (localCheckin) {
+           setCheckinHoy(localCheckin);
+        }
+
+        if (navigator.onLine && !localCheckin) {
+          const { data: checkinData, error: checkinError } = await supabase
+            .from('checkins')
+            .select('nivel')
+            .eq('user_id', session?.user.id)
+            .eq('fecha', todayStr)
+            .maybeSingle();
+            
+          if (!checkinError && checkinData) {
+            setCheckinHoy(checkinData.nivel);
+            await DatabaseManager.saveCheckin(session?.user.id, todayStr, checkinData.nivel);
+          }
+        }
+        
+        // Cargar inventario del usuario (Fase 5)
+        if (navigator.onLine) {
+          const { data: invData } = await supabase
+            .from('inventario_usuarios')
+            .select('tienda_items(tipo, nombre)')
+            .eq('user_id', session?.user.id);
+            
+          if (invData) {
+            // Flatten the nested relation
+            const itemsList = invData.map(i => i.tienda_items?.nombre?.toLowerCase());
+            setInventario(itemsList);
+          }
+        }
+      } catch (err) {
+        console.error("Error obteniendo datos del perfil:", err);
+      }
     };
     fetchUser();
-  }, [session.user.id]);
+  }, [session?.user.id]);
   
   const [formMetrics, setFormMetrics] = useState({
     peso_inicial: meta.peso_inicial || '',
@@ -128,10 +164,72 @@ export default function Perfil({ session }) {
     masa_muscular: meta.masa_muscular || ''
   });
   const nivel = meta.nivel || 'Desconocido';
-  const nombreReal = meta.nombre_completo || meta.nombre || session?.user?.email;
+  const nombreReal = meta.nombre_completo || meta.nombre || session?.user?.email || 'Usuario';
   const displayName = meta.display_preference === 'username' && meta.username 
     ? `@${meta.username}` 
     : nombreReal;
+
+  const handleDejarEntrenador = () => {
+    if (window.confirm("¿Estás seguro de que quieres dejar de ser Entrenador? Volverás a tu plan anterior y perderás el acceso al panel de atletas.")) {
+      alert("Nota: Si compraste tu suscripción de Entrenador recientemente, por favor cancélala en tu tienda de aplicaciones (App Store o Google Play) para evitar cobros. Tus beneficios vitalicios u originales se mantendrán.");
+      localStorage.setItem('user_role', 'atleta_normal');
+      supabase.from('perfiles').update({ rol_usuario: 'atleta_normal' }).eq('id', session.user.id).then(() => {
+        window.location.href = "/";
+      });
+    }
+  };
+
+  const handleDesvincularEntrenador = async () => {
+    if (window.confirm("¿Seguro que deseas desvincularte de tu entrenador actual? Dejarás de recibir sus rutinas.")) {
+      try {
+        const { error } = await supabase
+          .from('relacion_entrenador_alumno')
+          .update({ estado: 'desvinculado' })
+          .eq('alumno_id', session.user.id)
+          .eq('estado', 'activo');
+          
+        if (error) throw error;
+        
+        const now = new Date().toISOString();
+        
+        await supabase.from('perfiles').update({ 
+          rol_usuario: 'atleta_normal',
+          plan_membresia: 'Prueba Gratis (7 Días)'
+        }).eq('id', session.user.id);
+        
+        await supabase.auth.updateUser({
+          data: { 
+            trial_start_date: now,
+            trial_accepted: false
+          }
+        });
+        
+        localStorage.setItem('user_role', 'atleta_normal');
+        alert("Te has desvinculado de tu entrenador exitosamente. ¡Tienes 7 días gratis de Platinum para probar nuestros sistemas!");
+        window.location.href = "/";
+      } catch (err) {
+        alert("Error al desvincular: " + err.message);
+      }
+    }
+  };
+
+  const handleConvertirAEntrenadorGratis = async () => {
+    if (window.confirm("¿Deseas activar tu panel de Entrenador? Comenzarás en el plan gratuito con límite de 2 atletas.")) {
+      try {
+        await supabase.from('perfiles').update({ 
+          rol_usuario: 'entrenador', 
+          plan_membresia: 'Entrenador Básico' 
+        }).eq('id', session?.user.id);
+        
+        localStorage.setItem('user_role', 'entrenador');
+        alert("¡Felicidades! Ya tienes acceso a tu panel de Entrenador.");
+        window.location.reload();
+      } catch (err) {
+        console.error("Error al cambiar a entrenador:", err);
+        alert("Hubo un error al activar tu panel.");
+      }
+    }
+  };
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -140,9 +238,8 @@ export default function Perfil({ session }) {
   const handleSaveMetrics = async () => {
     try {
       if (!navigator.onLine) {
-        const { addToOfflineQueue } = await import('../utils/OfflineManager');
         addToOfflineQueue('UPDATE_AUTH_META', formMetrics);
-        addToOfflineQueue('UPDATE_PERFIL', { userId: session.user.id, data: formMetrics });
+        addToOfflineQueue('UPDATE_PERFIL', { userId: session?.user.id, data: formMetrics });
         setMeta({ ...meta, ...formMetrics });
         setEditModal(false);
         alert('Sin conexión: Métricas guardadas localmente. Se sincronizarán automáticamente.');
@@ -151,7 +248,7 @@ export default function Perfil({ session }) {
 
       const { data } = await supabase.auth.updateUser({ data: formMetrics });
       if (data?.user) setMeta(data.user.user_metadata);
-      await supabase.from('perfiles').update(formMetrics).eq('id', session.user.id);
+      await supabase.from('perfiles').update(formMetrics).eq('id', session?.user.id);
       setEditModal(false);
     } catch (e) {
       console.error(e);
@@ -173,7 +270,7 @@ export default function Perfil({ session }) {
         foto_despues: null, 
         fuerza_tren_superior: null, 
         fuerza_tren_inferior: null 
-      }).eq('id', session.user.id);
+      }).eq('id', session?.user.id);
       
       window.location.reload();
     } catch (e) {
@@ -189,26 +286,29 @@ export default function Perfil({ session }) {
     
     try {
       const fileExt = file.name.split('.').pop();
-      const fileName = `${session.user.id}_${type}_${Date.now()}.${fileExt}`;
+      const fileName = `${session?.user.id}_${type}_${Date.now()}.${fileExt}`;
+      
+      const bucketName = type === 'avatar' || type === 'logo' ? 'avatars' : 'fotos_progreso';
       
       const { error: uploadError } = await supabase.storage
-        .from('fotos_progreso')
+        .from(bucketName)
         .upload(fileName, file);
 
       if (uploadError) throw uploadError;
 
-      const { data } = supabase.storage.from('fotos_progreso').getPublicUrl(fileName);
+      const { data } = supabase.storage.from(bucketName).getPublicUrl(fileName);
       
       let key = '';
       if (type === 'antes') key = 'foto_antes';
       else if (type === 'despues') key = 'foto_despues';
       else if (type === 'avatar') key = 'avatar_url';
+      else if (type === 'logo') key = 'logo_entrenador';
 
       const { data: userData } = await supabase.auth.updateUser({ data: { [key]: data.publicUrl } });
       if (userData?.user) setMeta(userData.user.user_metadata);
 
       // Sincronizar también con la tabla de perfiles para el Panel de Creador
-      await supabase.from('perfiles').update({ [key]: data.publicUrl }).eq('id', session.user.id);
+      await supabase.from('perfiles').update({ [key]: data.publicUrl }).eq('id', session?.user.id);
 
     } catch (error) {
       console.error(error);
@@ -228,14 +328,19 @@ export default function Perfil({ session }) {
     return '/assets/niveles/semilla.png';
   };
 
-  const suscripcion = meta.suscripcion || 'Fundador';
+  const suscripcion = meta.suscripcion || 'Atleta Base (Gratis)';
   const displaySuscripcion = suscripcion
     .replace(/Socio Fundador Vitalicio/i, 'Vitalicio')
     .replace(/Plan /i, '')
     .replace(/Socio /i, '');
 
-  const hasPaidPlan = ['Socio Argentum', 'Socio Aurum', 'Plan Platinum', 'Socio Fundador Vitalicio'].includes(suscripcion);
-  const isFreeUser = !isAdmin && !hasPaidPlan;
+  const isEntrenador = localStorage.getItem('user_role') === 'entrenador';
+  const hasPaidPlan = suscripcion?.includes('Pro') || suscripcion?.includes('Élite') || ['Socio Argentum', 'Socio Aurum', 'Plan Platinum', 'Socio Fundador Vitalicio', 'Prueba Gratis (7 Días)'].includes(suscripcion);
+  const isAlumnoEntrenador = meta.rol_usuario === 'alumno_entrenador';
+  const isFreeUser = !isAdmin && !hasPaidPlan && !isAlumnoEntrenador;
+  const isFundador = suscripcion?.toLowerCase().includes('fundador') || suscripcion?.toLowerCase().includes('vitalicio');
+
+  const showBadge = !isAlumnoEntrenador && (hasPaidPlan || isFundador);
 
   const getSubIcon = (subName) => {
     const s = subName.toLowerCase();
@@ -245,8 +350,28 @@ export default function Perfil({ session }) {
     return '/assets/suscripciones/fundador.png';
   };
 
+  const getAvatarStage = (nivel) => {
+    if (!nivel) return { icon: '🌱', desc: 'Brote' };
+    if (nivel >= 50) return { icon: '🌳✨', desc: 'Árbol del Mundo' };
+    if (nivel >= 31) return { icon: '🌳', desc: 'Roble Fuerte' };
+    if (nivel >= 11) return { icon: '🌲', desc: 'Árbol Joven' };
+    return { icon: '🌱', desc: 'Brote' };
+  };
+
   return (
     <div className="container" style={{ paddingBottom: '90px' }}>
+      <style>{`
+        @keyframes pulseFire {
+          0% { box-shadow: 0 0 15px #ff4757, inset 0 0 10px #ff4757; border-color: #ff4757; }
+          50% { box-shadow: 0 0 25px #ff6b81, inset 0 0 15px #ff6b81; border-color: #ff6b81; }
+          100% { box-shadow: 0 0 15px #ff4757, inset 0 0 10px #ff4757; border-color: #ff4757; }
+        }
+        @keyframes treeBreathe {
+          0% { transform: scale(1) translateY(0px); }
+          50% { transform: scale(1.1) translateY(-2px) rotate(3deg); }
+          100% { transform: scale(1) translateY(0px); }
+        }
+      `}</style>
       <h1 className="gold-gradient-text" style={{ fontSize: '2rem', marginBottom: '20px', marginTop: '20px' }}>Tu Perfil</h1>
       
       <div className="card" style={{ padding: '30px 20px', textAlign: 'center', marginBottom: '20px' }}>
@@ -254,33 +379,53 @@ export default function Perfil({ session }) {
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-start', gap: '20px', marginBottom: '15px' }}>
           
           {/* Insignia de Suscripción */}
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '80px' }}>
-            <div 
-              onClick={() => setZoomedImage(getSubIcon(suscripcion))}
-              style={{ width: '60px', height: '60px', borderRadius: '50%', overflow: 'hidden', border: '2px solid rgba(255, 255, 255, 0.1)', background: '#111', cursor: 'pointer' }}
-            >
-              <img src={getSubIcon(suscripcion)} alt="Suscripción" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          {showBadge && (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '80px' }}>
+              <div 
+                onClick={() => setZoomedImage(getSubIcon(suscripcion))}
+                style={{ width: '60px', height: '60px', borderRadius: '50%', overflow: 'hidden', border: '2px solid rgba(255, 255, 255, 0.1)', background: '#111', cursor: 'pointer' }}
+              >
+                <img src={getSubIcon(suscripcion)} alt="Suscripción" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              </div>
+              <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '8px', textTransform: 'uppercase', letterSpacing: '1px', textAlign: 'center', lineHeight: '1.2' }}>{displaySuscripcion}</span>
             </div>
-            <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '8px', textTransform: 'uppercase', letterSpacing: '1px', textAlign: 'center', lineHeight: '1.2' }}>{displaySuscripcion}</span>
-          </div>
+          )}
 
-          {/* Foto de Perfil Central */}
-          <div style={{ position: 'relative' }}>
-            <div 
-              onClick={() => (meta.avatar_url && !imgError) && setZoomedImage(meta.avatar_url)}
-              style={{ width: '90px', height: '90px', borderRadius: '50%', backgroundColor: 'var(--accent-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'black', fontSize: '2.5rem', fontWeight: 'bold', overflow: 'hidden', border: '3px solid var(--accent-gold)', boxShadow: '0 0 20px rgba(212, 175, 55, 0.2)', cursor: meta.avatar_url ? 'pointer' : 'default' }}
-            >
-              {(meta.avatar_url && !imgError) ? <img src={meta.avatar_url} referrerPolicy="no-referrer" onError={() => setImgError(true)} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : nombreReal[0].toUpperCase()}
+          {/* Foto de Perfil Central y Árbol de la Forja */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div style={{ position: 'relative' }}>
+              <div 
+                onClick={() => (meta.avatar_url && !imgError) && setZoomedImage(meta.avatar_url)}
+                style={{ 
+                  width: '90px', height: '90px', borderRadius: '50%', backgroundColor: 'var(--accent-gold)', 
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'black', 
+                  fontSize: '2.5rem', fontWeight: 'bold', overflow: 'hidden', 
+                  border: inventario.includes('borde de fuego') ? '3px solid #ff4757' : '3px solid var(--accent-gold)', 
+                  boxShadow: inventario.includes('borde de fuego') ? '0 0 25px #ff4757, inset 0 0 10px #ff4757' : '0 0 20px rgba(212, 175, 55, 0.2)', 
+                  cursor: meta.avatar_url ? 'pointer' : 'default',
+                  animation: inventario.includes('borde de fuego') ? 'pulseFire 2s infinite' : 'none'
+                }}
+              >
+                {(meta.avatar_url && !imgError) ? <img src={meta.avatar_url} referrerPolicy="no-referrer" onError={() => setImgError(true)} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : nombreReal[0].toUpperCase()}
+              </div>
+              
+              <label style={{
+                position: 'absolute', bottom: '-5px', right: '-5px', background: 'var(--bg-card)', color: '#fff',
+                width: '30px', height: '30px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', border: '1px solid rgba(255,255,255,0.2)', boxShadow: '0 2px 5px rgba(0,0,0,0.5)'
+              }}>
+                {isUploading === 'avatar' ? <i className="fa-solid fa-spinner fa-spin" style={{ fontSize: '12px' }}></i> : <Camera size={14} />}
+                <input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => uploadPhoto(e, 'avatar')} disabled={isUploading} />
+              </label>
             </div>
             
-            <label style={{
-              position: 'absolute', bottom: '-5px', right: '-5px', background: 'var(--bg-card)', color: '#fff',
-              width: '30px', height: '30px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer', border: '1px solid rgba(255,255,255,0.2)', boxShadow: '0 2px 5px rgba(0,0,0,0.5)'
-            }}>
-              {isUploading === 'avatar' ? <i className="fa-solid fa-spinner fa-spin" style={{ fontSize: '12px' }}></i> : <Camera size={14} />}
-              <input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => uploadPhoto(e, 'avatar')} disabled={isUploading} />
-            </label>
+            {/* Árbol de la Forja (Evolutivo) - Solo visible si se compró el Ánima del Bosque */}
+            {inventario.includes('ánima del bosque') && (
+              <div style={{ marginTop: '12px', background: 'rgba(0,0,0,0.4)', padding: '4px 10px', borderRadius: '15px', border: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <span style={{ fontSize: '1.2rem', display: 'inline-block', animation: 'treeBreathe 4s ease-in-out infinite', transformOrigin: 'bottom center' }}>{getAvatarStage(meta.nivel_rpg).icon}</span>
+                <span style={{ fontSize: '0.75rem', color: '#aaa', fontStyle: 'italic' }}>{getAvatarStage(meta.nivel_rpg).desc}</span>
+              </div>
+            )}
           </div>
 
           {/* Insignia de Nivel */}
@@ -312,11 +457,87 @@ export default function Perfil({ session }) {
             <p style={{ color: 'var(--text-muted)', fontSize: '1rem', margin: '5px 0 0 0' }}>@{meta.username}</p>
           )}
           <p style={{ color: '#666', fontSize: '0.75rem', margin: '5px 0 0 0', letterSpacing: '0.3px' }}>{session?.user?.email}</p>
+          
+          <button 
+            onClick={() => navigate('/filosofia')}
+            className="glowing-border-button"
+          >
+            <div className="glowing-border-inner">
+              <Leaf size={16} /> Filosofía V&V
+            </div>
+          </button>
         </div>
+
+        {/* RPG CHARACTER SHEET (Público) */}
+        <div style={{ marginTop: '25px', padding: '20px', background: 'linear-gradient(145deg, #111, #0a0a0a)', borderRadius: '16px', border: '1px solid var(--accent-gold)' }}>
+          <h3 style={{ margin: '0 0 5px 0', color: 'var(--accent-gold)', fontSize: '1.2rem', textTransform: 'uppercase', letterSpacing: '1px' }}>El Gremio</h3>
+          <div style={{ color: '#aaa', fontStyle: 'italic', marginBottom: '15px', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ width: '8px', height: '8px', background: 'var(--accent-gold)', borderRadius: '50%', boxShadow: '0 0 10px var(--accent-gold)' }}></div>
+            Rango: {getRpgTitle(meta.nivel_rpg)}
+          </div>
+          
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+            <span style={{ color: '#ccc', fontSize: '0.9rem', alignSelf: 'flex-end' }}>Nivel {meta.nivel_rpg || 1}</span>
+            <button 
+              onClick={() => navigate('/la-prueba')}
+              style={{ 
+                background: 'rgba(255, 215, 0, 0.1)', 
+                color: 'var(--accent-gold)', 
+                fontWeight: 'bold', 
+                border: '1px solid var(--accent-gold)', 
+                borderRadius: '20px', 
+                padding: '5px 12px', 
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px'
+              }}
+            >
+              🪙 {meta.puntos_forja || 0} Monedas | La Prueba
+            </button>
+          </div>
+          
+          {/* XP Bar */}
+          <div style={{ background: '#222', height: '8px', borderRadius: '4px', overflow: 'hidden', marginBottom: '20px' }}>
+            <div style={{ 
+              height: '100%', 
+              width: `${getLevelProgress(meta.xp_actual || 0, meta.nivel_rpg || 1)}%`, 
+              background: 'var(--accent-gold)', 
+              transition: 'width 0.5s ease-out' 
+            }}></div>
+          </div>
+        </div>
+
+        {/* Banner Promocional para Entrenadores */}
+        {!isEntrenador && !isAlumnoEntrenador && (
+          <div style={{ marginTop: '25px', background: 'linear-gradient(135deg, rgba(212, 175, 55, 0.15) 0%, rgba(0,0,0,0.8) 100%)', border: '1px solid var(--accent-gold)', borderRadius: '16px', padding: '20px', textAlign: 'center' }}>
+            <div style={{ background: 'rgba(212, 175, 55, 0.2)', padding: '15px', borderRadius: '50%', display: 'inline-block', marginBottom: '10px' }}>
+              <i className="fa-solid fa-users" style={{ fontSize: '24px', color: 'var(--accent-gold)' }}></i>
+            </div>
+            <h3 style={{ margin: '0 0 10px 0', fontSize: '1.2rem', color: 'var(--accent-gold)' }}>¿Eres Entrenador?</h3>
+            <p style={{ margin: '0 0 15px 0', fontSize: '0.9rem', color: '#ccc', lineHeight: '1.4' }}>
+              Descubre nuestro Panel de Coach. Profesionaliza el seguimiento de tus atletas, asígnales rutinas y lleva tus ganancias al siguiente nivel.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <button 
+                onClick={handleConvertirAEntrenadorGratis}
+                style={{ background: 'transparent', color: 'var(--accent-gold)', border: '1px solid var(--accent-gold)', padding: '12px 20px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.9rem', cursor: 'pointer', width: '100%' }}
+              >
+                Empezar Gratis (Máx 2 Alumnos)
+              </button>
+              <button 
+                onClick={() => navigate('/paywall-coach')}
+                style={{ background: 'var(--accent-gold)', color: 'black', border: 'none', padding: '12px 20px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.9rem', cursor: 'pointer', width: '100%' }}
+              >
+                Ver Planes Elite Ilimitados
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Tarjeta de Disposición de Hoy */}
         {!isFreeUser && (
-          <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'center' }}>
+          <div style={{ marginTop: '25px', display: 'flex', justifyContent: 'center' }}>
             {checkinHoy !== null ? (() => {
               let label = ""; let desc = ""; let color = ""; let icon = "";
               if (checkinHoy === 5) { label = "Excelente"; desc = "Energía al máximo. Listo para récords."; color = "#c5a059"; icon = "🔥"; }
@@ -634,7 +855,85 @@ export default function Perfil({ session }) {
               >
                 <i className="fa-solid fa-rotate-left"></i> Recalcular mi Nivel
               </button>
+              
+              {isEntrenador && (
+                <button 
+                  onClick={handleDejarEntrenador} 
+                  style={{ 
+                    background: 'rgba(229, 80, 57, 0.1)', 
+                    border: '1px solid rgba(229, 80, 57, 0.3)', 
+                    color: '#e55039', 
+                    padding: '12px', 
+                    borderRadius: '12px', 
+                    fontWeight: 'bold', 
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '10px'
+                  }}
+                >
+                  <i className="fa-solid fa-user-slash"></i> Dejar de ser Entrenador
+                </button>
+              )}
+
+              {isAlumnoEntrenador && (
+                <button 
+                  onClick={handleDesvincularEntrenador} 
+                  style={{ 
+                    background: 'rgba(229, 80, 57, 0.1)', 
+                    border: '1px solid rgba(229, 80, 57, 0.3)', 
+                    color: '#e55039', 
+                    padding: '12px', 
+                    borderRadius: '12px', 
+                    fontWeight: 'bold', 
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '10px'
+                  }}
+                >
+                  <i className="fa-solid fa-link-slash"></i> Desvincularme del Entrenador
+                </button>
+              )}
             </div>
+          </div>
+        )}
+
+        {isEntrenador && suscripcion && suscripcion.includes('Entrenador Élite') && (
+          <div className="card" style={{ marginTop: '20px', textAlign: 'center', padding: '20px', border: '1px solid var(--accent-gold)' }}>
+            <h3 style={{ color: 'var(--accent-gold)', fontSize: '1.1rem', marginBottom: '10px' }}><i className="fa-solid fa-crown"></i> Marca Personal (Élite)</h3>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '15px' }}>
+              Sube el logo de tu marca. Tus atletas lo verán en su app y sabrán que es tu programa.
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '15px' }}>
+              <div style={{ position: 'relative', width: '100px', height: '100px' }}>
+                <img 
+                  src={meta.logo_entrenador || 'https://via.placeholder.com/100?text=Logo'} 
+                  alt="Tu Logo" 
+                  style={{ width: '100%', height: '100%', borderRadius: '16px', objectFit: 'contain', background: 'rgba(255,255,255,0.05)', border: '1px dashed var(--accent-gold)' }}
+                />
+                <label style={{
+                  position: 'absolute', bottom: '-10px', right: '-10px', background: 'var(--accent-gold)', color: '#000',
+                  width: '35px', height: '35px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: 'pointer', boxShadow: '0 2px 10px rgba(0,0,0,0.5)'
+                }}>
+                  {isUploading === 'logo' ? <i className="fa-solid fa-spinner fa-spin"></i> : <Upload size={16} />}
+                  <input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => uploadPhoto(e, 'logo')} disabled={isUploading} />
+                </label>
+              </div>
+            </div>
+            {meta.logo_entrenador && (
+              <button onClick={async () => {
+                await supabase.auth.updateUser({ data: { logo_entrenador: null } });
+                await supabase.from('perfiles').update({ logo_entrenador: null }).eq('id', session?.user.id);
+                setMeta(prev => ({...prev, logo_entrenador: null}));
+                alert('Logo eliminado');
+              }} style={{ background: 'none', border: 'none', color: '#e55039', fontSize: '0.85rem', cursor: 'pointer' }}>
+                Eliminar Logo
+              </button>
+            )}
           </div>
         )}
 
@@ -734,7 +1033,7 @@ export default function Perfil({ session }) {
                   <input type="number" value={formMetrics.masa_muscular} onChange={e => setFormMetrics({...formMetrics, masa_muscular: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: 'none', background: 'rgba(255,255,255,0.05)', color: '#fff', marginTop: '5px' }} />
                 </div>
               </div>
-              <button onClick={handleSaveMetrics} className="btn-primary" style={{ marginTop: '10px', padding: '15px', fontWeight: 'bold' }}>Guardar Cambios</button>
+              <button onClick={handleSaveMetrics} className="btn-primary" style={{ marginTop: '10px', padding: '15px', fontWeight: 'bold' }}>Registrar Cambios</button>
             </div>
           </div>
         </div>,
@@ -766,7 +1065,7 @@ export default function Perfil({ session }) {
                   />
                 </div>
                 <button type="submit" disabled={isUpdatingPw} className="btn-primary" style={{ marginTop: '10px', padding: '15px', fontWeight: 'bold', opacity: isUpdatingPw ? 0.5 : 1 }}>
-                  {isUpdatingPw ? 'Guardando...' : 'Guardar Contraseña'}
+                  {isUpdatingPw ? 'Registrando...' : 'Registrar Contraseña'}
                 </button>
               </div>
             </form>
@@ -843,7 +1142,7 @@ export default function Perfil({ session }) {
                   />
                 </div>
                 <button type="submit" disabled={isUpdatingName} className="btn-primary" style={{ marginTop: '10px', padding: '15px', fontWeight: 'bold', opacity: isUpdatingName ? 0.5 : 1 }}>
-                  {isUpdatingName ? 'Guardando...' : 'Guardar Cambios'}
+                  {isUpdatingName ? 'Registrando...' : 'Registrar Cambios'}
                 </button>
               </div>
             </form>

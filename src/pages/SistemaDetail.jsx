@@ -20,12 +20,13 @@ export default function SistemaDetail({ session }) {
       const { data: perfilData } = await supabase
         .from('perfiles')
         .select('plan_membresia')
-        .eq('id', session.user.id)
+        .eq('id', session?.user.id)
         .single();
         
       const suscripcionReal = perfilData?.plan_membresia || session?.user?.user_metadata?.suscripcion || session?.user?.user_metadata?.plan_membresia;
       const isAdmin = session?.user?.email === 'somos.vetayvigor@gmail.com';
-      const hasPaidPlan = ['Socio Argentum', 'Socio Aurum', 'Plan Platinum', 'Socio Fundador Vitalicio'].includes(suscripcionReal);
+      const isEntrenador = localStorage.getItem('user_role') === 'entrenador';
+      const hasPaidPlan = suscripcionReal?.includes('Pro') || suscripcionReal?.includes('Élite') || ['Socio Argentum', 'Socio Aurum', 'Plan Platinum', 'Socio Fundador Vitalicio', 'Prueba Gratis (7 Días)'].includes(suscripcionReal);
       const freeStatus = !isAdmin && !hasPaidPlan;
       setIsFreeUser(freeStatus);
 
@@ -58,7 +59,7 @@ export default function SistemaDetail({ session }) {
       const { error: dbError } = await supabase
         .from('perfiles')
         .update({ sistema_activo: id })
-        .eq('id', session.user.id);
+        .eq('id', session?.user.id);
       if (dbError) throw dbError;
 
       const { error: authError } = await supabase.auth.updateUser({

@@ -1,0 +1,166 @@
+Table: historial_entrenamientos
+  - id: string uuid
+  - user_id: string uuid
+  - rutina_id: string uuid
+  - ejercicio_id: string text
+  - fecha: string date
+  - series_log: undefined jsonb
+  - completado: boolean boolean
+  - created_at: string timestamp with time zone
+
+Table: mensajes_coaching
+  - id: string uuid
+  - chat_id: string uuid
+  - emisor_id: string uuid
+  - mensaje: string text
+  - visto: boolean boolean
+  - created_at: string timestamp with time zone
+  - imagen_url: string text
+
+Table: frontend_errors
+  - id: string uuid
+  - created_at: string timestamp with time zone
+  - error_message: string text
+  - component_stack: string text
+  - user_agent: string text
+  - user_id: string uuid
+
+Table: sistemas_entrenamiento
+  - id: string uuid
+  - nombre: string text
+  - descripcion: string text
+  - imagen_url: string text
+
+Table: checkins
+  - id: string uuid
+  - user_id: string uuid
+  - nivel: integer integer
+  - fecha: string date
+  - created_at: string timestamp with time zone
+
+Table: compras_pendientes
+  - id: string uuid
+  - email: string text
+  - plan_membresia: string text
+  - created_at: string timestamp with time zone
+
+Table: chat_mensajes
+  - id: string uuid
+  - room_id: string text
+  - sender_id: string uuid
+  - sender_name: string text
+  - sender_level: string text
+  - mensaje: string text
+  - created_at: string timestamp with time zone
+  - sender_avatar: string text
+  - reply_to_id: string uuid
+  - reply_to_name: string text
+  - reply_to_text: string text
+  - is_reported: boolean boolean
+  - image_url: string text
+  - likes: array text[]
+
+Table: planes_membresia
+  - id: integer integer
+  - nombre: string text
+  - nivel_acceso: integer integer
+  - stripe_product_id: string text
+  - stripe_price_id: string text
+  - precio_mensual_mxn: number numeric
+
+Table: perfiles
+  - id: string uuid
+  - username: string text
+  - avatar_url: string text
+  - display_preference: string text
+  - updated_at: string timestamp with time zone
+  - nivel: string text
+  - sistema_activo: string uuid
+  - dias_entrenamiento: string text
+  - calendario_personalizado: undefined jsonb
+  - full_name: string text
+  - ultimo_ingreso: string timestamp with time zone
+  - created_at: string timestamp with time zone
+  - foto_antes: string text
+  - foto_despues: string text
+  - plan_membresia: string text
+  - chat_bloqueado: boolean boolean
+  - codigo_referido: string text
+  - referidos_count: integer integer
+  - ganancias: number numeric
+  - comision_personalizada: integer integer
+  - email: string text
+
+Table: ejercicios_biblioteca
+  - id: string text
+  - nombre: string text
+  - equipo_necesario: string text
+  - instrucciones: string text
+  - consejos_pro: string text
+  - musculos_trabajados: string text
+  - imagen_url: string text
+
+Table: rutina_ejercicios
+  - id: string uuid
+  - rutina_id: string uuid
+  - ejercicio_id: string text
+  - orden_ejercicio: integer integer
+  - repeticiones_objetivo: string text
+
+Table: articulos_explora
+  - id: string uuid
+  - titulo: string text
+  - imagen_url: string text
+  - enlace_url: string text
+  - orden: integer integer
+  - created_at: string timestamp with time zone
+
+Table: chats_coaching
+  - id: string uuid
+  - atleta_id: string uuid
+  - admin_id: string uuid
+  - estado: string text
+  - created_at: string timestamp with time zone
+  - updated_at: string timestamp with time zone
+
+Table: historial_progreso
+  - id: string uuid
+  - user_id: string uuid
+  - rutina_id: string uuid
+  - ejercicio_id: string text
+  - fecha: string timestamp with time zone
+  - repeticiones_logradas: string text
+  - peso_logrado: string text
+
+Table: muro_fama
+  - id: string uuid
+  - user_id: string uuid
+  - mes_anio: string text
+  - estado: string text
+  - frase_motivadora: string text
+  - premio_entregado: boolean boolean
+  - created_at: string timestamp with time zone
+
+Table: consultorio_mensajes
+  - id: string uuid
+  - user_id: string uuid
+  - role: string text
+  - text: string text
+  - created_at: string timestamp with time zone
+  - deliver_at: string timestamp with time zone
+
+Table: rutinas
+  - id: string uuid
+  - sistema_id: string uuid
+  - nombre: string text
+  - enfoque: string text
+  - nivel: string text
+  - imagen_url: string text
+
+Table: consultas_ia
+  - id: string uuid
+  - atleta_id: string uuid
+  - pregunta: string text
+  - respuesta: string text
+  - fecha: string timestamp with time zone
+

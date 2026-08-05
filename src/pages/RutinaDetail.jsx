@@ -4,9 +4,12 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import { ChevronLeft, PlayCircle, Timer, CheckCircle, ChevronRight, X, Loader, Play, Pause, RotateCcw } from 'lucide-react';
 import { warmupsData } from '../data/warmupsData';
+import { cancelTrainingReminder } from '../utils/ScheduledNotifications';
+import confetti from 'canvas-confetti';
 
 export default function RutinaDetail({ session }) {
   const { id } = useParams();
+  const isAdmin = session?.user?.email === 'somos.vetayvigor@gmail.com';
   const navigate = useNavigate();
   const [rutina, setRutina] = useState(null);
   const [ejercicios, setEjercicios] = useState([]);
@@ -33,6 +36,7 @@ export default function RutinaDetail({ session }) {
   const [rutinaCompletada, setRutinaCompletada] = useState(false);
   const [rmModal, setRmModal] = useState({ show: false, rmValue: 0, level: '', isTrenSuperior: false, isTrenInferior: false, exerciseName: '', isNewRecord: false });
   const [levelUpModal, setLevelUpModal] = useState({ show: false, newLevel: '', phrase: '' });
+  const [rpgModal, setRpgModal] = useState({ show: false, xp: 0, forja: 0, stats: null });
 
   const getFraseInspiradora = () => {
     const frases = [
@@ -305,7 +309,7 @@ export default function RutinaDetail({ session }) {
       return;
     }
 
-    const bw = parseFloat(session.user.user_metadata?.peso) || 70;
+    const bw = parseFloat(session?.user.user_metadata?.peso) || 70;
     const equipo = (ej.equipo_necesario || '').toLowerCase();
     const nombreEj = (ej.nombre || '').toLowerCase();
     const isCali = equipo.includes('peso corporal') || equipo.includes('dominadas') || equipo.includes('anillas') || 
@@ -344,7 +348,7 @@ export default function RutinaDetail({ session }) {
 
     if (isSuperior || isInferior) {
       const key = isSuperior ? 'fuerza_tren_superior' : 'fuerza_tren_inferior';
-      const currentMetadata = session.user.user_metadata || {};
+      const currentMetadata = session?.user.user_metadata || {};
       const previousRm = parseFloat(currentMetadata[key]) || 0;
 
       if (calculatedRm > previousRm) {
@@ -366,10 +370,59 @@ export default function RutinaDetail({ session }) {
   };
 
   const procesarFinDeRutina = async () => {
-    const currentMetadata = session.user.user_metadata || {};
+    const currentMetadata = session?.user.user_metadata || {};
     let newLevel = (currentMetadata.nivel || 'Semilla').toLowerCase();
     let leveledUp = false;
     let phrase = "";
+
+    // === INYECCIÓN RPG ENGINE (Silencioso) ===
+    try {
+      const { data: perfilInfo } = await supabase.from('perfiles').select('xp_actual, puntos_forja, stat_fuerza, stat_agilidad, stat_resistencia, nivel_rpg').eq('id', session?.user.id).maybeSingle();
+      if (perfilInfo) {
+        const { calculateWorkoutRewards, calculateLevel } = await import('../utils/ProgressionEngine');
+        // Asumimos racha guardada o 0 para el bonus
+        const { xp, puntosForja, statsBonus } = calculateWorkoutRewards(rutina?.sistemas_entrenamiento?.nombre, 1);
+        
+        const newXp = (perfilInfo.xp_actual || 0) + xp;
+        const newForja = (perfilInfo.puntos_forja || 0) + puntosForja;
+        const newFuerza = (perfilInfo.stat_fuerza || 0) + statsBonus.fuerza;
+        const newAgilidad = (perfilInfo.stat_agilidad || 0) + statsBonus.agilidad;
+        const newResistencia = (perfilInfo.stat_resistencia || 0) + statsBonus.resistencia;
+        const newLevelRPG = calculateLevel(newXp);
+
+        const rpgUpdates = {
+          xp_actual: newXp, 
+          puntos_forja: newForja, 
+          stat_fuerza: newFuerza, 
+          stat_agilidad: newAgilidad, 
+          stat_resistencia: newResistencia,
+          nivel_rpg: newLevelRPG
+        };
+
+        if (navigator.onLine) {
+          await supabase.from('perfiles').update(rpgUpdates).eq('id', session?.user.id);
+        } else {
+          const { addToOfflineQueue } = await import('../utils/OfflineManager');
+          addToOfflineQueue('UPDATE_PERFIL', { id: session?.user.id, ...rpgUpdates });
+        }
+
+        // Mostrar Animación de Victoria si es Admin
+        if (isAdmin) {
+          setRpgModal({ show: true, xp, forja: puntosForja, stats: statsBonus });
+          setTimeout(() => {
+            confetti({
+              particleCount: 150,
+              spread: 80,
+              origin: { y: 0.6 },
+              colors: ['#D4AF37', '#FFDF00', '#FFFFFF', '#000000']
+            });
+          }, 300);
+        }
+      }
+    } catch(e) {
+      console.error("Error RPG Engine Update:", e);
+    }
+    // === FIN RPG ENGINE ===
     
     // 1. Días de inactividad
     const hoy = new Date();
@@ -397,6 +450,8 @@ export default function RutinaDetail({ session }) {
       }
     });
 
+    const isAlumnoCoach = localStorage.getItem('user_role') === 'alumno_entrenador';
+    
     if (yaEntrenoHoy) {
       // Ya entrenó hoy, no incrementamos ciclo
       // (No mostramos el alert aquí para no interrumpir el flujo del modal final)
@@ -411,49 +466,51 @@ export default function RutinaDetail({ session }) {
         await supabase.auth.updateUser({ data: updateData });
       }
     } else {
-      if (diasInactivos >= 15) {
-        cicloActual = Math.floor(cicloActual * 0.5);
-        mensajePenalizacion = "Han pasado más de 15 días. Has perdido el 50% de tu progreso en este ciclo.";
-      } else if (diasInactivos >= 7) {
-        cicloActual = Math.floor(cicloActual * 0.75);
-        mensajePenalizacion = "Ha pasado una semana. Has perdido el 25% de tu progreso en este ciclo.";
-      }
-
-      cicloActual += 1;
-
-      // 2. Definir Meta de Ciclo según frecuencia (3 o >3 días)
-      const frecuencia = currentMetadata.dias_entrenamiento || '>3';
-      const metaCiclo = frecuencia === '3' ? 18 : 24;
-
-      // 3. Evaluar Ascenso
-      if (cicloActual >= metaCiclo) {
-        const bodyWeight = parseFloat(currentMetadata.peso) || 70;
-        const forceSup = parseFloat(currentMetadata.fuerza_tren_superior) || 0;
-        const forceInf = parseFloat(currentMetadata.fuerza_tren_inferior) || 0;
-        
-        const relSup = forceSup / bodyWeight;
-        const relInf = forceInf / bodyWeight;
-
-        if (newLevel === 'semilla' && relSup >= 1.0 && relInf >= 1.2) {
-            newLevel = 'Pino';
-            phrase = "Has superado la fuerza base en ambos trenes. Tu cuerpo ya no es frágil, tus raíces están firmes.";
-            leveledUp = true;
-        } else if (newLevel === 'pino' && relSup >= 1.2 && relInf >= 1.4) {
-            newLevel = 'Tzalam';
-            phrase = "Fuerza equilibrada. Has dominado la gravedad. Tienes la fuerza de un guerrero veterano.";
-            leveledUp = true;
-        } else if (newLevel === 'tzalam' && relSup >= 1.5 && relInf >= 1.8) {
-            newLevel = 'Roble';
-            phrase = "Equilibrio perfecto y fuerza monumental. Eres parte de la élite máxima de Veta & Vigor.";
-            leveledUp = true;
+      if (!isAlumnoCoach) {
+        if (diasInactivos >= 15) {
+          cicloActual = Math.floor(cicloActual * 0.5);
+          mensajePenalizacion = "Han pasado más de 15 días. Has perdido el 50% de tu progreso en este ciclo.";
+        } else if (diasInactivos >= 7) {
+          cicloActual = Math.floor(cicloActual * 0.75);
+          mensajePenalizacion = "Ha pasado una semana. Has perdido el 25% de tu progreso en este ciclo.";
         }
 
-        if (leveledUp) {
-          cicloActual = 0; // Resetear ciclo al ascender
-        } else {
-          cicloActual = metaCiclo; // Mantenerlo al tope
-          if (mensajePenalizacion === "") {
-            mensajePenalizacion = "Has llegado al final del ciclo, pero aún necesitas más fuerza relativa en AMBOS trenes musculares para ascender. ¡Sigue entrenando duro!";
+        cicloActual += 1;
+
+        // 2. Definir Meta de Ciclo según frecuencia (3 o >3 días)
+        const frecuencia = currentMetadata.dias_entrenamiento || '>3';
+        const metaCiclo = frecuencia === '3' ? 18 : 24;
+
+        // 3. Evaluar Ascenso
+        if (cicloActual >= metaCiclo) {
+          const bodyWeight = parseFloat(currentMetadata.peso) || 70;
+          const forceSup = parseFloat(currentMetadata.fuerza_tren_superior) || 0;
+          const forceInf = parseFloat(currentMetadata.fuerza_tren_inferior) || 0;
+          
+          const relSup = forceSup / bodyWeight;
+          const relInf = forceInf / bodyWeight;
+
+          if (newLevel === 'semilla' && relSup >= 1.0 && relInf >= 1.2) {
+              newLevel = 'Pino';
+              phrase = "Has superado la fuerza base en ambos trenes. Tu cuerpo ya no es frágil, tus raíces están firmes.";
+              leveledUp = true;
+          } else if (newLevel === 'pino' && relSup >= 1.2 && relInf >= 1.4) {
+              newLevel = 'Tzalam';
+              phrase = "Fuerza equilibrada. Has dominado la gravedad. Tienes la fuerza de un guerrero veterano.";
+              leveledUp = true;
+          } else if (newLevel === 'tzalam' && relSup >= 1.5 && relInf >= 1.8) {
+              newLevel = 'Roble';
+              phrase = "Equilibrio perfecto y fuerza monumental. Eres parte de la élite máxima de Veta & Vigor.";
+              leveledUp = true;
+          }
+
+          if (leveledUp) {
+            cicloActual = 0; // Resetear ciclo al ascender
+          } else {
+            cicloActual = metaCiclo; // Mantenerlo al tope
+            if (mensajePenalizacion === "") {
+              mensajePenalizacion = "Has llegado al final del ciclo, pero aún necesitas más fuerza relativa en AMBOS trenes musculares para ascender. ¡Sigue entrenando duro!";
+            }
           }
         }
       }
@@ -478,6 +535,35 @@ export default function RutinaDetail({ session }) {
         if (leveledUp) {
             await supabase.auth.refreshSession();
         }
+
+        // --- INICIO LÓGICA DE GAMIFICACIÓN E INSIGNIAS ---
+        try {
+          // Llama al RPC que crearemos en la DB para obtener el ranking actualizado
+          const { data: historialCountData } = await supabase.rpc('get_leaderboard');
+          const myStats = historialCountData?.find(user => user.user_id === session?.user.id);
+          const totalWorkouts = myStats ? parseInt(myStats.total_workouts) : 1;
+          
+          let achievedBadge = null;
+          if (totalWorkouts === 10) achievedBadge = '🥉 Acero Templado (10 Entrenamientos)';
+          else if (totalWorkouts === 25) achievedBadge = '🥈 Plata Pura (25 Entrenamientos)';
+          else if (totalWorkouts === 50) achievedBadge = '🥇 Oro Vigoroso (50 Entrenamientos)';
+          else if (totalWorkouts === 100) achievedBadge = '💎 Titán del Vigor (100 Entrenamientos)';
+
+          if (achievedBadge) {
+             const username = session?.user.user_metadata?.username || session?.user.user_metadata?.nombre_completo || 'Atleta';
+             await supabase.from('chat_mensajes').insert([{
+               room_id: 'vip_comunidad',
+               sender_id: 'system',
+               sender_name: 'Coach V&V',
+               sender_avatar: '/favicon.ico',
+               sender_level: 'Admin',
+               mensaje: `🏆 ¡Felicidades a @${username} por desbloquear la insignia **${achievedBadge}**! Una verdadera demostración de constancia. ¡Deja tus aplausos! 👏`
+             }]);
+          }
+        } catch (e) {
+          console.error("Error al procesar insignia:", e);
+        }
+        // --- FIN LÓGICA DE GAMIFICACIÓN ---
       }
     }
 
@@ -536,7 +622,7 @@ export default function RutinaDetail({ session }) {
 
   const marcarRutinaComoSuperada = async () => {
     try {
-      const currentMetadata = session.user.user_metadata || {};
+      const currentMetadata = session?.user.user_metadata || {};
       const superadas = currentMetadata.rutinas_superadas || [];
       if (!superadas.includes(id)) {
         const newSuperadas = [...superadas, id];
@@ -579,7 +665,7 @@ export default function RutinaDetail({ session }) {
     
     if (logs.length > 0) {
       const payload = {
-        user_id: session.user.id,
+        user_id: session?.user.id,
         rutina_id: id,
         ejercicio_id: ejId,
         series_log: logs,
@@ -592,6 +678,8 @@ export default function RutinaDetail({ session }) {
           addToOfflineQueue('INSERT_HISTORIAL', payload);
         } else {
           await supabase.from('historial_entrenamientos').insert([payload]);
+          // Cancelar el recordatorio de las 6 PM ya que el usuario entrenó
+          cancelTrainingReminder();
         }
       } catch (err) {
         console.error("Error guardando historial:", err);
@@ -858,35 +946,8 @@ export default function RutinaDetail({ session }) {
           </button>
       </div>
       
-      {/* Level Up Epic Modal */}
-      {levelUpModal.show && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.95)', backdropFilter: 'blur(15px)',
-          zIndex: 99999, display: 'flex', flexDirection: 'column', alignItems: 'center', 
-          justifyContent: 'center', padding: '20px', textAlign: 'center',
-          animation: 'fadeIn 0.5s ease-out'
-        }}>
-          <div style={{ fontSize: '5rem', animation: 'bounce 2s infinite' }}>💥</div>
-          <h1 className="gold-gradient-text" style={{ fontSize: '3rem', margin: '20px 0 10px 0', textTransform: 'uppercase' }}>
-            ¡NIVEL ASCENDIDO!
-          </h1>
-          <h2 style={{ fontSize: '2rem', color: '#fff', margin: '0 0 20px 0' }}>
-            Bienvenido al nivel <span className="gold-gradient-text">{levelUpModal.newLevel}</span>
-          </h2>
-          <p style={{ color: '#ccc', fontSize: '1.2rem', maxWidth: '400px', lineHeight: '1.6', fontStyle: 'italic', marginBottom: '40px' }}>
-            "{levelUpModal.phrase}"
-          </p>
-          <button 
-            onClick={() => setLevelUpModal({ show: false, newLevel: '', phrase: '' })}
-            style={{ padding: '15px 40px', fontSize: '1.2rem', fontWeight: 'bold', backgroundColor: 'var(--accent-gold)', color: '#000', border: 'none', borderRadius: '30px', cursor: 'pointer', boxShadow: '0 0 20px rgba(212, 175, 55, 0.5)' }}
-          >
-            Aceptar mi Destino
-          </button>
-        </div>
-      )}
 
-        {/* RM Modal Interactivo */}
+      {/* MODAL DE RUTINA BLOQUEADA (MAESTRÍA) */}
         {rmModal.show && (() => {
           const totalW = rmModal.isCalistenia ? (rmModal.bw + rmModal.maxKg) : rmModal.maxKg;
           const calculatedRm = totalW > 0 && rmModal.maxReps > 0 ? (totalW * (1 + (rmModal.maxReps / 30))) : 0;
@@ -945,7 +1006,7 @@ export default function RutinaDetail({ session }) {
                   <button 
                     onClick={() => saveRécord(calculatedRm)}
                     style={{ width: '100%', padding: '12px', borderRadius: '10px', background: 'var(--accent-gold)', color: '#000', border: 'none', fontWeight: 'bold', marginTop: '10px', cursor: 'pointer' }}
-                  >Guardar Récord</button>
+                  >Registrar Récord</button>
                 ) : (
                   (rmModal.isTrenSuperior || rmModal.isTrenInferior) ? (
                     <div style={{ 
@@ -1097,8 +1158,8 @@ export default function RutinaDetail({ session }) {
         })}
       </div>
 
-      {/* MODAL DE FELICITACIONES */}
-      {rutinaCompletada && (
+      {/* CONFIRMACIÓN RUTINA COMPLETADA (NO ADMIN O NORMAL) */}
+      {rutinaCompletada && !levelUpModal.show && !rmModal.show && !rpgModal.show && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
           <div style={{ background: '#111', padding: '30px', borderRadius: '16px', textAlign: 'center', border: '1px solid var(--accent-gold)', width: '100%', maxWidth: '400px' }}>
             <div style={{ background: 'var(--accent-gold)', color: '#000', width: '60px', height: '60px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px auto' }}>
@@ -1115,6 +1176,92 @@ export default function RutinaDetail({ session }) {
               Terminar y Volver
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Level Up Epic Modal */}
+      {levelUpModal.show && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.95)', backdropFilter: 'blur(15px)',
+          zIndex: 99999, display: 'flex', flexDirection: 'column', alignItems: 'center', 
+          justifyContent: 'center', padding: '20px', textAlign: 'center',
+          animation: 'fadeIn 0.5s ease-out'
+        }}>
+          <div style={{ fontSize: '5rem', animation: 'bounce 2s infinite' }}>💥</div>
+          <h1 className="gold-gradient-text" style={{ fontSize: '3rem', margin: '20px 0 10px 0', textTransform: 'uppercase' }}>
+            ¡NIVEL ASCENDIDO!
+          </h1>
+          <h2 style={{ fontSize: '2rem', color: '#fff', margin: '0 0 20px 0' }}>
+            Bienvenido al nivel <span className="gold-gradient-text">{levelUpModal.newLevel}</span>
+          </h2>
+          <p style={{ color: '#ccc', fontSize: '1.2rem', maxWidth: '400px', lineHeight: '1.6', fontStyle: 'italic', marginBottom: '40px' }}>
+            "{levelUpModal.phrase}"
+          </p>
+          <button 
+            onClick={() => setLevelUpModal({ show: false, newLevel: '', phrase: '' })}
+            style={{ padding: '15px 40px', fontSize: '1.2rem', fontWeight: 'bold', backgroundColor: 'var(--accent-gold)', color: '#000', border: 'none', borderRadius: '30px', cursor: 'pointer', boxShadow: '0 0 20px rgba(212, 175, 55, 0.5)' }}
+          >
+            Aceptar mi Destino
+          </button>
+        </div>
+      )}
+
+      {/* RPG Victory Modal */}
+      {rpgModal.show && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.95)', backdropFilter: 'blur(10px)',
+          zIndex: 99999, display: 'flex', flexDirection: 'column', alignItems: 'center', 
+          justifyContent: 'center', padding: '20px', textAlign: 'center',
+          animation: 'fadeIn 0.5s ease-out'
+        }}>
+          <h1 className="gold-gradient-text" style={{ fontSize: '3rem', margin: '0 0 10px 0', textTransform: 'uppercase', letterSpacing: '2px' }}>
+            ¡VICTORIA!
+          </h1>
+          <p style={{ color: '#ccc', fontSize: '1.2rem', marginBottom: '30px' }}>Has superado la prueba del Gremio.</p>
+          
+          <div style={{ background: '#111', border: '1px solid var(--accent-gold)', borderRadius: '15px', padding: '20px', width: '100%', maxWidth: '350px', marginBottom: '30px', boxShadow: '0 0 20px rgba(212, 175, 55, 0.2)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '10px' }}>
+              <span style={{ color: '#888', fontWeight: 'bold' }}>EXPERIENCIA</span>
+              <span style={{ color: 'var(--accent-gold)', fontWeight: 'bold', fontSize: '1.2rem' }}>+{rpgModal.xp} XP</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '10px' }}>
+              <span style={{ color: '#888', fontWeight: 'bold' }}>MONEDAS DE FORJA</span>
+              <span style={{ color: '#FFD700', fontWeight: 'bold', fontSize: '1.2rem' }}>🪙 +{rpgModal.forja}</span>
+            </div>
+            
+            <div style={{ marginTop: '20px', textAlign: 'left' }}>
+              <p style={{ color: '#fff', fontSize: '0.9rem', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '1px' }}>Atributos Mejorados</p>
+              {rpgModal.stats?.fuerza > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#8B5A2B', fontWeight: 'bold', marginBottom: '5px' }}>
+                  <span>Fuerza Bruta</span><span>+{rpgModal.stats.fuerza}</span>
+                </div>
+              )}
+              {rpgModal.stats?.agilidad > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#2E8B57', fontWeight: 'bold', marginBottom: '5px' }}>
+                  <span>Agilidad / Control</span><span>+{rpgModal.stats.agilidad}</span>
+                </div>
+              )}
+              {rpgModal.stats?.resistencia > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#4682B4', fontWeight: 'bold' }}>
+                  <span>Resistencia</span><span>+{rpgModal.stats.resistencia}</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <button 
+            onClick={() => {
+              setRpgModal({ show: false, xp: 0, forja: 0, stats: null });
+              window.scrollTo(0, 0);
+              navigate('/perfil');
+            }}
+            className="btn-primary"
+            style={{ padding: '15px 40px', fontSize: '1.2rem', width: '100%', maxWidth: '350px' }}
+          >
+            Reclamar Recompensas
+          </button>
         </div>
       )}
 
