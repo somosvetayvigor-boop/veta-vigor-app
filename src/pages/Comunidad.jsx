@@ -104,7 +104,7 @@ export default function Comunidad({ session }) {
     const fetchMuro = async () => {
       const { data: muroData } = await supabase
         .from('muro_fama')
-        .select('*, perfiles(full_name, username, avatar_url, plan_membresia, marco_activo)')
+        .select('*, perfiles(nombre_completo, username, avatar_url, plan_membresia, marco_activo)')
         .eq('estado', 'publicado')
         .order('created_at', { ascending: false })
         .limit(1)
