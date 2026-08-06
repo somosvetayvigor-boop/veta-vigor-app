@@ -7,7 +7,7 @@ const store = localforage.createInstance({
 });
 
 // Helper para evitar que IndexedDB se cuelgue infinitamente cuando el WebView despierta
-const withTimeout = (promise, ms = 2000) => {
+const withTimeout = (promise, ms = 5000) => {
   return Promise.race([
     promise,
     new Promise((_, reject) => setTimeout(() => reject(new Error('IDB timeout')), ms))
