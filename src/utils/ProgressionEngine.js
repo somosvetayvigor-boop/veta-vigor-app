@@ -54,8 +54,32 @@ export const calculateWorkoutRewards = () => {
 };
 
 // ==========================================
-// EL GÓLEM DEL LASTRE
+// EL GÓLEM (SISTEMA DE JEFES)
 // ==========================================
+
+export const GOLEM_LEVELS = {
+  1: {
+    nombre: 'Gólem del Lastre',
+    hp: 10,
+    recompensa: 100,
+    color: '#8b8c89', // Gris piedra
+    imgFallback: '🪨',
+    desc: 'Un gólem hecho de pesas pesadas. Representa el peso de la inercia.'
+  },
+  2: {
+    nombre: 'Gólem de Óxido',
+    hp: 15,
+    recompensa: 200,
+    color: '#c0392b', // Rojo óxido
+    imgFallback: '⛓️',
+    desc: 'Un gólem hecho de equipo abandonado y oxidado. Representa la inconsistencia.'
+  }
+};
+
+export const getGolemData = (nivel_golem) => {
+  return GOLEM_LEVELS[nivel_golem] || GOLEM_LEVELS[1];
+};
+
 export const getGolpesTotales = (totalXp) => {
   return Math.floor((totalXp || 0) / 25);
 };
