@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
-import { MessageCircle, Send, ShieldAlert, Lock, ArrowRight, User, X, ImagePlus, Heart, Award, Trophy, Loader } from 'lucide-react';
+import { MessageCircle, Send, ShieldAlert, Lock, ArrowRight, User, X, ImagePlus, Heart, Award, Trophy, Loader, Users, Check, Flame } from 'lucide-react';
 import AvatarConMarco from '../components/AvatarConMarco';
 
 export default function Comunidad({ session }) {
@@ -29,6 +29,12 @@ export default function Comunidad({ session }) {
   const [leaderboard, setLeaderboard] = useState([]);
   const [loadingLeaderboard, setLoadingLeaderboard] = useState(false);
 
+  // Estados para Alianzas (Dúos)
+  const [alianzas, setAlianzas] = useState([]);
+  const [alianzasPendientes, setAlianzasPendientes] = useState([]);
+  const [alianzaEmail, setAlianzaEmail] = useState('');
+  const [loadingAlianzas, setLoadingAlianzas] = useState(false);
+
   const getBadgeForWorkouts = (count) => {
     if (count >= 100) return { name: 'Titán del Vigor', icon: '💎', color: '#00d2ff' };
     if (count >= 50) return { name: 'Oro Vigoroso', icon: '🥇', color: 'var(--accent-gold)' };
@@ -50,6 +56,206 @@ export default function Comunidad({ session }) {
       fetchLeaderboard();
     }
   }, [activeTab, leaderboard]);
+
+  useEffect(() => {
+    if (activeTab === 'alianzas') {
+      fetchAlianzas();
+    }
+  }, [activeTab]);
+
+  const fetchAlianzas = async () => {
+    setLoadingAlianzas(true);
+    try {
+      // Fetch pendientes donde soy el receptor
+      const { data: pendingData } = await supabase
+        .from('alianzas')
+        .select(`
+          id,
+          created_at,
+          sender_id,
+          sender:perfiles!alianzas_sender_id_fkey(full_name, username, avatar_url, nivel, racha_actual, marco_activo)
+        `)
+        .eq('receiver_id', session?.user.id)
+        .eq('status', 'pending');
+      
+      setAlianzasPendientes(pendingData || []);
+
+      // Fetch alianzas activas donde soy sender o receiver
+      const { data: activeData } = await supabase
+        .from('alianzas')
+        .select(`
+          id,
+          sender_id,
+          receiver_id,
+          sender:perfiles!alianzas_sender_id_fkey(id, full_name, username, avatar_url, nivel, racha_actual, marco_activo),
+          receiver:perfiles!alianzas_receiver_id_fkey(id, full_name, username, avatar_url, nivel, racha_actual, marco_activo)
+        `)
+        .eq('status', 'accepted')
+        .or(`sender_id.eq.${session?.user.id},receiver_id.eq.${session?.user.id}`);
+      
+      // Filtrar para quedarnos solo con el perfil del "otro" usuario
+      if (activeData) {
+        const amigosFormateados = activeData.map(a => {
+          const amIOther = a.sender_id === session?.user.id;
+          return {
+            alianza_id: a.id,
+            amigo: amIOther ? a.receiver : a.sender
+          };
+        });
+        setAlianzas(amigosFormateados);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    setLoadingAlianzas(false);
+  };
+
+  const handleInviteAmigo = async (e) => {
+    e.preventDefault();
+    if (!alianzaEmail) return;
+    
+    // Buscar al usuario por correo
+    const { data: amigoData, error: searchError } = await supabase
+      .from('perfiles')
+      .select('id, email')
+      .eq('email', alianzaEmail.trim())
+      .single();
+      
+    if (searchError || !amigoData) {
+      alert("No se encontró a ningún atleta con ese correo en el Gremio.");
+      return;
+    }
+    
+    if (amigoData.id === session?.user.id) {
+      alert("No puedes hacer una alianza contigo mismo, guerrero solitario.");
+      return;
+    }
+    
+    // Crear solicitud
+    const { error: insertError } = await supabase
+      .from('alianzas')
+      .insert([{ sender_id: session?.user.id, receiver_id: amigoData.id, status: 'pending' }]);
+      
+    if (insertError) {
+      if (insertError.code === '23505') { // Unique violation
+        alert("Ya existe una solicitud o alianza con este usuario.");
+      } else {
+        alert("Error al enviar la solicitud.");
+      }
+    } else {
+      alert("¡Invitación de alianza enviada al Gremio!");
+      setAlianzaEmail('');
+    }
+  };
+
+  const handleRespondRequest = async (id, status) => {
+    const { error } = await supabase
+      .from('alianzas')
+      .update({ status })
+      .eq('id', id);
+      
+    if (!error) {
+      fetchAlianzas();
+    } else {
+      alert("Error al responder solicitud.");
+    }
+  };
+
+  const renderAlianzasContent = () => {
+    return (
+      <div style={{ flex: 1, overflowY: 'auto', padding: '20px', paddingBottom: '100px' }}>
+        <div style={{ textAlign: 'center', marginBottom: '25px' }}>
+          <Users size={40} color="var(--accent-gold)" style={{ marginBottom: '10px' }} />
+          <h2 className="gold-gradient-text" style={{ fontSize: '1.8rem', margin: '0 0 5px 0' }}>Mis Aliados</h2>
+          <p style={{ color: 'var(--text-muted)', margin: 0, fontSize: '0.9rem' }}>El fuego nunca se extingue si entrenamos juntos.</p>
+        </div>
+
+        {/* Buscador / Enviar Solicitud */}
+        <div className="card" style={{ padding: '20px', marginBottom: '20px', borderLeft: '4px solid var(--accent-gold)' }}>
+          <h3 style={{ margin: '0 0 10px 0', fontSize: '1.1rem', color: '#fff' }}>Invitar a un Aliado</h3>
+          <form onSubmit={handleInviteAmigo} style={{ display: 'flex', gap: '10px' }}>
+            <input 
+              type="email" 
+              placeholder="Correo electrónico del Atleta" 
+              value={alianzaEmail}
+              onChange={(e) => setAlianzaEmail(e.target.value)}
+              style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.3)', color: '#fff' }}
+              required
+            />
+            <button type="submit" className="btn-primary" style={{ padding: '10px 20px', borderRadius: '8px' }}>Invitar</button>
+          </form>
+        </div>
+
+        {/* Solicitudes Pendientes */}
+        {alianzasPendientes.length > 0 && (
+          <div style={{ marginBottom: '25px' }}>
+            <h4 style={{ margin: '0 0 10px 0', color: 'var(--accent-gold)', fontSize: '0.9rem' }}>SOLICITUDES PENDIENTES</h4>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {alianzasPendientes.map((sol) => (
+                <div key={sol.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '15px', background: 'rgba(255,255,255,0.03)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <AvatarConMarco src={sol.sender.avatar_url || '/assets/niveles/semilla.png'} size={40} marco={sol.sender.marco_activo || 'ninguno'} />
+                    <div>
+                      <h4 style={{ margin: 0, color: '#fff', fontSize: '0.95rem' }}>{sol.sender.full_name || sol.sender.username}</h4>
+                      <p style={{ margin: 0, color: '#888', fontSize: '0.8rem' }}>Nivel {sol.sender.nivel}</p>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '5px' }}>
+                    <button onClick={() => handleRespondRequest(sol.id, 'accepted')} style={{ background: '#4cd137', border: 'none', color: '#fff', padding: '8px 12px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <Check size={16} />
+                    </button>
+                    <button onClick={() => handleRespondRequest(sol.id, 'rejected')} style={{ background: 'transparent', border: '1px solid #ff4757', color: '#ff4757', padding: '8px 12px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <X size={16} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Lista de Aliados */}
+        <div>
+          <h4 style={{ margin: '0 0 10px 0', color: 'var(--accent-gold)', fontSize: '0.9rem' }}>TUS ALIANZAS ACTIVAS</h4>
+          {loadingAlianzas ? (
+            <div style={{ textAlign: 'center', padding: '20px' }}><Loader className="fa-spin" color="var(--accent-gold)" /></div>
+          ) : alianzas.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '30px', color: '#666', background: 'rgba(0,0,0,0.2)', borderRadius: '12px' }}>
+              Aún no tienes aliados. ¡Invita a un amigo para entrenar juntos!
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {alianzas.map((alianza) => {
+                const amigo = alianza.amigo;
+                return (
+                  <div key={alianza.alianza_id} className="card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '15px', borderLeft: '4px solid #4facfe' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                      <AvatarConMarco src={amigo.avatar_url || '/assets/niveles/semilla.png'} size={50} marco={amigo.marco_activo || 'ninguno'} />
+                      <div>
+                        <h4 style={{ margin: '0 0 3px 0', color: '#fff', fontSize: '1.05rem' }}>{amigo.full_name || amigo.username}</h4>
+                        <span className="badge" style={{ fontSize: '0.7rem' }}>{amigo.nivel}</span>
+                      </div>
+                    </div>
+                    
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                      {/* Llama Viva del Amigo */}
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '3px', color: '#ff7675' }}>
+                          <Flame size={18} fill="#ff7675" />
+                          <span style={{ fontWeight: 'bold', fontSize: '1rem' }}>{amigo.racha_actual || 0}</span>
+                        </div>
+                        <span style={{ fontSize: '0.65rem', color: '#888' }}>Llama Viva</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   // Verificación en Tiempo Real de la Membresía
   useEffect(() => {
@@ -719,6 +925,11 @@ export default function Comunidad({ session }) {
             onClick={() => setActiveTab('leaderboard')}
             style={{ flex: 1, padding: '15px 0', background: 'transparent', border: 'none', borderBottom: activeTab === 'leaderboard' ? '2px solid var(--accent-gold)' : '2px solid transparent', color: activeTab === 'leaderboard' ? 'var(--accent-gold)' : '#888', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer', transition: 'all 0.3s' }}>
             <Trophy size={18} /> Muro del Vigor
+          </button>
+          <button 
+            onClick={() => setActiveTab('alianzas')}
+            style={{ flex: 1, padding: '15px 0', background: 'transparent', border: 'none', borderBottom: activeTab === 'alianzas' ? '2px solid var(--accent-gold)' : '2px solid transparent', color: activeTab === 'alianzas' ? 'var(--accent-gold)' : '#888', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer', transition: 'all 0.3s' }}>
+            <Users size={18} /> Dúos
           </button>
         </div>
   
