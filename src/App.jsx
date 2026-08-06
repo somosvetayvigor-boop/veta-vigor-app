@@ -665,30 +665,119 @@ function App() {
 
     const checkSession = async () => {
       // SAFETY NET: Force-kill the splash screen after 10 seconds no matter what.
-      // This prevents the app from ever getting stuck on the splash animation.
       const safetyTimer = setTimeout(() => {
         console.warn("⚠️ SAFETY TIMEOUT: Forcing splash screen to close after 10 seconds.");
         setLoading(false);
       }, 10000);
 
+      const startTime = Date.now();
+
       try {
-        const startTime = Date.now();
-        
-        // Step 1: Get session with 8s timeout
+        // ===================================================================
+        // PASO 1: LEER LA SESIÓN DEL CACHÉ LOCAL (localStorage) - SIN INTERNET
+        // Supabase guarda automáticamente el token en localStorage.
+        // Lo leemos directamente para no depender de internet al arrancar.
+        // ===================================================================
         let session = null;
+        
+        // Intentar leer la sesión cacheada de localStorage directamente
+        const storageKey = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'));
+        if (storageKey) {
+          try {
+            const raw = JSON.parse(localStorage.getItem(storageKey));
+            if (raw?.access_token && raw?.user) {
+              // Construir un objeto session compatible con lo que espera la app
+              session = {
+                access_token: raw.access_token,
+                refresh_token: raw.refresh_token,
+                user: raw.user
+              };
+              console.log("✅ Sesión cargada desde caché local (sin internet).");
+            }
+          } catch (parseErr) {
+            console.warn("Error parsing cached session:", parseErr);
+          }
+        }
+
+        // Si tenemos sesión cacheada, usarla inmediatamente
+        if (session?.user) {
+          setSession(session);
+
+          // =================================================================
+          // PASO 2: LEER EL PERFIL/ROL DESDE IndexedDB → RAM (SIN INTERNET)
+          // =================================================================
+          try {
+            const localProfile = await DatabaseManager.getProfile(session.user.id);
+            if (localProfile) {
+              if (localProfile.rol_usuario) {
+                localStorage.setItem('user_role', localProfile.rol_usuario);
+                setUserRoleState(localProfile.rol_usuario);
+              }
+              console.log("✅ Perfil cargado desde IndexedDB (sin internet).");
+            }
+          } catch (dbErr) {
+            console.warn("IndexedDB read failed (non-fatal):", dbErr);
+          }
+
+          // =================================================================
+          // PASO 3: ESPERAR EL TIEMPO MÍNIMO DEL SPLASH (4s) Y MOSTRAR UI
+          // =================================================================
+          const elapsed = Date.now() - startTime;
+          if (elapsed < 4000) {
+            await new Promise(r => setTimeout(r, 4000 - elapsed));
+          }
+          
+          clearTimeout(safetyTimer);
+          setLoading(false); // ← EL USUARIO YA ESTÁ DENTRO 🚀
+
+          // =================================================================
+          // PASO 4: SINCRONIZACIÓN SILENCIOSA CON SUPABASE (POR DETRÁS)
+          // Si hay internet, refresca el token y sincroniza datos.
+          // Si NO hay internet, simplemente no hace nada y el usuario
+          // sigue usando la app con los datos locales.
+          // =================================================================
+          (async () => {
+            try {
+              const { data } = await Promise.race([
+                supabase.auth.getSession(),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('bg_timeout')), 8000))
+              ]);
+              
+              const freshSession = data?.session || null;
+              if (freshSession) {
+                setSession(freshSession); // Actualizar con sesión fresca
+                
+                // Sincronizar rol/paywall silenciosamente
+                await Promise.race([
+                  checkUserRoleAndPaywall(freshSession.user),
+                  new Promise(r => setTimeout(r, 5000))
+                ]);
+              }
+            } catch (bgErr) {
+              console.warn("Background sync skipped (no internet or timeout):", bgErr);
+            }
+          })();
+
+          return; // ← Salir aquí, ya mostramos la UI
+        }
+
+        // =================================================================
+        // FALLBACK: No hay sesión cacheada (usuario nuevo o borró datos)
+        // En este caso SÍ necesitamos internet para autenticar.
+        // =================================================================
         try {
-          const sessionPromise = supabase.auth.getSession();
-          const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('session_timeout')), 8000));
-          const { data } = await Promise.race([sessionPromise, timeoutPromise]);
+          const { data } = await Promise.race([
+            supabase.auth.getSession(),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('session_timeout')), 8000))
+          ]);
           session = data?.session || null;
         } catch (sessionErr) {
-          console.warn("Session fetch timed out or failed, continuing without session:", sessionErr);
+          console.warn("Session fetch timed out (new user flow):", sessionErr);
           session = null;
         }
-        
+
         setSession(session);
-        
-        // Step 2: Background sync with 2s timeout (fully protected)
+
         if (session?.user) {
           try {
             await Promise.race([
@@ -700,13 +789,12 @@ function App() {
           }
         }
 
-        // Step 3: Ensure splash screen shows for at least 4 seconds
         const elapsed = Date.now() - startTime;
         if (elapsed < 4000) {
           await new Promise(r => setTimeout(r, 4000 - elapsed));
         }
       } catch (err) {
-        console.warn("Network timeout or session error, defaulting to local cache:", err);
+        console.warn("Critical error in checkSession, defaulting to safe state:", err);
       } finally {
         clearTimeout(safetyTimer);
         setLoading(false);
