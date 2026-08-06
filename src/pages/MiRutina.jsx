@@ -609,7 +609,7 @@ export default function MiRutina({ session }) {
 
   const nivel = session?.user.user_metadata?.nivel || "Asignado";
 
-  if (!hasCheckedInToday) {
+  if (!hasCheckedInToday && !showingBienestarCheckin) {
     return (
       <div style={{
         position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
