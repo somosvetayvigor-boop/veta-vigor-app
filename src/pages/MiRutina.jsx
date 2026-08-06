@@ -7,14 +7,30 @@ import DescansoActivoModal from '../components/DescansoActivoModal';
 import { requestNotificationPermissions, scheduleTrainingReminder, cancelTrainingReminder, scheduleDailyMotivation } from '../utils/notifications';
 import { DatabaseManager } from '../utils/DatabaseManager';
 
+let globalRutinaSemana = [];
+let globalRutinaTodas = [];
+let globalRutinaCustomCal = {};
+let globalRutinaArticulos = [];
+
 export default function MiRutina({ session }) {
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(globalRutinaSemana.length === 0);
   const [hasCheckedInToday, setHasCheckedInToday] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [semana, setSemana] = useState([]);
-  const [todasRutinas, setTodasRutinas] = useState([]);
-  const [customCal, setCustomCal] = useState({});
+  
+  const [semanaState, setSemanaState] = useState(globalRutinaSemana);
+  const [todasRutinasState, setTodasRutinasState] = useState(globalRutinaTodas);
+  const [customCalState, setCustomCalState] = useState(globalRutinaCustomCal);
+  
+  const semana = semanaState;
+  const setSemana = (val) => { globalRutinaSemana = val; setSemanaState(val); };
+  
+  const todasRutinas = todasRutinasState;
+  const setTodasRutinas = (val) => { globalRutinaTodas = val; setTodasRutinasState(val); };
+  
+  const customCal = customCalState;
+  const setCustomCal = (val) => { globalRutinaCustomCal = val; setCustomCalState(val); };
+
   const [allCalendarios, setAllCalendarios] = useState({});
   const [diasEntrenadosSemana, setDiasEntrenadosSemana] = useState(0);
   const [totalEntrenamientos, setTotalEntrenamientos] = useState(0);
@@ -27,7 +43,10 @@ export default function MiRutina({ session }) {
   const [showModal, setShowModal] = useState(false);
   
   // Novedades / Explora
-  const [articulos, setArticulos] = useState([]);
+  const [articulosState, setArticulosState] = useState(globalRutinaArticulos);
+  const articulos = articulosState;
+  const setArticulos = (val) => { globalRutinaArticulos = val; setArticulosState(val); };
+  
   const [diaToChange, setDiaToChange] = useState(null);
   const [rutinasCompatibles, setRutinasCompatibles] = useState([]);
   const [showDescanso, setShowDescanso] = useState(false);
