@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import { MessageCircle, Send, ShieldAlert, Lock, ArrowRight, User, X, ImagePlus, Heart, Award, Trophy, Loader } from 'lucide-react';
+import AvatarConMarco from '../components/AvatarConMarco';
 
 export default function Comunidad({ session }) {
   const [mensajes, setMensajes] = useState([]);
@@ -21,6 +22,7 @@ export default function Comunidad({ session }) {
   const [fullScreenImage, setFullScreenImage] = useState(null);
   const [muroFama, setMuroFama] = useState(null);
   const [mutedUsers, setMutedUsers] = useState([]);
+  const [marcoActivo, setMarcoActivo] = useState('ninguno');
   const isAdmin = session?.user?.email === 'somos.vetayvigor@gmail.com';
 
   const [activeTab, setActiveTab] = useState('feed');
@@ -55,12 +57,16 @@ export default function Comunidad({ session }) {
       try {
         const { data, error } = await supabase
           .from('perfiles')
-          .select('plan_membresia, chat_bloqueado, usuarios_silenciados, reto_activo_id, reto_completado')
+          .select('plan_membresia, chat_bloqueado, usuarios_silenciados, reto_activo_id, reto_completado, marco_activo')
           .eq('id', session?.user.id)
           .single();
         
         if (error) throw error;
         
+        if (data?.marco_activo) {
+          setMarcoActivo(data.marco_activo);
+        }
+
         if (data?.usuarios_silenciados) {
           setMutedUsers(data.usuarios_silenciados);
         }
@@ -98,7 +104,7 @@ export default function Comunidad({ session }) {
     const fetchMuro = async () => {
       const { data: muroData } = await supabase
         .from('muro_fama')
-        .select('*, perfiles(full_name, username, avatar_url, plan_membresia)')
+        .select('*, perfiles(full_name, username, avatar_url, plan_membresia, marco_activo)')
         .eq('estado', 'publicado')
         .order('created_at', { ascending: false })
         .limit(1)
@@ -318,6 +324,8 @@ export default function Comunidad({ session }) {
       sender_name: username,
       sender_avatar: avatar,
       sender_level: nivel,
+      sender_marco: marcoActivo,
+
       mensaje: nuevoMensaje.trim() || '📸 Foto',
       image_url: imageUrl,
       reply_to_id: replyingTo?.id || null,
@@ -479,7 +487,12 @@ export default function Comunidad({ session }) {
                   
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', opacity: 0.9, flexDirection: isMine ? 'row-reverse' : 'row' }}>
                     {msg.sender_avatar ? (
-                      <img src={msg.sender_avatar} alt="avatar" style={{ width: '20px', height: '20px', borderRadius: '50%', objectFit: 'cover' }} />
+                      <AvatarConMarco 
+                        src={msg.sender_avatar} 
+                        alt="avatar" 
+                        size={20} 
+                        marco={msg.sender_marco || 'ninguno'} 
+                      />
                     ) : (
                       <div style={{ width: '20px', height: '20px', borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <User size={12} color="#ccc" />
@@ -730,10 +743,11 @@ export default function Comunidad({ session }) {
                 boxShadow: '0 5px 20px rgba(212, 175, 55, 0.15)'
               }}>
                 <div style={{ position: 'relative', width: '60px', height: '60px', flexShrink: 0 }}>
-                  <img 
+                  <AvatarConMarco 
                     src={muroFama.perfiles?.avatar_url || '/assets/niveles/semilla.png'} 
                     alt="Atleta del mes" 
-                    style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--accent-gold)' }} 
+                    size={60} 
+                    marco={muroFama.perfiles?.marco_activo || 'ninguno'} 
                   />
                   <div style={{ position: 'absolute', bottom: '-5px', right: '-5px', background: 'var(--accent-gold)', borderRadius: '50%', padding: '4px', boxShadow: '0 2px 5px rgba(0,0,0,0.5)' }}>
                     <Award size={14} color="#000" />
@@ -781,10 +795,11 @@ export default function Comunidad({ session }) {
                       }}>
                         #{idx + 1}
                       </div>
-                      <img 
+                      <AvatarConMarco 
                         src={user.avatar_url || '/assets/niveles/semilla.png'} 
                         alt="avatar" 
-                        style={{ width: '45px', height: '45px', borderRadius: '50%', objectFit: 'cover', border: `2px solid ${badge.color}` }} 
+                        size={45} 
+                        marco={user.marco_activo || 'ninguno'} 
                       />
                       <div>
                         <h4 style={{ margin: '0 0 2px 0', color: '#fff', fontSize: '1rem' }}>{user.nombre_completo || user.username}</h4>

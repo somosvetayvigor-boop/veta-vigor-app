@@ -156,6 +156,12 @@ export default function LaPrueba({ session }) {
         showToast(data.error);
       } else {
         showToast("¡Adquisición exitosa!");
+        
+        // Auto-equipar el borde de fuego al comprarlo
+        if (itemId === 'borde_fuego') {
+          await supabase.from('perfiles').update({ marco_activo: 'borde_fuego' }).eq('id', session.user.id);
+        }
+
         await loadDatos();
       }
     } catch (err) {

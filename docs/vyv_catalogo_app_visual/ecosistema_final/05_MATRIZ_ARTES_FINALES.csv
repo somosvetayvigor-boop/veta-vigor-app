@@ -1,0 +1,5 @@
+entidad;ID;nombre;pantalla o componente;arte actual;arte faltante;tipo de arte;estados necesarios;relación de aspecto;dimensión detectada;prioridad;listo para arte;regla pendiente;fuente
+Recompensa;borde_fuego;Borde de Fuego;Perfil;Animación CSS (pulseFire);Ninguno (ya es 100% código);Efecto visual CSS;Comprado / No comprado;1:1;120x120px;Baja;Sí;Ninguna;src/pages/Perfil.jsx
+Recompensa;anima_bosque;Ánima del Bosque (Árbol Evolutivo);Perfil;Emojis animados por CSS;Arte 2D del árbol en 4 fases de crecimiento;Ilustración vector o pixel;Brote, Joven, Roble, Mundo;1:1;80x80px;Media;Sí;¿Sustituimos el emoji por imágenes oficiales?;src/pages/Perfil.jsx
+Recompensa;ficha_reposo;Ficha de Reposo;Tienda de Forja;Icono de Lucide (Flame);Moneda 2D o Ficha tallada en piedra/madera;Ilustración de Ítem;En tienda;1:1;64x64px;Baja;Sí;Ninguna;src/pages/TiendaForja.jsx
+Comunidad;muro_fama;Muro de Fama / Atleta del mes;Dashboard;Card CSS puro;Medalla o Trofeo 2D;Iconografía heroica;Activo (nominado);1:1;100x100px;Media;Sí;¿Cuál será el nombre oficial definitivo?;src/pages/Dashboard.jsx

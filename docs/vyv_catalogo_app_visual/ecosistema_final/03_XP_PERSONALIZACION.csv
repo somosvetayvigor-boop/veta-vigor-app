@@ -1,0 +1,10 @@
+Categoría;Elemento;Estado;Descripción;MVP Recomendado;Fuente
+XP y Experiencia;xp_actual;EXISTENTE;10 XP otorgados al finalizar cualquier rutina (Misión).;Mantener como está. Base del motor RPG.;src/pages/RutinaDetail.jsx (ModalVictoria)
+XP y Experiencia;nivel_rpg;EXISTENTE;Nivel calculado dividiendo xp_actual / 100.;Mantener como está.;src/utils/ProgressionEngine.js
+Puntos y Moneda;puntos_forja;EXISTENTE;5 Monedas de Forja ganadas al finalizar rutina.;Mantener como está.;src/pages/RutinaDetail.jsx
+Rachas;La Llama Viva;EXISTENTE;Mide días consecutivos entrenando. "Tu forja se enfría..." si se rompe.;Mantener. Es el motor principal de retención.;src/pages/MiRutina.jsx
+Recompensas y Tienda;Ficha de Reposo;EXISTENTE;Cuesta 300 Monedas. Evita que la racha baje a 0.;Mantener.;src/pages/MiRutina.jsx y public.tienda_items
+Desbloqueos y Personalización;Borde de Fuego;EXISTENTE;Marco cosmético CSS alrededor de la foto. Cuesta 1000 Monedas.;Mantener.;src/pages/Perfil.jsx y public.tienda_items
+Desbloqueos y Personalización;Ánima del Bosque;EXISTENTE;Animación CSS que da vida al Árbol de la Forja. Cuesta 500 Monedas.;Mantener.;src/pages/Perfil.jsx y public.tienda_items
+Personalización Futura;Fondos de Perfil;PROYECTO_CERCANO;Permitir cambiar el fondo de la tarjeta del atleta.;No estricto para MVP, pero fácil de implementar.;Discusiones RPG
+Personalización Futura;Insignias Visibles (Badges);FUTURO;Logros específicos que se clavan en el perfil (como medallas scouts).;FUTURO, no necesario para MVP.;Discusiones RPG

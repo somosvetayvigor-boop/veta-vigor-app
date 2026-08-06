@@ -1,0 +1,32 @@
+{
+  "resumen": "Ecosistema Final Veta & Vigor (Solo RPG, Comunidad y Recuperación)",
+  "rutas_maestrias": [
+    { "id": 1, "nombre": "Rutas de Maestría", "estado": "PROYECTO_CERCANO" },
+    { "id": 2, "nombre": "Tu Primera Dominada", "estado": "PROPUESTA_MVP" }
+  ],
+  "insignias": [
+    { "id": 1, "nombre": "Títulos de Respeto (Ranks)", "estado": "EXISTENTE" },
+    { "id": 5, "nombre": "Árbol de la Forja", "estado": "EXISTENTE" }
+  ],
+  "xp_personalizacion": [
+    { "elemento": "xp_actual", "estado": "EXISTENTE" },
+    { "elemento": "nivel_rpg", "estado": "EXISTENTE" },
+    { "elemento": "puntos_forja", "estado": "EXISTENTE" },
+    { "elemento": "La Llama Viva", "estado": "EXISTENTE" },
+    { "elemento": "Ficha de Reposo", "estado": "EXISTENTE" },
+    { "elemento": "Borde de Fuego", "estado": "EXISTENTE" },
+    { "elemento": "Ánima del Bosque", "estado": "EXISTENTE" },
+    { "elemento": "Fondos de Perfil", "estado": "PROYECTO_CERCANO" },
+    { "elemento": "Insignias Visibles", "estado": "FUTURO" }
+  ],
+  "clasificacion_vigor": {
+    "nombre": "Muro de Fama",
+    "estado": "EXISTENTE",
+    "fuente": "src/pages/Dashboard.jsx"
+  },
+  "descanso_activo": {
+    "nombre": "Descanso Activo / Rutina de Recuperación",
+    "estado": "EXISTENTE",
+    "fuente": "src/App.jsx (DescansoActivoModal)"
+  }
+}

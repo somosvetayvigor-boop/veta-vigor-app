@@ -7,10 +7,10 @@ const supabase = createClient(url, key);
 async function run() {
   const { data, error } = await supabase
     .from('perfiles')
-    .update({ avatar_url: null })
-    .like('avatar_url', 'blob:%')
-    .select('email, avatar_url');
+    .select('email, avatar_url')
+    .neq('avatar_url', null)
+    .limit(10);
     
-  console.log("Fixed:", data);
+  console.log(data);
 }
 run();

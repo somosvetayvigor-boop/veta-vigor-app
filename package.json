@@ -18,14 +18,17 @@
     "@onesignal/capacitor-plugin": "^1.1.4",
     "@revenuecat/purchases-capacitor": "^13.2.4",
     "@supabase/supabase-js": "^2.108.1",
+    "canvas-confetti": "^1.9.4",
     "csv-parse": "^6.2.1",
     "csv-parser": "^3.2.1",
     "dotenv": "^17.4.2",
+    "html2canvas": "^1.4.1",
     "localforage": "^1.10.0",
     "lucide-react": "^1.17.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
-    "react-router-dom": "^7.17.0"
+    "react-router-dom": "^7.17.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
