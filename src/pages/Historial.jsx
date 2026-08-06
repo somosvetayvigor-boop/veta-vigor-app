@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, ChevronDown, ChevronRight, Calendar, Loader, Flame, Heart, Activity } from 'lucide-react';
 import GaleriaReto from '../components/GaleriaReto';
 
@@ -18,11 +18,12 @@ const HABITOS_MAP = {
 
 export default function Historial({ session }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [history, setHistory] = useState({});
   const [bienestarHistory, setBienestarHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedDates, setExpandedDates] = useState({});
-  const [activeTab, setActiveTab] = useState('rutinas'); // 'rutinas', 'reto' or 'bienestar'
+  const [activeTab, setActiveTab] = useState(location.state?.tab || 'rutinas'); // 'rutinas', 'reto' or 'bienestar'
 
   useEffect(() => {
     const fetchHistory = async () => {
