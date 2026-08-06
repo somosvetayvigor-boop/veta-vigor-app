@@ -1,0 +1,6 @@
+id;nombre;estado;significado;criterio existente o propuesto;evento activador;única/repetible/temporal;Sistema/Ruta/Misión relacionada;recompensa;pantallas;activo actual;artes faltantes;estados visuales;fuente;decisión pendiente
+1;Iniciado;EXISTENTE;Atleta novato en la Forja;Nivel RPG 1 a 10;Subir de nivel;Única por fase;N/A;Título en UI;Perfil;Texto;N/A;Activo;src/utils/ProgressionEngine.js;N/A
+2;Forjador;EXISTENTE;Atleta intermedio;Nivel RPG 11 a 30;Subir de nivel;Única por fase;N/A;Título en UI;Perfil;Texto;N/A;Activo;src/utils/ProgressionEngine.js;N/A
+3;Maestro del Hierro;EXISTENTE;Atleta avanzado;Nivel RPG 31 a 49;Subir de nivel;Única por fase;N/A;Título en UI;Perfil;Texto;N/A;Activo;src/utils/ProgressionEngine.js;N/A
+4;Leyenda;EXISTENTE;Atleta élite;Nivel RPG 50+;Subir de nivel;Única por fase;N/A;Título en UI;Perfil;Texto;N/A;Activo;src/utils/ProgressionEngine.js;N/A
+5;Árbol de la Forja (Brote/Joven/Roble/Mundo);EXISTENTE;Representación viva del esfuerzo;Subir de Nivel RPG;Subir de nivel;Progresiva;N/A;Avatar;Perfil;Emojis (🌱,🌲,🌳,✨);Vectores o Arte 2D si se reemplazan emojis;Brote, Joven, Roble, Mundo;src/pages/Perfil.jsx;¿Se queda en emojis o se diseña arte propio?

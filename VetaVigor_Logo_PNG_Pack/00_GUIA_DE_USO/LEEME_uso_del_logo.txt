@@ -1,0 +1,42 @@
+VETA & VIGOR — PAQUETE DE LOGOS PNG
+
+QUÉ INCLUYE
+- Emblema completo circular: dorado, negro, blanco, marfil y dorado metálico.
+- Monograma V&V sin aro: las mismas variantes para composiciones reducidas.
+- Combinaciones listas sobre fondos de marca.
+- Avatares cuadrados de 1080 px para perfiles y portadas.
+- Marcas de agua con opacidad controlada.
+- Archivos compactos para video, reels y web.
+- Paleta de producción y vista rápida.
+
+PALETA RECOMENDADA
+- Dorado V&V: #C6A15B
+- Negro carbón: #141414
+- Marfil: #F7F4EC
+- Arena: #D9C6A3
+- Blanco: #FFFFFF
+- Dorado claro de apoyo: #E4C77F
+- Dorado oscuro de apoyo: #A77B2D
+
+USO RÁPIDO
+1. Fondos oscuros: usa dorado o blanco.
+2. Fondos claros: usa negro carbón o dorado V&V.
+3. Fotografía cargada: coloca primero una placa negra o marfil; evita que el logo compita con la imagen.
+4. Video y reels: usa la carpeta 06_VIDEO_Y_REELS. Coloca el logo con un margen mínimo equivalente al ancho de la letra V.
+5. Marca de agua: usa los archivos ya preparados; no reduzcas más la opacidad si se perderá sobre el fondo.
+6. Avatar: usa una de las piezas 1080 × 1080 sin volver a recortar.
+
+JERARQUÍA
+- Principal: emblema completo circular.
+- Secundaria: monograma V&V extraído del emblema para espacios pequeños.
+- Decorativa: dorado metálico, solo en portadas, piezas premium o momentos de énfasis.
+
+EVITA
+- Deformar, estirar o inclinar el logo.
+- Cambiar los colores fuera de la paleta.
+- Añadir sombras duras, contornos, neón o degradados distintos al metálico incluido.
+- Colocarlo directamente sobre fondos con poco contraste.
+- Usar el archivo JPEG original en artes finales.
+
+CALIDAD Y LIMITACIÓN DEL ORIGINAL
+El archivo recibido es un JPEG de WhatsApp de 374 × 374 px. Este paquete limpia el fondo, conserva el trazo y lo amplía con alta calidad para uso digital. Para impresión de gran formato, registro de marca y máxima consistencia futura conviene reconstruir el logo como vector maestro (SVG/PDF/EPS) a partir del arte original del diseñador.

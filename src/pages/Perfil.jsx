@@ -8,6 +8,7 @@ import { User, LogOut, Settings, X, Camera, Edit2, Upload, Activity, Flame, Bell
 import { DatabaseManager } from '../utils/DatabaseManager';
 import { getLevelProgress, getRpgTitle } from '../utils/ProgressionEngine';
 import ArbolForja from '../components/ArbolForja';
+import AvatarConMarco from '../components/AvatarConMarco';
 
 export default function Perfil({ session }) {
   const navigate = useNavigate();
@@ -397,17 +398,14 @@ export default function Perfil({ session }) {
             <div style={{ position: 'relative' }}>
               <div 
                 onClick={() => (meta.avatar_url && !imgError) && setZoomedImage(meta.avatar_url)}
-                style={{ 
-                  width: '90px', height: '90px', borderRadius: '50%', backgroundColor: 'var(--accent-gold)', 
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'black', 
-                  fontSize: '2.5rem', fontWeight: 'bold', overflow: 'hidden', 
-                  border: inventario.includes('borde_fuego') ? '3px solid #ff4757' : '3px solid var(--accent-gold)', 
-                  boxShadow: inventario.includes('borde_fuego') ? '0 0 25px #ff4757, inset 0 0 10px #ff4757' : '0 0 20px rgba(212, 175, 55, 0.2)', 
-                  cursor: meta.avatar_url ? 'pointer' : 'default',
-                  animation: inventario.includes('borde_fuego') ? 'pulseFire 2s infinite' : 'none'
-                }}
+                style={{ cursor: meta.avatar_url ? 'pointer' : 'default', position: 'relative' }}
               >
-                {(meta.avatar_url && !imgError) ? <img src={meta.avatar_url} referrerPolicy="no-referrer" onError={() => setImgError(true)} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : nombreReal[0].toUpperCase()}
+                <AvatarConMarco 
+                  src={meta.avatar_url} 
+                  alt="Avatar" 
+                  size={90} 
+                  marco={meta.marco_activo || (inventario.includes('borde_fuego') ? 'borde_fuego' : 'ninguno')} 
+                />
               </div>
               
               <label style={{
