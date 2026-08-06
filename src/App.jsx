@@ -665,6 +665,7 @@ function App() {
 
     const checkSession = async () => {
       try {
+        const startTime = Date.now();
         const sessionPromise = supabase.auth.getSession();
         const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000));
         const { data, error } = await Promise.race([sessionPromise, timeoutPromise]);
@@ -672,8 +673,17 @@ function App() {
         setSession(session);
         
         if (session?.user) {
-          // Background sync para no bloquear la carga de la UI
-          checkUserRoleAndPaywall(session.user).catch(console.error);
+          // Await background sync with a 2-second max timeout so it finishes before hiding splash
+          await Promise.race([
+            checkUserRoleAndPaywall(session.user),
+            new Promise(r => setTimeout(r, 2000))
+          ]).catch(console.error);
+        }
+
+        // Asegurar que el Splash Screen se vea al menos 1.5 segundos para la animación y despertar IDB
+        const elapsed = Date.now() - startTime;
+        if (elapsed < 1500) {
+          await new Promise(r => setTimeout(r, 1500 - elapsed));
         }
       } catch (err) {
         console.warn("Network timeout or session error, defaulting to local cache:", err);
