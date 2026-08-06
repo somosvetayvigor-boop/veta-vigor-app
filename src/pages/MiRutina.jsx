@@ -59,6 +59,7 @@ export default function MiRutina({ session }) {
   const [bienestarDone, setBienestarDone] = useState(false);
   const [savingBienestar, setSavingBienestar] = useState(false);
   const [showingBienestarCheckin, setShowingBienestarCheckin] = useState(false);
+  const [entrenoHoy, setEntrenoHoy] = useState(false);
   
   // Novedades / Explora
   const [articulosState, setArticulosState] = useState(globalRutinaArticulos);
@@ -139,6 +140,9 @@ export default function MiRutina({ session }) {
           let checkDate = new Date();
           const hasTodayCheckin = allCheckins.some(c => c.fecha === todayStr);
           const hasTodayBienestar = allBienestar.some(b => b.fecha === todayStr);
+          
+          setEntrenoHoy(hasTodayCheckin);
+
           if (!hasTodayCheckin && !hasTodayBienestar) checkDate.setDate(checkDate.getDate() - 1);
           
           let usedToken = false;
@@ -361,18 +365,29 @@ export default function MiRutina({ session }) {
     if (superiores.length === 0) superiores = rutinas;
     if (inferiores.length === 0) inferiores = rutinas;
 
+    const descanso = { isDescanso: true, nombre: 'Descanso Activo', descripcion: 'Recuperación, caminata ligera o movilidad.', tipoRequerido: 'descanso' };
+
+    let defaultCalendar = [];
+
     if (dias === '3') {
       defaultCalendar = [
         { ...completas[0 % completas.length], tipoRequerido: 'completo' }, // Dia 1
-        { ...completas[1 % completas.length], tipoRequerido: 'completo' }, // Dia 2
-        { ...completas[2 % completas.length], tipoRequerido: 'completo' }, // Dia 3
+        descanso,                        // Dia 2
+        { ...completas[1 % completas.length], tipoRequerido: 'completo' }, // Dia 3
+        descanso,                        // Dia 4
+        { ...completas[2 % completas.length], tipoRequerido: 'completo' }, // Dia 5
+        descanso,                        // Dia 6
+        descanso                         // Dia 7
       ];
     } else {
       defaultCalendar = [
         { ...superiores[0 % superiores.length], tipoRequerido: 'superior' }, // Dia 1
         { ...inferiores[0 % inferiores.length], tipoRequerido: 'inferior' }, // Dia 2
-        { ...superiores[1 % superiores.length], tipoRequerido: 'superior' }, // Dia 3
-        { ...inferiores[1 % inferiores.length], tipoRequerido: 'inferior' }, // Dia 4
+        descanso,                          // Dia 3
+        { ...superiores[1 % superiores.length], tipoRequerido: 'superior' }, // Dia 4
+        { ...inferiores[1 % inferiores.length], tipoRequerido: 'inferior' }, // Dia 5
+        descanso,                          // Dia 6
+        descanso                           // Dia 7
       ];
     }
 
@@ -450,6 +465,7 @@ export default function MiRutina({ session }) {
       
       // Optimistically let the user in to avoid being trapped on errors
       setHasCheckedInToday(true);
+      setEntrenoHoy(true);
 
       if (!navigator.onLine) {
         const { addToOfflineQueue } = await import('../utils/OfflineManager');
@@ -536,7 +552,7 @@ export default function MiRutina({ session }) {
   };
 
   const renderBienestarSummary = () => {
-    if (!bienestarDone) return null;
+    if (!bienestarDone || entrenoHoy) return null;
     return (
       <div 
         onClick={() => navigate('/historial', { state: { tab: 'bienestar' } })}
