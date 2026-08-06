@@ -132,8 +132,7 @@ export default function MiRutina({ session }) {
           }
           setRacha(currentStreak);
         }
-
-        await loadRutinas();
+        
       })();
 
       const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000));
@@ -141,6 +140,8 @@ export default function MiRutina({ session }) {
     } catch (error) {
       console.warn("Network timeout or error on startup, falling back to cache:", error);
     } finally {
+      // SIEMPRE asegurar que se carguen las rutinas, incluso si falla el checkin
+      await loadRutinas().catch(e => console.error(e));
       setLoading(false);
     }
   };
@@ -881,7 +882,7 @@ export default function MiRutina({ session }) {
         <h1 className="gold-gradient-text" style={{ fontSize: '1.8rem', margin: 0 }}>Tu Calendario V&V</h1>
       </div>
       <p style={{ color: 'var(--text-muted)' }}>
-        Madera <strong>{nivel}</strong>. Aquí tienes la estructura óptima para tu semana. Sigue el orden de los días.
+        Atleta <strong>{nivel}</strong>. Aquí tienes la estructura óptima para tu semana. Sigue el orden de los días.
       </p>
       
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '20px' }}>
