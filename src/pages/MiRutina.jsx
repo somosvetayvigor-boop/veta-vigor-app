@@ -1062,43 +1062,7 @@ export default function MiRutina({ session }) {
         />
       )}
 
-      {/* Banner Descanso Activo */}
-      {esVIP && (
-        <div style={{ marginBottom: '30px', textAlign: 'center' }}>
-          <p style={{ color: 'var(--text-muted)', marginBottom: '10px', fontSize: '0.9rem' }}>
-            Descanso Activo Click en la imagen 👇
-          </p>
-          <div 
-            onClick={() => navigate('/descanso')}
-            style={{ 
-              width: '100%', 
-              height: '140px', 
-              borderRadius: '16px', 
-              overflow: 'hidden', 
-              cursor: 'pointer',
-              border: '1px solid rgba(255,255,255,0.05)',
-              boxShadow: '0 4px 15px rgba(0,0,0,0.3)',
-              position: 'relative'
-            }}
-          >
-            <img 
-              src="/assets/descanso/banner.png" 
-              alt="Descanso Activo" 
-              style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-            />
-            <div style={{
-              position: 'absolute',
-              top: 0, left: 0, right: 0, bottom: 0,
-              background: 'linear-gradient(to top, rgba(0,0,0,0.7) 0%, transparent 50%)',
-              display: 'flex',
-              alignItems: 'flex-end',
-              padding: '15px'
-            }}>
-              <span style={{ color: '#fff', fontWeight: 'bold', fontSize: '1.1rem' }}>Protocolos de Recuperación</span>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Banner Descanso Activo eliminado de aquí y movido a la tarjeta del calendario */}
 
       {/* Modal de Intercambio de Rutina */}
       {showModal && (
@@ -1212,13 +1176,38 @@ export default function MiRutina({ session }) {
           semana.map((dia, index) => {
             if (dia.isDescanso) {
               return (
-                <div key={index} className="card" style={{ padding: '15px 20px', borderLeft: '4px solid #444', display: 'flex', alignItems: 'center', gap: '15px' }}>
-                  <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Coffee size={20} color="#888" />
+                <div key={index} style={{ marginBottom: '15px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                    <h4 style={{ margin: '0', color: '#aaa', fontSize: '0.95rem' }}>Día {index + 1}: {dia.nombre}</h4>
                   </div>
-                  <div>
-                    <h4 style={{ margin: '0 0 3px 0', color: '#aaa', fontSize: '0.95rem' }}>Día {index + 1}</h4>
-                    <p style={{ margin: 0, color: '#666', fontSize: '0.85rem' }}>{dia.nombre}</p>
+                  <div 
+                    onClick={() => navigate('/descanso')}
+                    style={{ 
+                      width: '100%', 
+                      height: '140px', 
+                      borderRadius: '16px', 
+                      overflow: 'hidden', 
+                      cursor: 'pointer',
+                      border: '1px solid rgba(255,255,255,0.05)',
+                      boxShadow: '0 4px 15px rgba(0,0,0,0.3)',
+                      position: 'relative'
+                    }}
+                  >
+                    <img 
+                      src="/assets/descanso/banner.png" 
+                      alt="Descanso Activo" 
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                    />
+                    <div style={{
+                      position: 'absolute',
+                      top: 0, left: 0, right: 0, bottom: 0,
+                      background: 'linear-gradient(to top, rgba(0,0,0,0.7) 0%, transparent 50%)',
+                      display: 'flex',
+                      alignItems: 'flex-end',
+                      padding: '15px'
+                    }}>
+                      <span style={{ color: '#fff', fontWeight: 'bold', fontSize: '1.1rem' }}>Protocolos de Recuperación</span>
+                    </div>
                   </div>
                 </div>
               );
