@@ -95,8 +95,7 @@ export default function MiRutina({ session }) {
       // 1. Check local cache IMMEDIATELY to prevent modal from showing on timeout
       const localCheckin = await DatabaseManager.getCheckin(session?.user.id, todayStr);
       if (localCheckin) {
-        // [DEBUG TEST] Comentado para forzar que salga el modal
-        // setHasCheckedInToday(true);
+        setHasCheckedInToday(true);
       }
 
       const initPromise = (async () => {
