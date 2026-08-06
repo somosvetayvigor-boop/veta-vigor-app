@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { ChevronLeft, Key, FileText, Gift, Loader, Shield, Flame, Activity } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { getGolpesTotales, getGolpesDisponibles } from '../utils/ProgressionEngine';
+import { getGolpesTotales, getGolpesDisponibles, getGolemData } from '../utils/ProgressionEngine';
 
 export default function LaPrueba({ session }) {
   const navigate = useNavigate();
@@ -14,7 +14,9 @@ export default function LaPrueba({ session }) {
   const [inventario, setInventario] = useState({ ficha_reposo: 0, anima_bosque: 0, borde_fuego: 0 });
   const [toast, setToast] = useState({ show: false, message: '' });
   const [confirmAction, setConfirmAction] = useState({ show: false, itemId: null, precio: 0, esPermanente: false });
-  const [golem, setGolem] = useState({ golpes_utilizados: 0, golem_vencido: false });
+  const [golem, setGolem] = useState({ golpes_utilizados: 0, golem_vencido: false, golem_nivel: 1 });
+
+  const currentGolemData = getGolemData(golem.golem_nivel || 1);
 
   const showToast = (message) => {
     setToast({ show: true, message });
@@ -53,7 +55,7 @@ export default function LaPrueba({ session }) {
       // Golem
       const { data: gol } = await supabase
         .from('golem_progreso')
-        .select('golpes_utilizados, golem_vencido')
+        .select('golpes_utilizados, golem_vencido, golem_nivel')
         .eq('user_id', session.user.id)
         .single();
         
@@ -94,7 +96,8 @@ export default function LaPrueba({ session }) {
         setTimeout(async () => {
           setIsHit(false);
           if (data.golem_muerto) {
-            showToast(`¡HAS VENCIDO AL GÓLEM DEL LASTRE! Has ganado ${data.recompensa} Monedas.`);
+            showToast(`¡HAS VENCIDO A ${currentGolemData.nombre.toUpperCase()}! Has ganado ${data.recompensa} Monedas.`);
+            await loadDatos(); // Recargar para ver si avanzamos al siguiente nivel
           } else {
             showToast(`¡Golpe asestado! Al Gólem le queda ${data.golpes_restantes_vida} de vida.`);
           }
@@ -171,7 +174,8 @@ export default function LaPrueba({ session }) {
   }
 
   const golpesDisponibles = getGolpesDisponibles(xp, golem.golpes_utilizados);
-  const vidaGolem = 10 - golem.golpes_utilizados;
+  const hpMax = currentGolemData.hp;
+  const vidaGolem = hpMax - golem.golpes_utilizados;
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-dark)', color: '#fff', paddingBottom: '20px' }}>
@@ -205,36 +209,36 @@ export default function LaPrueba({ session }) {
 
       <main style={{ padding: '20px', maxWidth: '600px', margin: '0 auto' }}>
         
-        {/* EL GÓLEM DEL LASTRE */}
-        <section style={{ marginBottom: '30px', background: 'linear-gradient(145deg, #1a0f0f, #0a0a0a)', borderRadius: '16px', border: '1px solid #ff4757', padding: '20px', textAlign: 'center' }}>
-          <h2 style={{ color: '#ff4757', margin: '0 0 5px 0', textTransform: 'uppercase', letterSpacing: '1px' }}>El Gólem del Lastre</h2>
-          <p style={{ color: '#aaa', fontSize: '0.85rem', marginBottom: '15px' }}>Representa la inercia, excusas y abandono.</p>
+        {/* EL GÓLEM ACTUAL */}
+        <section style={{ marginBottom: '30px', background: 'linear-gradient(145deg, #1a0f0f, #0a0a0a)', borderRadius: '16px', border: `1px solid ${currentGolemData.color}`, padding: '20px', textAlign: 'center' }}>
+          <h2 style={{ color: currentGolemData.color, margin: '0 0 5px 0', textTransform: 'uppercase', letterSpacing: '1px' }}>{currentGolemData.nombre} (Nv. {golem.golem_nivel || 1})</h2>
+          <p style={{ color: '#aaa', fontSize: '0.85rem', marginBottom: '15px' }}>{currentGolemData.desc}</p>
           
           <div 
             style={{ 
               fontSize: '4rem', 
               marginBottom: '10px', 
-              filter: golem.golem_vencido ? 'grayscale(100%) opacity(0.3)' : (isHit ? 'drop-shadow(0 0 25px #ff0000)' : 'drop-shadow(0 0 15px #ff4757)'),
+              filter: golem.golem_vencido ? 'grayscale(100%) opacity(0.3)' : (isHit ? 'drop-shadow(0 0 25px #ff0000)' : `drop-shadow(0 0 15px ${currentGolemData.color})`),
               animation: isHit && !golem.golem_vencido ? 'golemShake 0.3s ease-in-out' : (!golem.golem_vencido ? 'golemHeartbeat 2.5s infinite ease-in-out' : 'none'),
               transition: 'filter 0.1s ease-out',
               display: 'inline-block'
             }}
           >
-            🗿
+            {currentGolemData.imgFallback}
           </div>
 
           {!golem.golem_vencido ? (
             <>
               <div style={{ background: '#222', height: '10px', borderRadius: '5px', overflow: 'hidden', marginBottom: '15px', border: '1px solid #444' }}>
-                <div style={{ height: '100%', width: `${(vidaGolem / 10) * 100}%`, background: '#ff4757', transition: 'width 0.3s' }}></div>
+                <div style={{ height: '100%', width: `${(vidaGolem / hpMax) * 100}%`, background: currentGolemData.color, transition: 'width 0.3s' }}></div>
               </div>
-              <p style={{ margin: '0 0 15px 0', color: '#fff', fontWeight: 'bold' }}>Vida: {vidaGolem}/10</p>
+              <p style={{ margin: '0 0 15px 0', color: '#fff', fontWeight: 'bold' }}>Vida: {vidaGolem}/{hpMax}</p>
               
               <button 
                 onClick={atacarGolem}
                 disabled={procesando || golpesDisponibles <= 0}
                 style={{ 
-                  background: golpesDisponibles > 0 ? '#ff4757' : '#444', 
+                  background: golpesDisponibles > 0 ? currentGolemData.color : '#444', 
                   color: '#fff', border: 'none', padding: '12px 20px', borderRadius: '8px', 
                   fontWeight: 'bold', fontSize: '1rem', cursor: golpesDisponibles > 0 ? 'pointer' : 'not-allowed', width: '100%' 
                 }}
@@ -246,7 +250,7 @@ export default function LaPrueba({ session }) {
           ) : (
             <div style={{ color: 'var(--accent-gold)', fontWeight: 'bold', fontSize: '1.2rem', padding: '15px', background: 'rgba(212,175,55,0.1)', borderRadius: '8px' }}>
               ¡GÓLEM VENCIDO!
-              <div style={{ fontSize: '0.8rem', color: '#ccc', marginTop: '5px', fontWeight: 'normal' }}>Has ganado 100 Monedas y la insignia "Rompí el Lastre". Próximo adversario pronto.</div>
+              <div style={{ fontSize: '0.8rem', color: '#ccc', marginTop: '5px', fontWeight: 'normal' }}>Has ganado {currentGolemData.recompensa} Monedas. Próximo adversario pronto.</div>
             </div>
           )}
         </section>
