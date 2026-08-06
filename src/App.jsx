@@ -680,10 +680,10 @@ function App() {
           ]).catch(console.error);
         }
 
-        // Asegurar que el Splash Screen se vea al menos 3.0 segundos para la animación y cargar imágenes
+        // Asegurar que el Splash Screen se vea al menos 4.0 segundos para la animación y cargar imágenes
         const elapsed = Date.now() - startTime;
-        if (elapsed < 3000) {
-          await new Promise(r => setTimeout(r, 3000 - elapsed));
+        if (elapsed < 4000) {
+          await new Promise(r => setTimeout(r, 4000 - elapsed));
         }
       } catch (err) {
         console.warn("Network timeout or session error, defaulting to local cache:", err);
