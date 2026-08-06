@@ -174,6 +174,30 @@ export default function LaPrueba({ session }) {
     );
   }
 
+  const avanzarGolem = async () => {
+    setProcesando(true);
+    try {
+      const nextLevel = (golem.golem_nivel || 1) + 1;
+      const { error } = await supabase
+        .from('golem_progreso')
+        .update({
+          golem_nivel: nextLevel,
+          golem_vencido: false,
+          golpes_utilizados: 0
+        })
+        .eq('user_id', session.user.id);
+
+      if (error) throw error;
+      
+      showToast(`¡Has avanzado al Gólem Nv. ${nextLevel}!`);
+      await loadDatos();
+    } catch (err) {
+      showToast("Error al avanzar de Gólem.");
+      console.error(err);
+    }
+    setProcesando(false);
+  };
+
   const golpesDisponibles = getGolpesDisponibles(xp, golem.golpes_utilizados);
   const hpMax = currentGolemData.hp;
   const vidaGolem = hpMax - golem.golpes_utilizados;
@@ -229,7 +253,23 @@ export default function LaPrueba({ session }) {
           ) : (
             <div style={{ color: 'var(--accent-gold)', fontWeight: 'bold', fontSize: '1.2rem', padding: '15px', background: 'rgba(212,175,55,0.1)', borderRadius: '8px' }}>
               ¡GÓLEM VENCIDO!
-              <div style={{ fontSize: '0.8rem', color: '#ccc', marginTop: '5px', fontWeight: 'normal' }}>Has ganado {currentGolemData.recompensa} Monedas. Próximo adversario pronto.</div>
+              <div style={{ fontSize: '0.8rem', color: '#ccc', marginTop: '5px', fontWeight: 'normal', marginBottom: '15px' }}>Has ganado {currentGolemData.recompensa} Monedas.</div>
+              
+              {(golem.golem_nivel || 1) < 2 ? (
+                <button 
+                  onClick={avanzarGolem}
+                  disabled={procesando}
+                  style={{ 
+                    background: 'var(--accent-gold)', color: '#000', border: 'none', padding: '12px 20px', borderRadius: '8px', 
+                    fontWeight: 'bold', fontSize: '1rem', cursor: procesando ? 'not-allowed' : 'pointer', width: '100%',
+                    opacity: procesando ? 0.7 : 1
+                  }}
+                >
+                  {procesando ? 'Procesando...' : '🔥 Desafiar al Siguiente Gólem'}
+                </button>
+              ) : (
+                <div style={{ fontSize: '0.8rem', color: '#ccc', marginTop: '5px', fontWeight: 'normal' }}>Has derrotado a todos los Gólems disponibles.</div>
+              )}
             </div>
           )}
         </section>
