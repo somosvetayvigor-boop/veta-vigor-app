@@ -352,8 +352,8 @@ export default function Perfil({ session }) {
 
   const getAvatarStage = (nivel) => {
     if (!nivel) return { icon: '🌱', desc: 'Brote' };
-    if (nivel >= 50) return { icon: '🌳✨', desc: 'Árbol del Mundo' };
-    if (nivel >= 31) return { icon: '🌳', desc: 'Roble Fuerte' };
+    if (nivel >= 41) return { icon: '🌳✨', desc: 'Árbol Ancestral' };
+    if (nivel >= 31) return { icon: '🌳⚔️', desc: 'Árbol Férreo' };
     if (nivel >= 11) return { icon: '🌲', desc: 'Árbol Joven' };
     return { icon: '🌱', desc: 'Brote' };
   };
