@@ -7,6 +7,7 @@ import { addToOfflineQueue } from '../utils/OfflineManager';
 import { User, LogOut, Settings, X, Camera, Edit2, Upload, Activity, Flame, Bell, Calendar, Leaf } from 'lucide-react';
 import { DatabaseManager } from '../utils/DatabaseManager';
 import { getLevelProgress, getRpgTitle } from '../utils/ProgressionEngine';
+import ArbolForja from '../components/ArbolForja';
 
 export default function Perfil({ session }) {
   const navigate = useNavigate();
@@ -421,7 +422,7 @@ export default function Perfil({ session }) {
             {/* Árbol de la Forja (Evolutivo) - Solo visible si se compró el Ánima del Bosque */}
             {inventario.includes('anima_bosque') && (
               <div style={{ marginTop: '12px', background: 'rgba(0,0,0,0.4)', padding: '4px 10px', borderRadius: '15px', border: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                <span style={{ fontSize: '1.2rem', display: 'inline-block', animation: 'treeBreathe 4s ease-in-out infinite', transformOrigin: 'bottom center' }}>{getAvatarStage(meta.nivel_rpg).icon}</span>
+                <ArbolForja nivel={meta.nivel_rpg} size={24} />
                 <span style={{ fontSize: '0.75rem', color: '#aaa', fontStyle: 'italic' }}>{getAvatarStage(meta.nivel_rpg).desc}</span>
               </div>
             )}
