@@ -3,6 +3,7 @@ import { supabase } from '../supabaseClient';
 import { ChevronLeft, Key, FileText, Gift, Loader, Shield, Flame, Activity } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getGolpesTotales, getGolpesDisponibles, getGolemData } from '../utils/ProgressionEngine';
+import GolemAnimado from '../components/GolemAnimado';
 
 export default function LaPrueba({ session }) {
   const navigate = useNavigate();
@@ -179,24 +180,6 @@ export default function LaPrueba({ session }) {
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-dark)', color: '#fff', paddingBottom: '20px' }}>
-      <style>{`
-        @keyframes golemShake {
-          0% { transform: translate(2px, 1px) rotate(0deg); filter: drop-shadow(0 0 25px #ff0000) brightness(1.5); }
-          20% { transform: translate(-3px, -2px) rotate(-1deg); filter: drop-shadow(0 0 35px #ff0000) brightness(1.2); }
-          40% { transform: translate(3px, 2px) rotate(1deg); filter: drop-shadow(0 0 15px #ff4757) brightness(1); }
-          60% { transform: translate(-2px, -1px) rotate(0deg); }
-          80% { transform: translate(2px, 1px) rotate(-1deg); }
-          100% { transform: translate(0px, 0px) rotate(0deg); filter: drop-shadow(0 0 15px #ff4757); }
-        }
-        @keyframes golemHeartbeat {
-          0% { transform: scale(1); filter: drop-shadow(0 0 15px #ff4757); }
-          15% { transform: scale(1.05); filter: drop-shadow(0 0 25px #ff4757) brightness(1.2); }
-          30% { transform: scale(1); filter: drop-shadow(0 0 15px #ff4757); }
-          45% { transform: scale(1.05); filter: drop-shadow(0 0 25px #ff4757) brightness(1.2); }
-          60% { transform: scale(1); filter: drop-shadow(0 0 15px #ff4757); }
-          100% { transform: scale(1); filter: drop-shadow(0 0 15px #ff4757); }
-        }
-      `}</style>
       <header style={{ display: 'flex', alignItems: 'center', padding: '20px', background: 'rgba(0,0,0,0.5)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
         <button onClick={() => navigate('/perfil')} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: '5px' }}>
           <ChevronLeft size={24} />
@@ -210,27 +193,23 @@ export default function LaPrueba({ session }) {
       <main style={{ padding: '20px', maxWidth: '600px', margin: '0 auto' }}>
         
         {/* EL GÓLEM ACTUAL */}
-        <section style={{ marginBottom: '30px', background: 'linear-gradient(145deg, #1a0f0f, #0a0a0a)', borderRadius: '16px', border: `1px solid ${currentGolemData.color}`, padding: '20px', textAlign: 'center' }}>
-          <h2 style={{ color: currentGolemData.color, margin: '0 0 5px 0', textTransform: 'uppercase', letterSpacing: '1px' }}>{currentGolemData.nombre} (Nv. {golem.golem_nivel || 1})</h2>
+        <section style={{ marginBottom: '30px', background: 'linear-gradient(145deg, #1a0f0f, #0a0a0a)', borderRadius: '16px', border: '1px solid #ff4757', padding: '20px', textAlign: 'center' }}>
+          <h2 style={{ color: '#ff4757', margin: '0 0 5px 0', textTransform: 'uppercase', letterSpacing: '1px' }}>{currentGolemData.nombre} (Nv. {golem.golem_nivel || 1})</h2>
           <p style={{ color: '#aaa', fontSize: '0.85rem', marginBottom: '15px' }}>{currentGolemData.desc}</p>
           
-          <div 
-            style={{ 
-              fontSize: '4rem', 
-              marginBottom: '10px', 
-              filter: golem.golem_vencido ? 'grayscale(100%) opacity(0.3)' : (isHit ? 'drop-shadow(0 0 25px #ff0000)' : `drop-shadow(0 0 15px ${currentGolemData.color})`),
-              animation: isHit && !golem.golem_vencido ? 'golemShake 0.3s ease-in-out' : (!golem.golem_vencido ? 'golemHeartbeat 2.5s infinite ease-in-out' : 'none'),
-              transition: 'filter 0.1s ease-out',
-              display: 'inline-block'
-            }}
-          >
-            {currentGolemData.imgFallback}
+          <div style={{ marginBottom: '20px', minHeight: '160px' }}>
+            <GolemAnimado 
+              nivel={golem.golem_nivel || 1} 
+              isHit={isHit} 
+              isDead={golem.golem_vencido} 
+              size={160} 
+            />
           </div>
 
           {!golem.golem_vencido ? (
             <>
               <div style={{ background: '#222', height: '10px', borderRadius: '5px', overflow: 'hidden', marginBottom: '15px', border: '1px solid #444' }}>
-                <div style={{ height: '100%', width: `${(vidaGolem / hpMax) * 100}%`, background: currentGolemData.color, transition: 'width 0.3s' }}></div>
+                <div style={{ height: '100%', width: `${(vidaGolem / hpMax) * 100}%`, background: '#ff4757', transition: 'width 0.3s' }}></div>
               </div>
               <p style={{ margin: '0 0 15px 0', color: '#fff', fontWeight: 'bold' }}>Vida: {vidaGolem}/{hpMax}</p>
               
@@ -238,7 +217,7 @@ export default function LaPrueba({ session }) {
                 onClick={atacarGolem}
                 disabled={procesando || golpesDisponibles <= 0}
                 style={{ 
-                  background: golpesDisponibles > 0 ? currentGolemData.color : '#444', 
+                  background: golpesDisponibles > 0 ? '#ff4757' : '#444', 
                   color: '#fff', border: 'none', padding: '12px 20px', borderRadius: '8px', 
                   fontWeight: 'bold', fontSize: '1rem', cursor: golpesDisponibles > 0 ? 'pointer' : 'not-allowed', width: '100%' 
                 }}
