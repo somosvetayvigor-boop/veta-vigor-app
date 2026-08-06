@@ -101,8 +101,7 @@ export default function MiRutina({ session }) {
 
       const initPromise = (async () => {
         if (!navigator.onLine) {
-          // [DEBUG TEST] Comentado para forzar que salga el modal
-          // setHasCheckedInToday(true);
+          setHasCheckedInToday(true);
           await loadRutinas();
           return;
         }
@@ -117,8 +116,7 @@ export default function MiRutina({ session }) {
         if (error && error.code !== 'PGRST116') throw error; 
         
         if (data) {
-          // [DEBUG TEST] Comentado para forzar que salga el modal
-          // setHasCheckedInToday(true);
+          setHasCheckedInToday(true);
           await DatabaseManager.saveCheckin(session?.user.id, todayStr, data.nivel || 3);
         }
         
@@ -133,7 +131,10 @@ export default function MiRutina({ session }) {
         
         // Verificar si hoy ya tiene bienestar registrado
         const todayBienestar = allBienestar.find(b => b.fecha === todayStr);
-        if (todayBienestar) setBienestarDone(true);
+        if (todayBienestar) {
+          setBienestarDone(true);
+          setHasCheckedInToday(true);
+        }
           
         if (allCheckins || allBienestar.length > 0) {
           let currentStreak = 0;
