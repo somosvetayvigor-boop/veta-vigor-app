@@ -149,14 +149,14 @@ export default function ArbolForja({ nivel, size = 120 }) {
     </svg>
   );
 
-  // Renderizar según nivel
+  // Renderizar según nivel RPG de Veta & Vigor
   let content = null;
-  if (nivel >= 3) {
+  if (nivel >= 31) {
     content = renderArbol();
-  } else if (nivel === 2) {
+  } else if (nivel >= 11) {
     content = renderPlanta();
   } else {
-    content = renderBrote(); // Nivel 1 por defecto
+    content = renderBrote(); // Nivel 1-10
   }
 
   return (
