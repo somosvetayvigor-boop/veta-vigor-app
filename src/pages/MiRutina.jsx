@@ -440,7 +440,40 @@ export default function MiRutina({ session }) {
   };
 
   if (loading && semana.length === 0) {
-    return <div style={{ display: 'flex', height: '80vh', justifyContent: 'center', alignItems: 'center' }}><Loader className="gold-gradient-text" style={{ animation: 'rotate 1s linear infinite' }} color="#D4AF37" size={40} /></div>;
+    return (
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#0f0f11',
+        position: 'fixed',
+        top: 0, left: 0, right: 0, bottom: 0,
+        zIndex: 9999
+      }}>
+        <h1 className="gold-gradient-text" style={{ 
+          fontSize: '4.5rem', 
+          fontWeight: '900', 
+          letterSpacing: '4px',
+          animation: 'pulseGold 2s infinite',
+          margin: 0
+        }}>
+          V&V
+        </h1>
+        <p style={{ 
+          color: 'var(--accent-gold)', 
+          marginTop: '30px', 
+          fontSize: '0.85rem', 
+          opacity: 0.7, 
+          letterSpacing: '3px', 
+          textTransform: 'uppercase',
+          animation: 'pulse 2s infinite'
+        }}>
+          Forjando...
+        </p>
+      </div>
+    );
   }
 
   const nivel = session?.user.user_metadata?.nivel || "Asignado";
