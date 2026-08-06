@@ -16,6 +16,7 @@ let globalRutinaArticulos = [];
 export default function MiRutina({ session }) {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(globalRutinaSemana.length === 0);
+  const [isCheckingStatus, setIsCheckingStatus] = useState(true);
   const [hasCheckedInToday, setHasCheckedInToday] = useState(false);
   const [saving, setSaving] = useState(false);
   
@@ -197,6 +198,7 @@ export default function MiRutina({ session }) {
       // SIEMPRE asegurar que se carguen las rutinas, incluso si falla el checkin
       await loadRutinas().catch(e => console.error(e));
       setLoading(false);
+      setIsCheckingStatus(false);
     }
   };
 
@@ -584,7 +586,7 @@ export default function MiRutina({ session }) {
     );
   };
 
-  if (loading && semana.length === 0) {
+  if (loading || isCheckingStatus) {
     return (
       <div style={{
         minHeight: '100vh',
