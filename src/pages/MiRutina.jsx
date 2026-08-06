@@ -361,29 +361,18 @@ export default function MiRutina({ session }) {
     if (superiores.length === 0) superiores = rutinas;
     if (inferiores.length === 0) inferiores = rutinas;
 
-    const descanso = { isDescanso: true, nombre: 'Descanso Activo', descripcion: 'Recuperación, caminata ligera o movilidad.', tipoRequerido: 'descanso' };
-
-    let defaultCalendar = [];
-
     if (dias === '3') {
       defaultCalendar = [
         { ...completas[0 % completas.length], tipoRequerido: 'completo' }, // Dia 1
-        descanso,                        // Dia 2
-        { ...completas[1 % completas.length], tipoRequerido: 'completo' }, // Dia 3
-        descanso,                        // Dia 4
-        { ...completas[2 % completas.length], tipoRequerido: 'completo' }, // Dia 5
-        descanso,                        // Dia 6
-        descanso                         // Dia 7
+        { ...completas[1 % completas.length], tipoRequerido: 'completo' }, // Dia 2
+        { ...completas[2 % completas.length], tipoRequerido: 'completo' }, // Dia 3
       ];
     } else {
       defaultCalendar = [
         { ...superiores[0 % superiores.length], tipoRequerido: 'superior' }, // Dia 1
         { ...inferiores[0 % inferiores.length], tipoRequerido: 'inferior' }, // Dia 2
-        descanso,                          // Dia 3
-        { ...superiores[1 % superiores.length], tipoRequerido: 'superior' }, // Dia 4
-        { ...inferiores[1 % inferiores.length], tipoRequerido: 'inferior' }, // Dia 5
-        descanso,                          // Dia 6
-        descanso                           // Dia 7
+        { ...superiores[1 % superiores.length], tipoRequerido: 'superior' }, // Dia 3
+        { ...inferiores[1 % inferiores.length], tipoRequerido: 'inferior' }, // Dia 4
       ];
     }
 
@@ -549,23 +538,32 @@ export default function MiRutina({ session }) {
   const renderBienestarSummary = () => {
     if (!bienestarDone) return null;
     return (
-      <div style={{
-        background: 'linear-gradient(135deg, #1a1f2e 0%, #1c2025 100%)',
-        border: '1px solid rgba(212, 175, 55, 0.2)',
-        borderRadius: '16px',
-        padding: '20px',
-        marginBottom: '25px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '15px'
-      }}>
+      <div 
+        onClick={() => navigate('/historial', { state: { tab: 'bienestar' } })}
+        style={{
+          background: 'linear-gradient(135deg, #1a1f2e 0%, #1c2025 100%)',
+          border: '1px solid rgba(212, 175, 55, 0.4)',
+          borderRadius: '16px',
+          padding: '20px',
+          marginBottom: '25px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '15px',
+          cursor: 'pointer',
+          boxShadow: '0 4px 15px rgba(212, 175, 55, 0.15)',
+          transition: 'transform 0.2s'
+        }}
+        onMouseOver={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; }}
+        onMouseOut={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
+      >
         <div style={{ fontSize: '2.5rem' }}>🧘</div>
-        <div>
+        <div style={{ flex: 1 }}>
           <h3 className="gold-gradient-text" style={{ margin: '0 0 5px 0', fontSize: '1.1rem' }}>Día de Recuperación</h3>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>
-            Has marcado tus hábitos de bienestar hoy. ¡Excelente trabajo cuidando tu cuerpo!
+            Has marcado tus hábitos de bienestar hoy. ¡Toca aquí para ver tus estadísticas!
           </p>
         </div>
+        <ChevronRight size={24} color="var(--accent-gold)" />
       </div>
     );
   };
