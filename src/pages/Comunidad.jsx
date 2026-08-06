@@ -1038,6 +1038,9 @@ export default function Comunidad({ session }) {
         </div>
       )}
 
+      {/* ALIANZAS (DÚOS) */}
+      {activeTab === 'alianzas' && renderAlianzasContent()}
+
       {/* Full Screen Image Modal */}
       {fullScreenImage && (
         <div 
