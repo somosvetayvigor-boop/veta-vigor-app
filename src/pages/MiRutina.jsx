@@ -58,6 +58,7 @@ export default function MiRutina({ session }) {
   const [bienestarHabitos, setBienestarHabitos] = useState([]);
   const [bienestarDone, setBienestarDone] = useState(false);
   const [savingBienestar, setSavingBienestar] = useState(false);
+  const [showBienestarMode, setShowBienestarMode] = useState(false);
   
   // Novedades / Explora
   const [articulosState, setArticulosState] = useState(globalRutinaArticulos);
@@ -538,79 +539,6 @@ export default function MiRutina({ session }) {
     }
   };
 
-  // Detectar si hoy es día de descanso (no tiene rutina asignada)
-  const todayDayIndex = new Date().getDay(); // 0=domingo, 1=lunes...
-  const dayMapping = { 0: 'domingo', 1: 'lunes', 2: 'martes', 3: 'miercoles', 4: 'jueves', 5: 'viernes', 6: 'sabado' };
-  const todayDayName = dayMapping[todayDayIndex];
-  const isRestDay = esVIP && customCal && Object.keys(customCal).length > 0 && !customCal[todayDayName];
-
-  const renderBienestarCard = () => {
-    if (!isRestDay || bienestarDone) return null;
-    
-    return (
-      <div style={{
-        background: 'linear-gradient(135deg, #1a1f2e 0%, #1c2025 100%)',
-        border: '1px solid rgba(212, 175, 55, 0.2)',
-        borderRadius: '16px',
-        padding: '20px',
-        marginBottom: '25px'
-      }}>
-        <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-          <div style={{ fontSize: '2.5rem', marginBottom: '8px' }}>🧘</div>
-          <h3 className="gold-gradient-text" style={{ margin: '0 0 5px 0', fontSize: '1.2rem' }}>Día de Recuperación</h3>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>
-            ¿Qué hiciste hoy por tu cuerpo y mente?
-          </p>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '20px' }}>
-          {HABITOS_BIENESTAR.map(h => {
-            const selected = bienestarHabitos.includes(h.id);
-            return (
-              <button
-                key={h.id}
-                onClick={() => toggleHabito(h.id)}
-                style={{
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                  padding: '12px 5px', gap: '6px',
-                  backgroundColor: selected ? 'rgba(212, 175, 55, 0.15)' : '#1c1c20',
-                  border: selected ? '2px solid var(--accent-gold)' : '1px solid #333',
-                  borderRadius: '12px',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease'
-                }}
-              >
-                <span style={{ fontSize: '1.5rem' }}>{h.emoji}</span>
-                <span style={{ fontSize: '0.65rem', color: selected ? 'var(--accent-gold)' : '#999', fontWeight: selected ? 'bold' : 'normal', textAlign: 'center', lineHeight: '1.2' }}>{h.label}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        <div style={{ textAlign: 'center', marginBottom: '12px' }}>
-          <span style={{ fontSize: '0.8rem', color: bienestarHabitos.length >= 2 ? '#78e08f' : 'var(--text-muted)' }}>
-            {bienestarHabitos.length}/9 hábitos marcados {bienestarHabitos.length >= 2 ? '✅' : '(mínimo 2)'}
-          </span>
-        </div>
-
-        <button
-          onClick={handleBienestarCheckin}
-          disabled={bienestarHabitos.length < 2 || savingBienestar}
-          style={{
-            width: '100%', padding: '14px', borderRadius: '12px',
-            background: bienestarHabitos.length >= 2 ? 'linear-gradient(135deg, #f9f0b1 0%, #D4AF37 50%, #aa8b2c 100%)' : '#333',
-            color: bienestarHabitos.length >= 2 ? '#000' : '#666',
-            fontWeight: 'bold', fontSize: '1rem',
-            border: 'none', cursor: bienestarHabitos.length >= 2 ? 'pointer' : 'not-allowed',
-            transition: 'all 0.3s ease'
-          }}
-        >
-          {savingBienestar ? 'Guardando...' : '🔥 Registrar Bienestar'}
-        </button>
-      </div>
-    );
-  };
-
   if (loading && semana.length === 0) {
     return (
       <div style={{
@@ -650,7 +578,85 @@ export default function MiRutina({ session }) {
 
   const nivel = session?.user.user_metadata?.nivel || "Asignado";
 
-  if (!hasCheckedInToday) {
+  if (!hasCheckedInToday && !bienestarDone) {
+    // === MODO BIENESTAR (Día de Descanso) ===
+    if (showBienestarMode && esVIP) {
+      return (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'var(--bg-dark)', zIndex: 999, 
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start',
+          overflowY: 'auto', padding: '20px', paddingTop: '80px'
+        }}>
+          <div className="card" style={{ width: '100%', maxWidth: '400px', textAlign: 'center', padding: '25px 20px', position: 'relative' }}>
+            
+            {savingBienestar && (
+              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 10, display: 'flex', justifyContent: 'center', alignItems: 'center', borderRadius: '16px' }}>
+                <Loader className="gold-gradient-text" style={{ animation: 'rotate 1s linear infinite' }} color="#D4AF37" size={40} />
+              </div>
+            )}
+
+            <div style={{ fontSize: '2.5rem', marginBottom: '8px' }}>🧘</div>
+            <h2 className="gold-gradient-text" style={{ margin: '0 0 5px 0', fontSize: '1.5rem', textTransform: 'uppercase' }}>Día de Recuperación</h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '20px' }}>¿Qué hiciste hoy por tu cuerpo y mente?</p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '20px' }}>
+              {HABITOS_BIENESTAR.map(h => {
+                const selected = bienestarHabitos.includes(h.id);
+                return (
+                  <button
+                    key={h.id}
+                    onClick={() => toggleHabito(h.id)}
+                    style={{
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                      padding: '12px 5px', gap: '6px',
+                      backgroundColor: selected ? 'rgba(212, 175, 55, 0.15)' : '#1c1c20',
+                      border: selected ? '2px solid var(--accent-gold)' : '1px solid #333',
+                      borderRadius: '12px',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    <span style={{ fontSize: '1.5rem' }}>{h.emoji}</span>
+                    <span style={{ fontSize: '0.65rem', color: selected ? 'var(--accent-gold)' : '#999', fontWeight: selected ? 'bold' : 'normal', textAlign: 'center', lineHeight: '1.2' }}>{h.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div style={{ textAlign: 'center', marginBottom: '12px' }}>
+              <span style={{ fontSize: '0.8rem', color: bienestarHabitos.length >= 2 ? '#78e08f' : 'var(--text-muted)' }}>
+                {bienestarHabitos.length}/9 hábitos marcados {bienestarHabitos.length >= 2 ? '✅' : '(mínimo 2)'}
+              </span>
+            </div>
+
+            <button
+              onClick={handleBienestarCheckin}
+              disabled={bienestarHabitos.length < 2 || savingBienestar}
+              style={{
+                width: '100%', padding: '14px', borderRadius: '12px',
+                background: bienestarHabitos.length >= 2 ? 'linear-gradient(135deg, #f9f0b1 0%, #D4AF37 50%, #aa8b2c 100%)' : '#333',
+                color: bienestarHabitos.length >= 2 ? '#000' : '#666',
+                fontWeight: 'bold', fontSize: '1rem',
+                border: 'none', cursor: bienestarHabitos.length >= 2 ? 'pointer' : 'not-allowed',
+                transition: 'all 0.3s ease'
+              }}
+            >
+              {savingBienestar ? 'Guardando...' : '🔥 Registrar Bienestar'}
+            </button>
+
+            <button
+              onClick={() => { setShowBienestarMode(false); setBienestarHabitos([]); }}
+              style={{ marginTop: '15px', background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.85rem', cursor: 'pointer', textDecoration: 'underline' }}
+            >
+              ← Volver a Disposición
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    // === MODO DISPOSICIÓN (Día de Entrenamiento) ===
     return (
       <div style={{
         position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
@@ -715,6 +721,24 @@ export default function MiRutina({ session }) {
               </div>
             </div>
           </div>
+
+          {/* Botón de Día de Descanso (solo VIP) */}
+          {esVIP && (
+            <button
+              onClick={() => setShowBienestarMode(true)}
+              style={{
+                marginTop: '20px', width: '100%', padding: '14px', borderRadius: '12px',
+                background: 'transparent',
+                border: '1px solid rgba(212, 175, 55, 0.3)',
+                color: 'var(--accent-gold)',
+                fontWeight: 'bold', fontSize: '0.9rem',
+                cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
+              }}
+            >
+              🧘 Hoy es mi día de descanso
+            </button>
+          )}
         </div>
       </div>
     );
@@ -923,9 +947,6 @@ export default function MiRutina({ session }) {
       
       {esVIP && renderLlamaViva()}
       {esVIP && renderSemaforo()}
-      
-      {/* Check-In de Bienestar (días de descanso) */}
-      {esVIP && renderBienestarCard()}
       
       {/* Botones de Playlists (2x2 Grid) */}
       {esVIP && (
