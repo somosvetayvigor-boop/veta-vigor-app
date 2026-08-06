@@ -94,12 +94,14 @@ export default function MiRutina({ session }) {
       // 1. Check local cache IMMEDIATELY to prevent modal from showing on timeout
       const localCheckin = await DatabaseManager.getCheckin(session?.user.id, todayStr);
       if (localCheckin) {
-        setHasCheckedInToday(true);
+        // [DEBUG TEST] Comentado para forzar que salga el modal
+        // setHasCheckedInToday(true);
       }
 
       const initPromise = (async () => {
         if (!navigator.onLine) {
-          setHasCheckedInToday(true);
+          // [DEBUG TEST] Comentado para forzar que salga el modal
+          // setHasCheckedInToday(true);
           await loadRutinas();
           return;
         }
@@ -114,7 +116,8 @@ export default function MiRutina({ session }) {
         if (error && error.code !== 'PGRST116') throw error; 
         
         if (data) {
-          setHasCheckedInToday(true);
+          // [DEBUG TEST] Comentado para forzar que salga el modal
+          // setHasCheckedInToday(true);
           await DatabaseManager.saveCheckin(session?.user.id, todayStr, data.nivel || 3);
         }
         
