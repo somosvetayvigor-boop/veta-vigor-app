@@ -83,6 +83,23 @@ export const DatabaseManager = {
     }
   },
 
+  // ================= BIENESTAR (DÍAS DE DESCANSO) =================
+  saveBienestar: async (userId, dateStr, habitos) => {
+    try {
+      await withTimeout(store.setItem(`bienestar_${dateStr}_${userId}`, habitos));
+    } catch (e) {
+      console.warn('DatabaseManager: Error saving bienestar', e);
+    }
+  },
+  getBienestar: async (userId, dateStr) => {
+    try {
+      return await withTimeout(store.getItem(`bienestar_${dateStr}_${userId}`));
+    } catch (e) {
+      console.warn('DatabaseManager: Error getting bienestar', e);
+      return null;
+    }
+  },
+
   // ================= GENERAL =================
   clearAll: async () => {
     try {

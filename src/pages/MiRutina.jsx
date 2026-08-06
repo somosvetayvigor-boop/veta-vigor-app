@@ -40,10 +40,24 @@ export default function MiRutina({ session }) {
   const [coachBrand, setCoachBrand] = useState(null);
   const [ultimoEntrenamiento, setUltimoEntrenamiento] = useState(null);
 
+  // VIP check (necesario antes de detectar día de descanso)
+  const isAdmin = session?.user?.email === 'somos.vetayvigor@gmail.com';
+  const suscripcion = session?.user?.user_metadata?.suscripcion || session?.user?.user_metadata?.plan_membresia;
+  const esVIP = isAdmin ||
+                localStorage.getItem('user_role') === 'alumno_entrenador' ||
+                suscripcion?.includes('Entrenador Pro') ||
+                suscripcion?.includes('Entrenador Élite') ||
+                ['Socio Argentum', 'Socio Aurum', 'Plan Platinum', 'Socio Fundador Vitalicio', 'Prueba Gratis (7 Días)'].includes(suscripcion);
+
   // Estados para modales
   const [showModal, setShowModal] = useState(false);
   const [showTuMusica, setShowTuMusica] = useState(false);
   const [customMusicLink, setCustomMusicLink] = useState(session?.user?.user_metadata?.custom_music_link || '');
+  
+  // Estados para Check-In de Bienestar (días de descanso)
+  const [bienestarHabitos, setBienestarHabitos] = useState([]);
+  const [bienestarDone, setBienestarDone] = useState(false);
+  const [savingBienestar, setSavingBienestar] = useState(false);
   
   // Novedades / Explora
   const [articulosState, setArticulosState] = useState(globalRutinaArticulos);
@@ -103,30 +117,38 @@ export default function MiRutina({ session }) {
           await DatabaseManager.saveCheckin(session?.user.id, todayStr, data.nivel || 3);
         }
         
-        // Calcular Racha (Llama Viva)
-        const { data: allCheckins, error: checkinsError } = await supabase
-          .from('checkins')
-          .select('fecha')
-          .eq('user_id', session?.user.id)
-          .order('fecha', { ascending: false })
-          .limit(30);
+        // Calcular Racha (Llama Viva) — incluye checkins de entrenamiento Y bienestar
+        const [checkinsResult, bienestarResult] = await Promise.all([
+          supabase.from('checkins').select('fecha').eq('user_id', session?.user.id).order('fecha', { ascending: false }).limit(30),
+          supabase.from('checkins_bienestar').select('fecha, habitos').eq('user_id', session?.user.id).order('fecha', { ascending: false }).limit(30)
+        ]);
+        
+        const allCheckins = checkinsResult.data || [];
+        const allBienestar = (bienestarResult.data || []).filter(b => b.habitos && b.habitos.length >= 2);
+        
+        // Verificar si hoy ya tiene bienestar registrado
+        const todayBienestar = allBienestar.find(b => b.fecha === todayStr);
+        if (todayBienestar) setBienestarDone(true);
           
-        if (!checkinsError && allCheckins) {
+        if (allCheckins || allBienestar.length > 0) {
           let currentStreak = 0;
           let checkDate = new Date();
-          const hasToday = allCheckins.some(c => c.fecha === todayStr);
-          if (!hasToday) checkDate.setDate(checkDate.getDate() - 1);
+          const hasTodayCheckin = allCheckins.some(c => c.fecha === todayStr);
+          const hasTodayBienestar = allBienestar.some(b => b.fecha === todayStr);
+          if (!hasTodayCheckin && !hasTodayBienestar) checkDate.setDate(checkDate.getDate() - 1);
           
           let usedToken = false;
 
           for (let i = 0; i < 30; i++) {
             const dateStr = checkDate.getFullYear() + '-' + String(checkDate.getMonth() + 1).padStart(2, '0') + '-' + String(checkDate.getDate()).padStart(2, '0');
-            if (allCheckins.some(c => c.fecha === dateStr)) {
+            const hasCheckin = allCheckins.some(c => c.fecha === dateStr);
+            const hasBienestar = allBienestar.some(b => b.fecha === dateStr);
+            
+            if (hasCheckin || hasBienestar) {
               currentStreak++;
               checkDate.setDate(checkDate.getDate() - 1);
             } else {
               // Solo usar la Ficha de Reposo si YA hay una racha activa (currentStreak > 0).
-              // Esto evita crear rachas falsas de la nada cuando el usuario lleva días sin entrenar.
               if (!usedToken && currentStreak > 0) {
                 const { data: inv } = await supabase
                   .from('rpg_inventario')
@@ -463,6 +485,132 @@ export default function MiRutina({ session }) {
     }
   };
 
+  // ================= CHECK-IN DE BIENESTAR (DÍAS DE DESCANSO) =================
+  const HABITOS_BIENESTAR = [
+    { id: 'agua', emoji: '💧', label: 'Agua suficiente' },
+    { id: 'sueno', emoji: '🛏️', label: 'Dormí 7h+' },
+    { id: 'comida', emoji: '🥗', label: 'Comida sana' },
+    { id: 'lectura', emoji: '📖', label: 'Lectura' },
+    { id: 'meditacion', emoji: '🧘', label: 'Meditación' },
+    { id: 'caminata', emoji: '🚶', label: 'Caminata 30min' },
+    { id: 'bicicleta', emoji: '🚴', label: 'Bicicleta' },
+    { id: 'natacion', emoji: '🏊', label: 'Natación' },
+    { id: 'cuerda', emoji: '🤸', label: 'Saltar cuerda' },
+  ];
+
+  const toggleHabito = (id) => {
+    setBienestarHabitos(prev => 
+      prev.includes(id) ? prev.filter(h => h !== id) : [...prev, id]
+    );
+  };
+
+  const handleBienestarCheckin = async () => {
+    if (bienestarHabitos.length < 2) return;
+    setSavingBienestar(true);
+    try {
+      const today = new Date();
+      const todayStr = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+      
+      // Guardar en IndexedDB inmediatamente
+      await DatabaseManager.saveBienestar(session?.user.id, todayStr, bienestarHabitos);
+      setBienestarDone(true);
+
+      if (!navigator.onLine) {
+        const { addToOfflineQueue } = await import('../utils/OfflineManager');
+        addToOfflineQueue('INSERT_BIENESTAR', { user_id: session?.user.id, fecha: todayStr, habitos: bienestarHabitos });
+        return;
+      }
+
+      const { error } = await supabase
+        .from('checkins_bienestar')
+        .upsert([{ user_id: session?.user.id, fecha: todayStr, habitos: bienestarHabitos }], { onConflict: 'user_id,fecha' });
+
+      if (error) {
+        console.warn('Error saving bienestar to Supabase, queuing offline:', error);
+        const { addToOfflineQueue } = await import('../utils/OfflineManager');
+        addToOfflineQueue('INSERT_BIENESTAR', { user_id: session?.user.id, fecha: todayStr, habitos: bienestarHabitos });
+      }
+    } catch (err) {
+      console.error('Error in bienestar checkin:', err);
+      setBienestarDone(true); // No atrapar al usuario
+    } finally {
+      setSavingBienestar(false);
+    }
+  };
+
+  // Detectar si hoy es día de descanso (no tiene rutina asignada)
+  const todayDayIndex = new Date().getDay(); // 0=domingo, 1=lunes...
+  const dayMapping = { 0: 'domingo', 1: 'lunes', 2: 'martes', 3: 'miercoles', 4: 'jueves', 5: 'viernes', 6: 'sabado' };
+  const todayDayName = dayMapping[todayDayIndex];
+  const isRestDay = esVIP && customCal && Object.keys(customCal).length > 0 && !customCal[todayDayName];
+
+  const renderBienestarCard = () => {
+    if (!isRestDay || bienestarDone) return null;
+    
+    return (
+      <div style={{
+        background: 'linear-gradient(135deg, #1a1f2e 0%, #1c2025 100%)',
+        border: '1px solid rgba(212, 175, 55, 0.2)',
+        borderRadius: '16px',
+        padding: '20px',
+        marginBottom: '25px'
+      }}>
+        <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+          <div style={{ fontSize: '2.5rem', marginBottom: '8px' }}>🧘</div>
+          <h3 className="gold-gradient-text" style={{ margin: '0 0 5px 0', fontSize: '1.2rem' }}>Día de Recuperación</h3>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>
+            ¿Qué hiciste hoy por tu cuerpo y mente?
+          </p>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '20px' }}>
+          {HABITOS_BIENESTAR.map(h => {
+            const selected = bienestarHabitos.includes(h.id);
+            return (
+              <button
+                key={h.id}
+                onClick={() => toggleHabito(h.id)}
+                style={{
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                  padding: '12px 5px', gap: '6px',
+                  backgroundColor: selected ? 'rgba(212, 175, 55, 0.15)' : '#1c1c20',
+                  border: selected ? '2px solid var(--accent-gold)' : '1px solid #333',
+                  borderRadius: '12px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <span style={{ fontSize: '1.5rem' }}>{h.emoji}</span>
+                <span style={{ fontSize: '0.65rem', color: selected ? 'var(--accent-gold)' : '#999', fontWeight: selected ? 'bold' : 'normal', textAlign: 'center', lineHeight: '1.2' }}>{h.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div style={{ textAlign: 'center', marginBottom: '12px' }}>
+          <span style={{ fontSize: '0.8rem', color: bienestarHabitos.length >= 2 ? '#78e08f' : 'var(--text-muted)' }}>
+            {bienestarHabitos.length}/9 hábitos marcados {bienestarHabitos.length >= 2 ? '✅' : '(mínimo 2)'}
+          </span>
+        </div>
+
+        <button
+          onClick={handleBienestarCheckin}
+          disabled={bienestarHabitos.length < 2 || savingBienestar}
+          style={{
+            width: '100%', padding: '14px', borderRadius: '12px',
+            background: bienestarHabitos.length >= 2 ? 'linear-gradient(135deg, #f9f0b1 0%, #D4AF37 50%, #aa8b2c 100%)' : '#333',
+            color: bienestarHabitos.length >= 2 ? '#000' : '#666',
+            fontWeight: 'bold', fontSize: '1rem',
+            border: 'none', cursor: bienestarHabitos.length >= 2 ? 'pointer' : 'not-allowed',
+            transition: 'all 0.3s ease'
+          }}
+        >
+          {savingBienestar ? 'Guardando...' : '🔥 Registrar Bienestar'}
+        </button>
+      </div>
+    );
+  };
+
   if (loading && semana.length === 0) {
     return (
       <div style={{
@@ -757,14 +905,7 @@ export default function MiRutina({ session }) {
     );
   };
 
-  const isAdmin = session?.user?.email === 'somos.vetayvigor@gmail.com';
-  const suscripcion = session?.user?.user_metadata?.suscripcion || session?.user?.user_metadata?.plan_membresia;
-  
-  const esVIP = isAdmin ||
-                localStorage.getItem('user_role') === 'alumno_entrenador' ||
-                suscripcion?.includes('Entrenador Pro') ||
-                suscripcion?.includes('Entrenador Élite') ||
-                ['Socio Argentum', 'Socio Aurum', 'Plan Platinum', 'Socio Fundador Vitalicio', 'Prueba Gratis (7 Días)'].includes(suscripcion);
+
   return (
     <div className="container" style={{ paddingBottom: '90px' }}>
       {coachBrand?.logo ? (
@@ -782,6 +923,9 @@ export default function MiRutina({ session }) {
       
       {esVIP && renderLlamaViva()}
       {esVIP && renderSemaforo()}
+      
+      {/* Check-In de Bienestar (días de descanso) */}
+      {esVIP && renderBienestarCard()}
       
       {/* Botones de Playlists (2x2 Grid) */}
       {esVIP && (
