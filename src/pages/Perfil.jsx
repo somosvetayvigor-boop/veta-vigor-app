@@ -419,11 +419,15 @@ export default function Perfil({ session }) {
               </label>
             </div>
             
-            {/* Árbol de la Forja (Evolutivo) - Solo visible si se compró el Ánima del Bosque */}
             {inventario.includes('anima_bosque') && (
-              <div style={{ marginTop: '12px', background: 'rgba(0,0,0,0.4)', padding: '4px 10px', borderRadius: '15px', border: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                <ArbolForja nivel={meta.nivel_rpg} size={24} />
-                <span style={{ fontSize: '0.75rem', color: '#aaa', fontStyle: 'italic' }}>{getAvatarStage(meta.nivel_rpg).desc}</span>
+              <div style={{ marginTop: '15px', background: 'linear-gradient(180deg, rgba(30,30,30,0.8), rgba(10,10,10,0.9))', padding: '10px 20px', borderRadius: '20px', border: '1px solid rgba(212,175,55,0.3)', display: 'flex', alignItems: 'center', gap: '15px', boxShadow: '0 4px 15px rgba(0,0,0,0.5)' }}>
+                <div style={{ filter: 'drop-shadow(0 0 10px rgba(120,224,143,0.3))' }}>
+                  <ArbolForja nivel={meta.nivel_rpg} size={70} />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <span style={{ fontSize: '1rem', color: 'var(--accent-gold)', fontWeight: 'bold' }}>Árbol de Forja</span>
+                  <span style={{ fontSize: '0.8rem', color: '#aaa', fontStyle: 'italic' }}>{getAvatarStage(meta.nivel_rpg).desc}</span>
+                </div>
               </div>
             )}
           </div>
