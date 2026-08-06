@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
-import { Loader, PlayCircle, CalendarDays, Coffee, Edit3, X, ChevronRight, Music, Zap, Lock, Headphones } from 'lucide-react';
+import { Loader, PlayCircle, CalendarDays, Coffee, Edit3, X, ChevronRight, Music, Zap, Lock, Headphones, BatteryCharging } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import ExpedienteModal from '../components/ExpedienteModal';
 import DescansoActivoModal from '../components/DescansoActivoModal';
@@ -1176,39 +1176,47 @@ export default function MiRutina({ session }) {
           semana.map((dia, index) => {
             if (dia.isDescanso) {
               return (
-                <div key={index} style={{ marginBottom: '15px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-                    <h4 style={{ margin: '0', color: '#aaa', fontSize: '0.95rem' }}>Día {index + 1}: {dia.nombre}</h4>
-                  </div>
-                  <div 
-                    onClick={() => navigate('/descanso')}
-                    style={{ 
-                      width: '100%', 
-                      height: '140px', 
-                      borderRadius: '16px', 
-                      overflow: 'hidden', 
-                      cursor: 'pointer',
-                      border: '1px solid rgba(255,255,255,0.05)',
-                      boxShadow: '0 4px 15px rgba(0,0,0,0.3)',
-                      position: 'relative'
-                    }}
-                  >
-                    <img 
-                      src="/assets/descanso/banner.png" 
-                      alt="Descanso Activo" 
-                      style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-                    />
-                    <div style={{
-                      position: 'absolute',
-                      top: 0, left: 0, right: 0, bottom: 0,
-                      background: 'linear-gradient(to top, rgba(0,0,0,0.7) 0%, transparent 50%)',
-                      display: 'flex',
-                      alignItems: 'flex-end',
-                      padding: '15px'
+                <div 
+                  key={index} 
+                  onClick={() => navigate('/descanso')}
+                  className="card"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '20px',
+                    marginBottom: '15px',
+                    borderLeft: '4px solid #4facfe', // Blue accent for recovery
+                    cursor: 'pointer',
+                    transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                    backgroundColor: 'rgba(79, 172, 254, 0.05)', // Slight blue tint
+                  }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = '0 5px 15px rgba(79, 172, 254, 0.15)';
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = 'none';
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                    <div style={{ 
+                      width: '45px', height: '45px', borderRadius: '50%', 
+                      backgroundColor: 'rgba(79, 172, 254, 0.1)', 
+                      display: 'flex', alignItems: 'center', justifyContent: 'center' 
                     }}>
-                      <span style={{ color: '#fff', fontWeight: 'bold', fontSize: '1.1rem' }}>Protocolos de Recuperación</span>
+                      <BatteryCharging size={24} color="#4facfe" />
+                    </div>
+                    <div>
+                      <h4 style={{ margin: '0 0 3px 0', color: '#4facfe', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                        Día {index + 1}
+                      </h4>
+                      <h3 style={{ margin: '0 0 5px 0', fontSize: '1.15rem', color: '#fff' }}>Protocolos de Recuperación</h3>
+                      <span className="badge" style={{ fontSize: '0.7rem', background: 'rgba(79, 172, 254, 0.2)', color: '#4facfe' }}>Descanso Activo</span>
                     </div>
                   </div>
+                  <ChevronRight size={24} color="#4facfe" style={{ opacity: 0.7 }} />
                 </div>
               );
             }
