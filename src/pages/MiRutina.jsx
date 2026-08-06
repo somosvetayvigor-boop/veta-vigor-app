@@ -4,6 +4,7 @@ import { Loader, PlayCircle, CalendarDays, Coffee, Edit3, X, ChevronRight, Music
 import { useNavigate } from 'react-router-dom';
 import ExpedienteModal from '../components/ExpedienteModal';
 import DescansoActivoModal from '../components/DescansoActivoModal';
+import TuMusicaModal from '../components/TuMusicaModal';
 import { requestNotificationPermissions, scheduleTrainingReminder, cancelTrainingReminder, scheduleDailyMotivation } from '../utils/notifications';
 import { DatabaseManager } from '../utils/DatabaseManager';
 
@@ -41,6 +42,8 @@ export default function MiRutina({ session }) {
 
   // Estados para modales
   const [showModal, setShowModal] = useState(false);
+  const [showTuMusica, setShowTuMusica] = useState(false);
+  const [customMusicLink, setCustomMusicLink] = useState(session?.user?.user_metadata?.custom_music_link || '');
   
   // Novedades / Explora
   const [articulosState, setArticulosState] = useState(globalRutinaArticulos);
@@ -778,14 +781,15 @@ export default function MiRutina({ session }) {
       {esVIP && renderLlamaViva()}
       {esVIP && renderSemaforo()}
       
-      {/* Botones de Playlists */}
+      {/* Botones de Playlists (2x2 Grid) */}
       {esVIP && (
-        <div style={{ display: 'flex', gap: '10px', marginBottom: '25px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '25px' }}>
+          {/* Fila 1 */}
           <a 
             href="https://music.youtube.com/playlist?list=PL0NvLXoUW8MHugzJXCjgF5JxG8aDXBmYK&si=Tjq_Q7sP8f7YHXNq" 
             target="_blank" 
             rel="noreferrer"
-            style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '12px 5px', backgroundColor: '#2a1416', borderRadius: '12px', color: '#ff4757', textDecoration: 'none', gap: '5px' }}
+            style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '12px 5px', backgroundColor: '#2a1416', borderRadius: '12px', color: '#ff4757', textDecoration: 'none', gap: '5px' }}
           >
             <PlayCircle size={24} />
             <span style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>YouTube</span>
@@ -795,22 +799,61 @@ export default function MiRutina({ session }) {
             href="https://open.spotify.com/playlist/06g9W4J1QWImvl0DX0Kb1x?si=sXPAxKm1QwaWP42ujBR37A&pi=FN7mXw1oTnCFZ" 
             target="_blank" 
             rel="noreferrer"
-            style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '12px 5px', backgroundColor: '#132c1c', borderRadius: '12px', color: '#1ed760', textDecoration: 'none', gap: '5px' }}
+            style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '12px 5px', backgroundColor: '#132c1c', borderRadius: '12px', color: '#1ed760', textDecoration: 'none', gap: '5px' }}
           >
             <Music size={24} />
             <span style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>Spotify</span>
           </a>
 
+          {/* Fila 2 */}
+          <div style={{ position: 'relative' }}>
+            <button 
+              onClick={() => {
+                if (customMusicLink) {
+                  window.open(customMusicLink, '_blank');
+                } else {
+                  setShowTuMusica(true);
+                }
+              }}
+              style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '12px 5px', backgroundColor: '#1a1f35', border: 'none', borderRadius: '12px', color: '#4facfe', cursor: 'pointer', gap: '5px' }}
+            >
+              <Headphones size={24} />
+              <span style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>Tu Música</span>
+            </button>
+            
+            {/* Botón de editar, solo visible si ya tiene un enlace configurado */}
+            {customMusicLink && (
+              <button 
+                onClick={(e) => { e.stopPropagation(); setShowTuMusica(true); }}
+                style={{ position: 'absolute', top: '5px', right: '5px', background: 'rgba(0,0,0,0.5)', border: 'none', borderRadius: '50%', width: '24px', height: '24px', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#ccc', cursor: 'pointer' }}
+              >
+                <Edit3 size={12} />
+              </button>
+            )}
+          </div>
+
           <a 
             href="https://music.youtube.com/watch?v=iAsWd4VTLnI&si=V9KYtOyxlg8bYm-5" 
             target="_blank" 
             rel="noreferrer"
-            style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '12px 5px', backgroundColor: '#2a2615', borderRadius: '12px', color: 'var(--accent-gold)', textDecoration: 'none', gap: '5px' }}
+            style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '12px 5px', backgroundColor: '#2a2615', borderRadius: '12px', color: 'var(--accent-gold)', textDecoration: 'none', gap: '5px' }}
           >
             <Zap size={24} />
             <span style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>Vigor</span>
           </a>
         </div>
+      )}
+
+      {showTuMusica && (
+        <TuMusicaModal 
+          session={session} 
+          onClose={() => setShowTuMusica(false)} 
+          onSaved={(newLink) => {
+            setCustomMusicLink(newLink);
+            // Actualizar la caché global
+            globalPerfilMeta = { ...(globalPerfilMeta || session?.user?.user_metadata), custom_music_link: newLink };
+          }}
+        />
       )}
 
       {/* Banner Descanso Activo */}
