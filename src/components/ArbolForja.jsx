@@ -174,16 +174,18 @@ export default function ArbolForja({ nivel, size = 120 }) {
     );
   };
 
-  // Renderizar según nivel RPG de Veta & Vigor
+  // Renderizar según nivel RPG de Veta & Vigor (5 Fases)
   let content = null;
   if (nivel >= 41) {
-    content = renderArbol('gold'); // Nivel 41+
+    content = renderArbol('gold'); // Fase 5 (Oro)
   } else if (nivel >= 31) {
-    content = renderArbol('silver'); // Nivel 31-40
+    content = renderArbol('silver'); // Fase 4 (Plata)
+  } else if (nivel >= 21) {
+    content = renderArbol('green'); // Fase 3 (Verde)
   } else if (nivel >= 11) {
-    content = renderPlanta(); // Nivel 11-30
+    content = renderPlanta(); // Fase 2 (Planta)
   } else {
-    content = renderBrote(); // Nivel 1-10
+    content = renderBrote(); // Fase 1 (Brote, 1-10)
   }
 
   return (
