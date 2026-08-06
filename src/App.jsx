@@ -664,23 +664,43 @@ function App() {
     };
 
     const checkSession = async () => {
+      // SAFETY NET: Force-kill the splash screen after 10 seconds no matter what.
+      // This prevents the app from ever getting stuck on the splash animation.
+      const safetyTimer = setTimeout(() => {
+        console.warn("⚠️ SAFETY TIMEOUT: Forcing splash screen to close after 10 seconds.");
+        setLoading(false);
+      }, 10000);
+
       try {
         const startTime = Date.now();
-        const sessionPromise = supabase.auth.getSession();
-        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000));
-        const { data, error } = await Promise.race([sessionPromise, timeoutPromise]);
-        const session = data?.session || null;
+        
+        // Step 1: Get session with 8s timeout
+        let session = null;
+        try {
+          const sessionPromise = supabase.auth.getSession();
+          const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('session_timeout')), 8000));
+          const { data } = await Promise.race([sessionPromise, timeoutPromise]);
+          session = data?.session || null;
+        } catch (sessionErr) {
+          console.warn("Session fetch timed out or failed, continuing without session:", sessionErr);
+          session = null;
+        }
+        
         setSession(session);
         
+        // Step 2: Background sync with 2s timeout (fully protected)
         if (session?.user) {
-          // Await background sync with a 2-second max timeout so it finishes before hiding splash
-          await Promise.race([
-            checkUserRoleAndPaywall(session.user),
-            new Promise(r => setTimeout(r, 2000))
-          ]).catch(console.error);
+          try {
+            await Promise.race([
+              checkUserRoleAndPaywall(session.user),
+              new Promise(r => setTimeout(r, 2000))
+            ]);
+          } catch (syncErr) {
+            console.warn("Background sync error (non-fatal):", syncErr);
+          }
         }
 
-        // Asegurar que el Splash Screen se vea al menos 4.0 segundos para la animación y cargar imágenes
+        // Step 3: Ensure splash screen shows for at least 4 seconds
         const elapsed = Date.now() - startTime;
         if (elapsed < 4000) {
           await new Promise(r => setTimeout(r, 4000 - elapsed));
@@ -688,6 +708,7 @@ function App() {
       } catch (err) {
         console.warn("Network timeout or session error, defaulting to local cache:", err);
       } finally {
+        clearTimeout(safetyTimer);
         setLoading(false);
       }
       
