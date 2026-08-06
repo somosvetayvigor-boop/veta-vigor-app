@@ -177,22 +177,22 @@ export default function LaPrueba({ session }) {
   const avanzarGolem = async () => {
     setProcesando(true);
     try {
-      const nextLevel = (golem.golem_nivel || 1) + 1;
-      const { error } = await supabase
-        .from('golem_progreso')
-        .update({
-          golem_nivel: nextLevel,
-          golem_vencido: false,
-          golpes_utilizados: 0
-        })
-        .eq('user_id', session.user.id);
+      // Usamos el RPC para evitar problemas de permisos (RLS)
+      const { data, error } = await supabase.rpc('atacar_golem', {
+        p_user_id: session.user.id,
+        p_idempotency_key: `advance_${Date.now()}`
+      });
 
       if (error) throw error;
       
-      showToast(`¡Has avanzado al Gólem Nv. ${nextLevel}!`);
-      await loadDatos();
+      if (data && data.success) {
+        showToast(`¡Has avanzado al Gólem Nv. ${data.nuevo_nivel || 2}!`);
+        await loadDatos();
+      } else {
+        showToast(data?.error || "Error al avanzar.");
+      }
     } catch (err) {
-      showToast("Error al avanzar de Gólem.");
+      showToast("Error de conexión al avanzar.");
       console.error(err);
     }
     setProcesando(false);
