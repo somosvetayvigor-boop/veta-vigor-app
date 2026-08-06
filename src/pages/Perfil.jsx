@@ -10,6 +10,10 @@ import { getLevelProgress, getRpgTitle } from '../utils/ProgressionEngine';
 import ArbolForja from '../components/ArbolForja';
 import AvatarConMarco from '../components/AvatarConMarco';
 
+let globalPerfilMeta = null;
+let globalPerfilCheckin = null;
+let globalPerfilInventario = null;
+
 export default function Perfil({ session }) {
   const navigate = useNavigate();
   const isAdmin = session?.user?.email === 'somos.vetayvigor@gmail.com';
@@ -30,9 +34,18 @@ export default function Perfil({ session }) {
   const [adminPinModal, setAdminPinModal] = useState(false);
   const [adminPin, setAdminPin] = useState('');
   
-  const [meta, setMeta] = useState(session?.user?.user_metadata || {});
-  const [checkinHoy, setCheckinHoy] = useState(null);
-  const [inventario, setInventario] = useState([]);
+  const [metaState, setMetaState] = useState(globalPerfilMeta || session?.user?.user_metadata || {});
+  const [checkinHoyState, setCheckinHoyState] = useState(globalPerfilCheckin || null);
+  const [inventarioState, setInventarioState] = useState(globalPerfilInventario || []);
+
+  const meta = metaState;
+  const setMeta = (val) => { globalPerfilMeta = val; setMetaState(val); };
+  
+  const checkinHoy = checkinHoyState;
+  const setCheckinHoy = (val) => { globalPerfilCheckin = val; setCheckinHoyState(val); };
+  
+  const inventario = inventarioState;
+  const setInventario = (val) => { globalPerfilInventario = val; setInventarioState(val); };
 
   const handleUpdateName = async (e) => {
     e.preventDefault();
