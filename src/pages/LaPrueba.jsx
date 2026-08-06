@@ -12,7 +12,15 @@ export default function LaPrueba({ session }) {
   const [monedas, setMonedas] = useState(0);
   const [xp, setXp] = useState(0);
   const [inventario, setInventario] = useState({ ficha_reposo: 0, anima_bosque: 0, borde_fuego: 0 });
+  const [toast, setToast] = useState({ show: false, message: '' });
   const [golem, setGolem] = useState({ golpes_utilizados: 0, golem_vencido: false });
+
+  const showToast = (message) => {
+    setToast({ show: true, message });
+    setTimeout(() => {
+      setToast(prev => ({ ...prev, show: false }));
+    }, 3500);
+  };
 
   const loadDatos = async () => {
     if (!session?.user) return;
@@ -67,7 +75,7 @@ export default function LaPrueba({ session }) {
     if (golem.golem_vencido) return;
     const disponibles = getGolpesDisponibles(xp, golem.golpes_utilizados);
     if (disponibles <= 0) {
-      alert("No tienes Golpes de Vigor disponibles. Acumula 25 XP para obtener uno.");
+      showToast("No tienes Golpes de Vigor disponibles. Acumula 25 XP para obtener uno.");
       return;
     }
 
@@ -81,21 +89,21 @@ export default function LaPrueba({ session }) {
 
       if (error) throw error;
       if (!data.success) {
-        alert(data.error);
+        showToast(data.error);
       } else {
         setIsHit(true);
         setTimeout(async () => {
           setIsHit(false);
           if (data.golem_muerto) {
-            alert(`¡HAS VENCIDO AL GÓLEM DEL LASTRE! Has ganado ${data.recompensa} Monedas.`);
+            showToast(`¡HAS VENCIDO AL GÓLEM DEL LASTRE! Has ganado ${data.recompensa} Monedas.`);
           } else {
-            alert(`¡Golpe asestado! Al Gólem le queda ${data.golpes_restantes_vida} de vida.`);
+            showToast(`¡Golpe asestado! Al Gólem le queda ${data.golpes_restantes_vida} de vida.`);
           }
           await loadDatos();
         }, 400);
       }
     } catch (err) {
-      alert("Error al atacar al Gólem.");
+      showToast("Error al atacar al Gólem.");
       console.error(err);
     } finally {
       setProcesando(false);
@@ -104,17 +112,17 @@ export default function LaPrueba({ session }) {
 
   const comprarItem = async (itemId, precio, esPermanente) => {
     if (monedas < precio) {
-      alert("No tienes suficientes Monedas de Forja.");
+      showToast("No tienes suficientes Monedas de Forja.");
       return;
     }
 
     if (itemId === 'ficha_reposo' && inventario.ficha_reposo >= 2) {
-      alert("Ya tienes el máximo de 2 Fichas de Reposo.");
+      showToast("Ya tienes el máximo de 2 Fichas de Reposo.");
       return;
     }
 
     if (esPermanente && inventario[itemId] > 0) {
-      alert("Ya posees este ítem permanentemente.");
+      showToast("Ya posees este ítem permanentemente.");
       return;
     }
 
@@ -132,13 +140,13 @@ export default function LaPrueba({ session }) {
 
         if (error) throw error;
         if (!data.success) {
-          alert(data.error);
+          showToast(data.error);
         } else {
-          alert("¡Adquisición exitosa!");
+          showToast("¡Adquisición exitosa!");
           await loadDatos();
         }
       } catch (err) {
-        alert("Error en la transacción.");
+        showToast("Error en la transacción.");
         console.error(err);
       } finally {
         setProcesando(false);
@@ -301,6 +309,38 @@ export default function LaPrueba({ session }) {
         </div>
 
       </main>
+
+      {/* TOAST / SNACKBAR TEMÁTICO */}
+      {toast.show && (
+        <div style={{
+          position: 'fixed',
+          bottom: '30px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          background: 'rgba(20, 20, 25, 0.95)',
+          color: 'var(--accent-gold)',
+          padding: '12px 24px',
+          borderRadius: '30px',
+          border: '1px solid var(--accent-gold)',
+          boxShadow: '0 4px 15px rgba(212, 175, 55, 0.2)',
+          fontSize: '0.9rem',
+          fontWeight: 'bold',
+          textAlign: 'center',
+          zIndex: 1000,
+          animation: 'toastFadeIn 0.3s ease-out',
+          backdropFilter: 'blur(5px)',
+          maxWidth: '90%',
+          width: 'max-content'
+        }}>
+          {toast.message}
+        </div>
+      )}
+      <style>{`
+        @keyframes toastFadeIn {
+          from { opacity: 0; transform: translate(-50%, 20px); }
+          to { opacity: 1; transform: translate(-50%, 0); }
+        }
+      `}</style>
     </div>
   );
 }
