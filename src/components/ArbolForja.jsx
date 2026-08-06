@@ -107,54 +107,81 @@ export default function ArbolForja({ nivel, size = 120 }) {
     </svg>
   );
 
-  // --- FASE 3: EL ÁRBOL MAJESTUOSO ---
-  const renderArbol = () => (
-    <svg width={size} height={size} viewBox="0 0 100 100" overflow="visible">
-      <style>{animationStyles}</style>
-      
-      <ellipse cx="50" cy="90" rx="30" ry="8" fill="#1e1e1e" />
-      
-      {/* Tronco robusto */}
-      <path d="M 40 90 Q 45 50 35 30 L 65 30 Q 55 50 60 90 Z" fill={colors.stem} />
-      {/* Textura tronco */}
-      <path d="M 45 85 Q 48 60 42 40" fill="none" stroke="#6b4423" strokeWidth="2" strokeLinecap="round" />
-      <path d="M 55 88 Q 52 55 58 35" fill="none" stroke="#6b4423" strokeWidth="2" strokeLinecap="round" />
+  // --- FASE 3, 4 y 5: EL ÁRBOL (Verde, Plata, Oro) ---
+  const renderArbol = (theme = 'green') => {
+    let tColors = {
+      leafDark: colors.leafDark,
+      leafLight: colors.leafLight,
+      stroke: '#9cf3af',
+      sparkle: colors.gold
+    };
 
-      {/* Copa del árbol respirando */}
-      <g className="tree-crown" style={{ transformOrigin: '50px 30px' }}>
-        {/* Sombra base */}
-        <circle cx="50" cy="25" r="30" fill={colors.leafDark} />
-        <circle cx="25" cy="35" r="20" fill={colors.leafDark} />
-        <circle cx="75" cy="35" r="20" fill={colors.leafDark} />
-        <circle cx="35" cy="15" r="22" fill={colors.leafDark} />
-        <circle cx="65" cy="15" r="22" fill={colors.leafDark} />
-        
-        {/* Luces (Hojas claras) */}
-        <circle cx="50" cy="20" r="25" fill={colors.leafLight} />
-        <circle cx="30" cy="30" r="15" fill={colors.leafLight} />
-        <circle cx="70" cy="30" r="15" fill={colors.leafLight} />
-        
-        {/* Detalles extras en la copa */}
-        <path d="M 40 10 Q 50 0 60 10" fill="none" stroke="#9cf3af" strokeWidth="4" strokeLinecap="round" />
-        <path d="M 25 25 Q 30 15 40 20" fill="none" stroke="#9cf3af" strokeWidth="3" strokeLinecap="round" />
-        <path d="M 75 25 Q 70 15 60 20" fill="none" stroke="#9cf3af" strokeWidth="3" strokeLinecap="round" />
-      </g>
+    if (theme === 'silver') {
+      tColors = {
+        leafDark: '#7f8fa6', // Gris oscuro
+        leafLight: '#dcdde1', // Plata brillante
+        stroke: '#f5f6fa', // Blanco
+        sparkle: '#00a8ff' // Destellos azules para el acero
+      };
+    } else if (theme === 'gold') {
+      tColors = {
+        leafDark: '#b8860b', // Dorado oscuro / bronce
+        leafLight: '#ffd700', // Oro brillante
+        stroke: '#ffeb3b', // Amarillo intenso
+        sparkle: '#ff4757' // Destellos rojos/naranjas
+      };
+    }
 
-      {/* Partículas de energía dorada (Vigor) */}
-      <circle cx="10" cy="50" r="2.5" fill={colors.gold} className="sparkle" />
-      <circle cx="90" cy="40" r="2" fill={colors.gold} className="sparkle" style={{ animationDelay: '0.8s' }} />
-      <circle cx="80" cy="70" r="1.5" fill={colors.gold} className="sparkle" style={{ animationDelay: '1.2s' }} />
-      <circle cx="20" cy="80" r="2" fill={colors.gold} className="sparkle" style={{ animationDelay: '2s' }} />
-      <circle cx="50" cy="-10" r="3" fill={colors.gold} className="sparkle" style={{ animationDelay: '0.5s' }} />
-    </svg>
-  );
+    return (
+      <svg width={size} height={size} viewBox="0 0 100 100" overflow="visible">
+        <style>{animationStyles}</style>
+        
+        <ellipse cx="50" cy="90" rx="30" ry="8" fill="#1e1e1e" />
+        
+        {/* Tronco robusto */}
+        <path d="M 40 90 Q 45 50 35 30 L 65 30 Q 55 50 60 90 Z" fill={colors.stem} />
+        {/* Textura tronco */}
+        <path d="M 45 85 Q 48 60 42 40" fill="none" stroke="#6b4423" strokeWidth="2" strokeLinecap="round" />
+        <path d="M 55 88 Q 52 55 58 35" fill="none" stroke="#6b4423" strokeWidth="2" strokeLinecap="round" />
+
+        {/* Copa del árbol respirando */}
+        <g className="tree-crown" style={{ transformOrigin: '50px 30px' }}>
+          {/* Sombra base */}
+          <circle cx="50" cy="25" r="30" fill={tColors.leafDark} />
+          <circle cx="25" cy="35" r="20" fill={tColors.leafDark} />
+          <circle cx="75" cy="35" r="20" fill={tColors.leafDark} />
+          <circle cx="35" cy="15" r="22" fill={tColors.leafDark} />
+          <circle cx="65" cy="15" r="22" fill={tColors.leafDark} />
+          
+          {/* Luces (Hojas claras) */}
+          <circle cx="50" cy="20" r="25" fill={tColors.leafLight} />
+          <circle cx="30" cy="30" r="15" fill={tColors.leafLight} />
+          <circle cx="70" cy="30" r="15" fill={tColors.leafLight} />
+          
+          {/* Detalles extras en la copa */}
+          <path d="M 40 10 Q 50 0 60 10" fill="none" stroke={tColors.stroke} strokeWidth="4" strokeLinecap="round" />
+          <path d="M 25 25 Q 30 15 40 20" fill="none" stroke={tColors.stroke} strokeWidth="3" strokeLinecap="round" />
+          <path d="M 75 25 Q 70 15 60 20" fill="none" stroke={tColors.stroke} strokeWidth="3" strokeLinecap="round" />
+        </g>
+
+        {/* Partículas de energía (Vigor) */}
+        <circle cx="10" cy="50" r="2.5" fill={tColors.sparkle} className="sparkle" />
+        <circle cx="90" cy="40" r="2" fill={tColors.sparkle} className="sparkle" style={{ animationDelay: '0.8s' }} />
+        <circle cx="80" cy="70" r="1.5" fill={tColors.sparkle} className="sparkle" style={{ animationDelay: '1.2s' }} />
+        <circle cx="20" cy="80" r="2" fill={tColors.sparkle} className="sparkle" style={{ animationDelay: '2s' }} />
+        <circle cx="50" cy="-10" r="3" fill={tColors.sparkle} className="sparkle" style={{ animationDelay: '0.5s' }} />
+      </svg>
+    );
+  };
 
   // Renderizar según nivel RPG de Veta & Vigor
   let content = null;
-  if (nivel >= 31) {
-    content = renderArbol();
+  if (nivel >= 41) {
+    content = renderArbol('gold'); // Nivel 41+
+  } else if (nivel >= 31) {
+    content = renderArbol('silver'); // Nivel 31-40
   } else if (nivel >= 11) {
-    content = renderPlanta();
+    content = renderPlanta(); // Nivel 11-30
   } else {
     content = renderBrote(); // Nivel 1-10
   }
