@@ -13,6 +13,7 @@ export default function LaPrueba({ session }) {
   const [xp, setXp] = useState(0);
   const [inventario, setInventario] = useState({ ficha_reposo: 0, anima_bosque: 0, borde_fuego: 0 });
   const [toast, setToast] = useState({ show: false, message: '' });
+  const [confirmAction, setConfirmAction] = useState({ show: false, itemId: null, precio: 0, esPermanente: false });
   const [golem, setGolem] = useState({ golpes_utilizados: 0, golem_vencido: false });
 
   const showToast = (message) => {
@@ -44,24 +45,22 @@ export default function LaPrueba({ session }) {
         .eq('user_id', session.user.id);
         
       if (inv) {
-        const invObj = { ficha_reposo: 0, anima_bosque: 0, borde_fuego: 0 };
-        inv.forEach(i => invObj[i.item_id.replace(/ /g, '_')] = i.cantidad);
-        setInventario(invObj);
+        const invMap = { ficha_reposo: 0, anima_bosque: 0, borde_fuego: 0 };
+        inv.forEach(i => invMap[i.item_id] = i.cantidad);
+        setInventario(invMap);
       }
 
       // Golem
-      const { data: g } = await supabase
+      const { data: gol } = await supabase
         .from('golem_progreso')
-        .select('*')
+        .select('golpes_utilizados, golem_vencido')
         .eq('user_id', session.user.id)
         .single();
         
-      if (g) {
-        setGolem({ golpes_utilizados: g.golpes_utilizados, golem_vencido: g.golem_vencido });
-      }
+      if (gol) setGolem(gol);
 
     } catch (err) {
-      console.error("Error cargando La Prueba:", err);
+      console.error('Error cargando forja:', err);
     } finally {
       setLoading(false);
     }
@@ -110,7 +109,7 @@ export default function LaPrueba({ session }) {
     }
   };
 
-  const comprarItem = async (itemId, precio, esPermanente) => {
+  const iniciarCompra = (itemId, precio, esPermanente) => {
     if (monedas < precio) {
       showToast("No tienes suficientes Monedas de Forja.");
       return;
@@ -126,31 +125,40 @@ export default function LaPrueba({ session }) {
       return;
     }
 
-    if (window.confirm(`¿Seguro que deseas adquirir esto por ${precio} Monedas?`)) {
-      setProcesando(true);
-      try {
-        const idempotencyKey = Date.now().toString(36) + Math.random().toString(36).substring(2);
-        const { data, error } = await supabase.rpc('comprar_item_rpg', {
-          p_user_id: session.user.id,
-          p_item_id: itemId,
-          p_precio: precio,
-          p_es_permanente: esPermanente,
-          p_idempotency_key: idempotencyKey
-        });
+    setConfirmAction({ show: true, itemId, precio, esPermanente });
+  };
 
-        if (error) throw error;
-        if (!data.success) {
-          showToast(data.error);
-        } else {
-          showToast("¡Adquisición exitosa!");
-          await loadDatos();
-        }
-      } catch (err) {
-        showToast("Error en la transacción.");
-        console.error(err);
-      } finally {
-        setProcesando(false);
+  const cancelarCompra = () => {
+    setConfirmAction({ show: false, itemId: null, precio: 0, esPermanente: false });
+  };
+
+  const ejecutarCompra = async () => {
+    setProcesando(true);
+    const { itemId, precio, esPermanente } = confirmAction;
+    setConfirmAction({ show: false, itemId: null, precio: 0, esPermanente: false });
+    
+    try {
+      const idempotencyKey = Date.now().toString(36) + Math.random().toString(36).substring(2);
+      const { data, error } = await supabase.rpc('comprar_item_rpg', {
+        p_user_id: session.user.id,
+        p_item_id: itemId,
+        p_precio: precio,
+        p_es_permanente: esPermanente,
+        p_idempotency_key: idempotencyKey
+      });
+
+      if (error) throw error;
+      if (!data.success) {
+        showToast(data.error);
+      } else {
+        showToast("¡Adquisición exitosa!");
+        await loadDatos();
       }
+    } catch (err) {
+      showToast("Error en la transacción.");
+      console.error(err);
+    } finally {
+      setProcesando(false);
     }
   };
 
@@ -262,6 +270,42 @@ export default function LaPrueba({ session }) {
           </div>
         )}
 
+        {/* CONFIRMAR COMPRA TEMÁTICO */}
+        {confirmAction.show && (
+          <div style={{
+            background: 'linear-gradient(145deg, #1c1c1c, #2a2a2a)',
+            color: '#fff',
+            padding: '20px',
+            borderRadius: '16px',
+            border: '2px solid var(--accent-gold)',
+            boxShadow: '0 8px 32px rgba(212, 175, 55, 0.3)',
+            textAlign: 'center',
+            animation: 'toastFadeIn 0.3s ease-out',
+            marginBottom: '25px',
+            position: 'relative'
+          }}>
+            <h3 style={{ margin: '0 0 10px 0', color: 'var(--accent-gold)' }}>¿Confirmar Adquisición?</h3>
+            <p style={{ margin: '0 0 20px 0', fontSize: '0.9rem', color: '#ccc' }}>
+              Se descontarán <strong>{confirmAction.precio} Monedas de Forja</strong> de tu saldo.
+            </p>
+            <div style={{ display: 'flex', gap: '15px', justifyContent: 'center' }}>
+              <button 
+                onClick={cancelarCompra}
+                style={{ background: 'transparent', border: '1px solid #666', color: '#aaa', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={ejecutarCompra}
+                disabled={procesando}
+                style={{ background: 'var(--accent-gold)', border: 'none', color: '#000', padding: '10px 25px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
+              >
+                {procesando ? 'Procesando...' : 'Aceptar'}
+              </button>
+            </div>
+          </div>
+        )}
+
         <h3 style={{ margin: '0 0 15px 0', color: '#fff', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '10px' }}>Objetos de Gremio</h3>
         
         {/* Ficha de Reposo */}
@@ -275,7 +319,7 @@ export default function LaPrueba({ session }) {
             <span style={{ fontSize: '0.75rem', color: '#78e08f' }}>En posesión: {inventario.ficha_reposo}/2</span>
           </div>
           <button 
-            onClick={() => comprarItem('ficha_reposo', 100, false)}
+            onClick={() => iniciarCompra('ficha_reposo', 100, false)}
             disabled={procesando || inventario.ficha_reposo >= 2}
             style={{ background: 'transparent', color: 'var(--accent-gold)', border: '1px solid var(--accent-gold)', padding: '8px 12px', borderRadius: '20px', fontWeight: 'bold', fontSize: '0.85rem', cursor: inventario.ficha_reposo >= 2 ? 'not-allowed' : 'pointer', opacity: inventario.ficha_reposo >= 2 ? 0.5 : 1 }}
           >
@@ -296,7 +340,7 @@ export default function LaPrueba({ session }) {
             <span style={{ color: 'var(--accent-gold)', fontSize: '0.85rem', fontWeight: 'bold' }}>ADQUIRIDO</span>
           ) : (
             <button 
-              onClick={() => comprarItem('anima_bosque', 250, true)}
+              onClick={() => iniciarCompra('anima_bosque', 250, true)}
               disabled={procesando}
               style={{ background: 'transparent', color: 'var(--accent-gold)', border: '1px solid var(--accent-gold)', padding: '8px 12px', borderRadius: '20px', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer' }}
             >
@@ -318,7 +362,7 @@ export default function LaPrueba({ session }) {
             <span style={{ color: 'var(--accent-gold)', fontSize: '0.85rem', fontWeight: 'bold' }}>ADQUIRIDO</span>
           ) : (
             <button 
-              onClick={() => comprarItem('borde_fuego', 500, true)}
+              onClick={() => iniciarCompra('borde_fuego', 500, true)}
               disabled={procesando}
               style={{ background: 'transparent', color: 'var(--accent-gold)', border: '1px solid var(--accent-gold)', padding: '8px 12px', borderRadius: '20px', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer' }}
             >
