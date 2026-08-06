@@ -354,7 +354,8 @@ export default function Perfil({ session }) {
     if (!nivel) return { icon: '🌱', desc: 'Brote' };
     if (nivel >= 41) return { icon: '🌳✨', desc: 'Árbol Ancestral' };
     if (nivel >= 31) return { icon: '🌳⚔️', desc: 'Árbol Férreo' };
-    if (nivel >= 11) return { icon: '🌲', desc: 'Árbol Joven' };
+    if (nivel >= 21) return { icon: '🌳', desc: 'Árbol Fuerte' };
+    if (nivel >= 11) return { icon: '🌿', desc: 'Planta Joven' };
     return { icon: '🌱', desc: 'Brote' };
   };
 
