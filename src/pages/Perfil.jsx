@@ -137,16 +137,15 @@ export default function Perfil({ session }) {
           }
         }
         
-        // Cargar inventario del usuario (Fase 5)
+        // Cargar inventario del usuario (Fase 5 RPG)
         if (navigator.onLine) {
           const { data: invData } = await supabase
-            .from('inventario_usuarios')
-            .select('tienda_items(tipo, nombre)')
+            .from('rpg_inventario')
+            .select('item_id')
             .eq('user_id', session?.user.id);
             
           if (invData) {
-            // Flatten the nested relation
-            const itemsList = invData.map(i => i.tienda_items?.nombre?.toLowerCase());
+            const itemsList = invData.map(i => i.item_id);
             setInventario(itemsList);
           }
         }
@@ -400,10 +399,10 @@ export default function Perfil({ session }) {
                   width: '90px', height: '90px', borderRadius: '50%', backgroundColor: 'var(--accent-gold)', 
                   display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'black', 
                   fontSize: '2.5rem', fontWeight: 'bold', overflow: 'hidden', 
-                  border: inventario.includes('borde de fuego') ? '3px solid #ff4757' : '3px solid var(--accent-gold)', 
-                  boxShadow: inventario.includes('borde de fuego') ? '0 0 25px #ff4757, inset 0 0 10px #ff4757' : '0 0 20px rgba(212, 175, 55, 0.2)', 
+                  border: inventario.includes('borde_fuego') ? '3px solid #ff4757' : '3px solid var(--accent-gold)', 
+                  boxShadow: inventario.includes('borde_fuego') ? '0 0 25px #ff4757, inset 0 0 10px #ff4757' : '0 0 20px rgba(212, 175, 55, 0.2)', 
                   cursor: meta.avatar_url ? 'pointer' : 'default',
-                  animation: inventario.includes('borde de fuego') ? 'pulseFire 2s infinite' : 'none'
+                  animation: inventario.includes('borde_fuego') ? 'pulseFire 2s infinite' : 'none'
                 }}
               >
                 {(meta.avatar_url && !imgError) ? <img src={meta.avatar_url} referrerPolicy="no-referrer" onError={() => setImgError(true)} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : nombreReal[0].toUpperCase()}
@@ -420,7 +419,7 @@ export default function Perfil({ session }) {
             </div>
             
             {/* Árbol de la Forja (Evolutivo) - Solo visible si se compró el Ánima del Bosque */}
-            {inventario.includes('ánima del bosque') && (
+            {inventario.includes('anima_bosque') && (
               <div style={{ marginTop: '12px', background: 'rgba(0,0,0,0.4)', padding: '4px 10px', borderRadius: '15px', border: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', gap: '5px' }}>
                 <span style={{ fontSize: '1.2rem', display: 'inline-block', animation: 'treeBreathe 4s ease-in-out infinite', transformOrigin: 'bottom center' }}>{getAvatarStage(meta.nivel_rpg).icon}</span>
                 <span style={{ fontSize: '0.75rem', color: '#aaa', fontStyle: 'italic' }}>{getAvatarStage(meta.nivel_rpg).desc}</span>
