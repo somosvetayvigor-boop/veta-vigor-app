@@ -125,7 +125,9 @@ export default function MiRutina({ session }) {
               currentStreak++;
               checkDate.setDate(checkDate.getDate() - 1);
             } else {
-              if (!usedToken) {
+              // Solo usar la Ficha de Reposo si YA hay una racha activa (currentStreak > 0).
+              // Esto evita crear rachas falsas de la nada cuando el usuario lleva días sin entrenar.
+              if (!usedToken && currentStreak > 0) {
                 const { data: inv } = await supabase
                   .from('rpg_inventario')
                   .select('item_id, cantidad')
