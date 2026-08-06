@@ -243,6 +243,25 @@ export default function LaPrueba({ session }) {
           )}
         </section>
 
+        {/* TOAST / SNACKBAR TEMÁTICO */}
+        {toast.show && (
+          <div style={{
+            background: 'rgba(20, 20, 25, 0.95)',
+            color: 'var(--accent-gold)',
+            padding: '12px 24px',
+            borderRadius: '12px',
+            border: '1px solid var(--accent-gold)',
+            boxShadow: '0 4px 15px rgba(212, 175, 55, 0.2)',
+            fontSize: '0.9rem',
+            fontWeight: 'bold',
+            textAlign: 'center',
+            animation: 'toastFadeIn 0.3s ease-out',
+            marginBottom: '20px'
+          }}>
+            {toast.message}
+          </div>
+        )}
+
         <h3 style={{ margin: '0 0 15px 0', color: '#fff', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '10px' }}>Objetos de Gremio</h3>
         
         {/* Ficha de Reposo */}
@@ -309,36 +328,10 @@ export default function LaPrueba({ session }) {
         </div>
 
       </main>
-
-      {/* TOAST / SNACKBAR TEMÁTICO */}
-      {toast.show && (
-        <div style={{
-          position: 'fixed',
-          bottom: '30px',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          background: 'rgba(20, 20, 25, 0.95)',
-          color: 'var(--accent-gold)',
-          padding: '12px 24px',
-          borderRadius: '30px',
-          border: '1px solid var(--accent-gold)',
-          boxShadow: '0 4px 15px rgba(212, 175, 55, 0.2)',
-          fontSize: '0.9rem',
-          fontWeight: 'bold',
-          textAlign: 'center',
-          zIndex: 1000,
-          animation: 'toastFadeIn 0.3s ease-out',
-          backdropFilter: 'blur(5px)',
-          maxWidth: '90%',
-          width: 'max-content'
-        }}>
-          {toast.message}
-        </div>
-      )}
       <style>{`
         @keyframes toastFadeIn {
-          from { opacity: 0; transform: translate(-50%, 20px); }
-          to { opacity: 1; transform: translate(-50%, 0); }
+          from { opacity: 0; transform: translateY(-10px); }
+          to { opacity: 1; transform: translateY(0); }
         }
       `}</style>
     </div>
