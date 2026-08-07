@@ -60,6 +60,7 @@ export default function MiRutina({ session }) {
   const [bienestarDone, setBienestarDone] = useState(false);
   const [savingBienestar, setSavingBienestar] = useState(false);
   const [showingBienestarCheckin, setShowingBienestarCheckin] = useState(false);
+  const [intencionDescanso, setIntencionDescanso] = useState(false);
   const [entrenoHoy, setEntrenoHoy] = useState(false);
   
   // Novedades / Explora
@@ -700,141 +701,76 @@ export default function MiRutina({ session }) {
             </div>
           )}
 
-          {!showingBienestarCheckin ? (
-            <>
-              <h2 className="gold-gradient-text" style={{ margin: '0 0 5px 0', fontSize: '1.5rem', textTransform: 'uppercase' }}>Disposición Diaria</h2>
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '25px' }}>¿Cómo te sientes para entrenar hoy?</p>
+          <h2 className="gold-gradient-text" style={{ margin: '0 0 5px 0', fontSize: '1.5rem', textTransform: 'uppercase' }}>Disposición Diaria</h2>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '25px' }}>¿Cómo te sientes para entrenar hoy?</p>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <div onClick={() => handleCheckin(5)} style={checkinItemStyle('#c5a059')}>
-                  <div style={numberStyle}>5</div>
-                  <div style={emojiStyle}>🔥</div>
-                  <div style={textContainerStyle}>
-                    <span style={titleStyle}>Excelente</span>
-                    <span style={descStyle}>Energía al máximo. Listo para récords.</span>
-                  </div>
-                </div>
-
-                <div onClick={() => handleCheckin(4)} style={checkinItemStyle('#78e08f')}>
-                  <div style={numberStyle}>4</div>
-                  <div style={emojiStyle}>🔋</div>
-                  <div style={textContainerStyle}>
-                    <span style={titleStyle}>Bien</span>
-                    <span style={descStyle}>Motivado y buena energía.</span>
-                  </div>
-                </div>
-
-                <div onClick={() => handleCheckin(3)} style={checkinItemStyle('#f6b93b')}>
-                  <div style={numberStyle}>3</div>
-                  <div style={emojiStyle}>⚖️</div>
-                  <div style={textContainerStyle}>
-                    <span style={titleStyle}>Normal</span>
-                    <span style={descStyle}>Sensaciones promedio.</span>
-                  </div>
-                </div>
-
-                <div onClick={() => handleCheckin(2)} style={checkinItemStyle('#fa983a')}>
-                  <div style={numberStyle}>2</div>
-                  <div style={emojiStyle}>🥱</div>
-                  <div style={textContainerStyle}>
-                    <span style={titleStyle}>Cansado</span>
-                    <span style={descStyle}>Poca energía o sueño atrasado.</span>
-                  </div>
-                </div>
-
-                <div onClick={() => handleCheckin(1)} style={checkinItemStyle('#e55039')}>
-                  <div style={numberStyle}>1</div>
-                  <div style={emojiStyle}>🤕</div>
-                  <div style={textContainerStyle}>
-                    <span style={titleStyle}>Agotado / Dolor</span>
-                    <span style={descStyle}>Necesito recuperación.</span>
-                  </div>
-                </div>
-                
-                {esVIP && (
-                  <button 
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setShowingBienestarCheckin(true);
-                    }}
-                    style={{
-                      background: 'linear-gradient(135deg, rgba(212, 175, 55, 0.1) 0%, rgba(212, 175, 55, 0.05) 100%)',
-                      border: '1px dashed var(--accent-gold)',
-                      borderRadius: '12px', padding: '15px',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
-                      cursor: 'pointer', marginTop: '10px', width: '100%'
-                    }}
-                  >
-                    <span style={{ fontSize: '1.5rem' }}>🧘</span>
-                    <span className="gold-gradient-text" style={{ fontWeight: 'bold', fontSize: '1rem' }}>Hoy es mi día de descanso</span>
-                  </button>
-                )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div onClick={() => handleCheckin(5)} style={checkinItemStyle('#c5a059')}>
+              <div style={numberStyle}>5</div>
+              <div style={emojiStyle}>🔥</div>
+              <div style={textContainerStyle}>
+                <span style={titleStyle}>Excelente</span>
+                <span style={descStyle}>Energía al máximo. Listo para récords.</span>
               </div>
-            </>
-          ) : (
-            <>
-              <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-                <div style={{ fontSize: '2.5rem', marginBottom: '8px' }}>🧘</div>
-                <h3 className="gold-gradient-text" style={{ margin: '0 0 5px 0', fontSize: '1.2rem' }}>Día de Recuperación</h3>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>
-                  Selecciona al menos 2 hábitos para mantener tu Llama Viva.
-                </p>
-              </div>
+            </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '20px' }}>
-                {HABITOS_BIENESTAR.map(h => {
-                  const selected = bienestarHabitos.includes(h.id);
-                  return (
-                    <button
-                      key={h.id}
-                      onClick={(e) => { e.preventDefault(); toggleHabito(h.id); }}
-                      style={{
-                        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                        padding: '12px 5px', gap: '6px',
-                        backgroundColor: selected ? 'rgba(212, 175, 55, 0.15)' : '#1c1c20',
-                        border: selected ? '2px solid var(--accent-gold)' : '1px solid #333',
-                        borderRadius: '12px',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s ease'
-                      }}
-                    >
-                      <span style={{ fontSize: '1.5rem' }}>{h.emoji}</span>
-                      <span style={{ fontSize: '0.65rem', color: selected ? 'var(--accent-gold)' : '#999', fontWeight: selected ? 'bold' : 'normal', textAlign: 'center', lineHeight: '1.2' }}>{h.label}</span>
-                    </button>
-                  );
-                })}
+            <div onClick={() => handleCheckin(4)} style={checkinItemStyle('#78e08f')}>
+              <div style={numberStyle}>4</div>
+              <div style={emojiStyle}>🔋</div>
+              <div style={textContainerStyle}>
+                <span style={titleStyle}>Bien</span>
+                <span style={descStyle}>Motivado y buena energía.</span>
               </div>
+            </div>
 
-              <div style={{ textAlign: 'center', marginBottom: '12px' }}>
-                <span style={{ fontSize: '0.8rem', color: bienestarHabitos.length >= 2 ? '#78e08f' : 'var(--text-muted)' }}>
-                  {bienestarHabitos.length}/9 hábitos marcados {bienestarHabitos.length >= 2 ? '✅' : '(mínimo 2)'}
-                </span>
+            <div onClick={() => handleCheckin(3)} style={checkinItemStyle('#f6b93b')}>
+              <div style={numberStyle}>3</div>
+              <div style={emojiStyle}>⚖️</div>
+              <div style={textContainerStyle}>
+                <span style={titleStyle}>Normal</span>
+                <span style={descStyle}>Sensaciones promedio.</span>
               </div>
+            </div>
 
-              <button
-                onClick={(e) => { e.preventDefault(); handleBienestarCheckin(); }}
-                disabled={bienestarHabitos.length < 2 || savingBienestar}
+            <div onClick={() => handleCheckin(2)} style={checkinItemStyle('#fa983a')}>
+              <div style={numberStyle}>2</div>
+              <div style={emojiStyle}>🥱</div>
+              <div style={textContainerStyle}>
+                <span style={titleStyle}>Cansado</span>
+                <span style={descStyle}>Poca energía o sueño atrasado.</span>
+              </div>
+            </div>
+
+            <div onClick={() => handleCheckin(1)} style={checkinItemStyle('#e55039')}>
+              <div style={numberStyle}>1</div>
+              <div style={emojiStyle}>🤕</div>
+              <div style={textContainerStyle}>
+                <span style={titleStyle}>Agotado / Dolor</span>
+                <span style={descStyle}>Necesito recuperación.</span>
+              </div>
+            </div>
+            
+            {esVIP && (
+              <button 
+                onClick={(e) => {
+                  e.preventDefault();
+                  setIntencionDescanso(true);
+                  setHasCheckedInToday(true);
+                  setEntrenoHoy(false);
+                }}
                 style={{
-                  width: '100%', padding: '14px', borderRadius: '12px',
-                  background: bienestarHabitos.length >= 2 ? 'linear-gradient(135deg, #f9f0b1 0%, #D4AF37 50%, #aa8b2c 100%)' : '#333',
-                  color: bienestarHabitos.length >= 2 ? '#000' : '#666',
-                  fontWeight: 'bold', fontSize: '1rem',
-                  border: 'none', cursor: bienestarHabitos.length >= 2 ? 'pointer' : 'not-allowed',
-                  transition: 'all 0.3s ease',
-                  marginBottom: '15px'
+                  background: 'linear-gradient(135deg, rgba(212, 175, 55, 0.1) 0%, rgba(212, 175, 55, 0.05) 100%)',
+                  border: '1px dashed var(--accent-gold)',
+                  borderRadius: '12px', padding: '15px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
+                  cursor: 'pointer', marginTop: '10px', width: '100%'
                 }}
               >
-                {savingBienestar ? 'Guardando...' : '🔥 Registrar Bienestar'}
+                <span style={{ fontSize: '1.5rem' }}>🧘</span>
+                <span className="gold-gradient-text" style={{ fontWeight: 'bold', fontSize: '1rem' }}>Hoy es mi día de descanso</span>
               </button>
-              
-              <button 
-                onClick={(e) => { e.preventDefault(); setShowingBienestarCheckin(false); }}
-                style={{ background: 'none', border: '1px solid #555', color: '#888', padding: '10px', borderRadius: '8px', width: '100%', cursor: 'pointer' }}
-              >
-                Atrás (Quiero entrenar)
-              </button>
-            </>
-          )}
+            )}
+          </div>
         </div>
       </div>
     );
@@ -1201,6 +1137,93 @@ export default function MiRutina({ session }) {
         </div>
       )}
 
+      {/* Registro de Bienestar (si hay intención de descanso) */}
+      {intencionDescanso && !bienestarDone && (
+        <div style={{ marginBottom: '30px' }}>
+          {!showingBienestarCheckin ? (
+            <button 
+              onClick={() => setShowingBienestarCheckin(true)}
+              style={{
+                width: '100%', padding: '18px', borderRadius: '16px',
+                background: 'linear-gradient(135deg, rgba(212, 175, 55, 0.2) 0%, rgba(212, 175, 55, 0.05) 100%)',
+                border: '2px solid var(--accent-gold)',
+                color: 'var(--accent-gold)',
+                fontWeight: 'bold', fontSize: '1.2rem',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
+                cursor: 'pointer',
+                animation: 'pulseGold 2s infinite',
+                boxShadow: '0 0 20px rgba(212, 175, 55, 0.3)'
+              }}
+            >
+              <span style={{ fontSize: '1.5rem' }}>🧘</span>
+              REGISTRAR DESCANSO ACTIVO
+            </button>
+          ) : (
+            <div className="card" style={{ padding: '20px', border: '1px solid var(--accent-gold)', boxShadow: '0 0 20px rgba(212,175,55,0.1)' }}>
+              <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+                <div style={{ fontSize: '2.5rem', marginBottom: '8px' }}>🧘</div>
+                <h3 className="gold-gradient-text" style={{ margin: '0 0 5px 0', fontSize: '1.2rem' }}>Día de Recuperación</h3>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>
+                  Selecciona al menos 2 hábitos para mantener tu Llama Viva.
+                </p>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '20px' }}>
+                {HABITOS_BIENESTAR.map(h => {
+                  const selected = bienestarHabitos.includes(h.id);
+                  return (
+                    <button
+                      key={h.id}
+                      onClick={(e) => { e.preventDefault(); toggleHabito(h.id); }}
+                      style={{
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                        padding: '12px 5px', gap: '6px',
+                        backgroundColor: selected ? 'rgba(212, 175, 55, 0.15)' : '#1c1c20',
+                        border: selected ? '2px solid var(--accent-gold)' : '1px solid #333',
+                        borderRadius: '12px',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      <span style={{ fontSize: '1.5rem' }}>{h.emoji}</span>
+                      <span style={{ fontSize: '0.65rem', color: selected ? 'var(--accent-gold)' : '#999', fontWeight: selected ? 'bold' : 'normal', textAlign: 'center', lineHeight: '1.2' }}>{h.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div style={{ textAlign: 'center', marginBottom: '12px' }}>
+                <span style={{ fontSize: '0.8rem', color: bienestarHabitos.length >= 2 ? '#78e08f' : 'var(--text-muted)' }}>
+                  {bienestarHabitos.length}/9 hábitos marcados {bienestarHabitos.length >= 2 ? '✅' : '(mínimo 2)'}
+                </span>
+              </div>
+
+              <button
+                onClick={(e) => { e.preventDefault(); handleBienestarCheckin(); }}
+                disabled={bienestarHabitos.length < 2 || savingBienestar}
+                style={{
+                  width: '100%', padding: '14px', borderRadius: '12px',
+                  background: bienestarHabitos.length >= 2 ? 'linear-gradient(135deg, #f9f0b1 0%, #D4AF37 50%, #aa8b2c 100%)' : '#333',
+                  color: bienestarHabitos.length >= 2 ? '#000' : '#666',
+                  fontWeight: 'bold', fontSize: '1rem',
+                  border: 'none', cursor: bienestarHabitos.length >= 2 ? 'pointer' : 'not-allowed',
+                  transition: 'all 0.3s ease',
+                  marginBottom: '15px'
+                }}
+              >
+                {savingBienestar ? 'Guardando...' : '🔥 Registrar Bienestar'}
+              </button>
+              
+              <button 
+                onClick={(e) => { e.preventDefault(); setShowingBienestarCheckin(false); }}
+                style={{ background: 'none', border: '1px solid #555', color: '#888', padding: '10px', borderRadius: '8px', width: '100%', cursor: 'pointer' }}
+              >
+                Atrás (Ocultar Panel)
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Calendario UI */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
