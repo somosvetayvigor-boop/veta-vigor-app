@@ -233,7 +233,7 @@ export default function Comunidad({ session }) {
                       <AvatarConMarco src={amigo.avatar_url || '/assets/niveles/semilla.png'} size={50} marco={amigo.marco_activo || 'ninguno'} />
                       <div>
                         <h4 style={{ margin: '0 0 3px 0', color: '#fff', fontSize: '1.05rem' }}>{amigo.full_name || amigo.username}</h4>
-                        <span className="badge" style={{ fontSize: '0.7rem' }}>{amigo.nivel}</span>
+                        <span style={{ fontSize: '0.75rem', background: 'rgba(212, 175, 55, 0.2)', color: 'var(--accent-gold)', padding: '3px 8px', borderRadius: '12px', border: '1px solid rgba(212, 175, 55, 0.5)' }}>{amigo.nivel || 'Atleta'}</span>
                       </div>
                     </div>
                     
