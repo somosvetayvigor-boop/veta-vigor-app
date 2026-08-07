@@ -101,6 +101,10 @@ export default function MiRutina({ session }) {
             setCustomCal(cached.customCal || {});
             setAllCalendarios(cached.allCalendarios || {});
             setDiasEntrenadosSemana(cached.diasEntrenadosSemana || 0);
+            // Inyectar stats del caché INMEDIATAMENTE (Cache-First)
+            if (cached.racha !== undefined) setRacha(cached.racha);
+            if (cached.totalEntrenamientos) setTotalEntrenamientos(cached.totalEntrenamientos);
+            if (cached.ultimoEntrenamiento) setUltimoEntrenamiento(cached.ultimoEntrenamiento);
             buildCalendar(cached.todasRutinas || [], dias, cached.customCal || {});
             setLoading(false); // UI liberada instantáneamente
           }
@@ -165,90 +169,32 @@ export default function MiRutina({ session }) {
       const todayStr = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
 
       const networkSync = async () => {
-        const { data, error } = await supabase
-          .from('checkins')
-          .select('id, nivel')
-          .eq('user_id', session?.user.id)
-          .eq('fecha', todayStr)
-          .maybeSingle();
-
-        if (error && error.code !== 'PGRST116') throw error; 
-        
-        if (data) {
-          setHasCheckedInToday(true);
-          await DatabaseManager.saveCheckin(session?.user.id, todayStr, data.nivel || 3);
-        }
-        
-        // Calcular Racha (Llama Viva) — incluye checkins de entrenamiento Y bienestar
-        const [checkinsResult, bienestarResult] = await Promise.all([
-          supabase.from('checkins').select('fecha').eq('user_id', session?.user.id).order('fecha', { ascending: false }).limit(30),
-          supabase.from('checkins_bienestar').select('fecha, habitos').eq('user_id', session?.user.id).order('fecha', { ascending: false }).limit(30)
+        // PASO A: Verificar check-in de hoy + leer racha_actual directo de perfiles (RÁPIDO)
+        const [checkinResult, perfilResult, bienestarTodayResult] = await Promise.all([
+          supabase.from('checkins').select('id, nivel').eq('user_id', session?.user.id).eq('fecha', todayStr).maybeSingle(),
+          supabase.from('perfiles').select('racha_actual').eq('id', session?.user.id).single(),
+          supabase.from('checkins_bienestar').select('fecha, habitos').eq('user_id', session?.user.id).eq('fecha', todayStr).maybeSingle()
         ]);
-        
-        const allCheckins = checkinsResult.data || [];
-        const allBienestar = (bienestarResult.data || []).filter(b => b.habitos && b.habitos.length >= 2);
-        
-        // Verificar si hoy ya tiene bienestar registrado
-        const todayBienestar = allBienestar.find(b => b.fecha === todayStr);
-        if (todayBienestar) {
+
+        if (checkinResult.data) {
+          setHasCheckedInToday(true);
+          setEntrenoHoy(true);
+          await DatabaseManager.saveCheckin(session?.user.id, todayStr, checkinResult.data.nivel || 3);
+        }
+
+        if (bienestarTodayResult.data && bienestarTodayResult.data.habitos?.length >= 2) {
           setBienestarDone(true);
           setHasCheckedInToday(true);
         }
-          
-        if (allCheckins || allBienestar.length > 0) {
-          let currentStreak = 0;
-          let checkDate = new Date();
-          const hasTodayCheckin = allCheckins.some(c => c.fecha === todayStr);
-          const hasTodayBienestar = allBienestar.some(b => b.fecha === todayStr);
-          
-          setEntrenoHoy(hasTodayCheckin);
 
-          if (!hasTodayCheckin && !hasTodayBienestar) checkDate.setDate(checkDate.getDate() - 1);
-          
-          let usedToken = false;
-
-          for (let i = 0; i < 30; i++) {
-            const dateStr = checkDate.getFullYear() + '-' + String(checkDate.getMonth() + 1).padStart(2, '0') + '-' + String(checkDate.getDate()).padStart(2, '0');
-            const hasCheckin = allCheckins.some(c => c.fecha === dateStr);
-            const hasBienestar = allBienestar.some(b => b.fecha === dateStr);
-            
-            if (hasCheckin || hasBienestar) {
-              currentStreak++;
-              checkDate.setDate(checkDate.getDate() - 1);
-            } else {
-              // Solo usar la Ficha de Reposo si YA hay una racha activa (currentStreak > 0).
-              if (!usedToken && currentStreak > 0) {
-                const { data: inv } = await supabase
-                  .from('rpg_inventario')
-                  .select('item_id, cantidad')
-                  .eq('user_id', session?.user.id)
-                  .eq('item_id', 'ficha_reposo')
-                  .limit(1);
-                  
-                if (inv && inv.length > 0 && inv[0].cantidad > 0) {
-                  const currentCantidad = inv[0].cantidad;
-                  if (currentCantidad > 1) {
-                    await supabase.from('rpg_inventario').update({ cantidad: currentCantidad - 1 }).eq('user_id', session?.user.id).eq('item_id', 'ficha_reposo');
-                  } else {
-                    await supabase.from('rpg_inventario').delete().eq('user_id', session?.user.id).eq('item_id', 'ficha_reposo');
-                  }
-                  await supabase.from('checkins').insert([{ user_id: session?.user.id, fecha: dateStr, nivel: 3 }]);
-                  
-                  currentStreak++;
-                  checkDate.setDate(checkDate.getDate() - 1);
-                  usedToken = true;
-                  setTimeout(() => alert("¡El Gremio ha consumido tu Ficha de Reposo! Tu Llama Viva ha sido salvada del frío."), 2000);
-                  continue;
-                }
-              }
-              break;
-            }
-          }
-          setRacha(currentStreak);
-
-          // Guardar la racha actual en el perfil para que los aliados (Dúos) puedan verla
-          supabase.from('perfiles').update({ racha_actual: currentStreak }).eq('id', session?.user.id).then();
+        // Inyectar racha_actual de la BD directo a la pantalla (sin calcular)
+        if (perfilResult.data?.racha_actual !== undefined) {
+          setRacha(perfilResult.data.racha_actual);
         }
+
+        // PASO B: Recálculo profundo EN SEGUNDO PLANO (no bloquea la UI)
+        // Esto verifica si se perdió un día y consume la Ficha de Reposo si aplica
+        recalcularRachaEnFondo(todayStr, checkinResult.data);
       };
 
       // Ejecutar sync de red con timeout de 5 segundos
@@ -258,6 +204,75 @@ export default function MiRutina({ session }) {
       ]);
     } catch (error) {
       console.warn("Network timeout or error on startup, falling back to cache:", error);
+    }
+  };
+
+  // Recálculo profundo de la Llama Viva — se ejecuta SIN bloquear la pantalla
+  const recalcularRachaEnFondo = async (todayStr, todayCheckinData) => {
+    try {
+      const [checkinsResult, bienestarResult] = await Promise.all([
+        supabase.from('checkins').select('fecha').eq('user_id', session?.user.id).order('fecha', { ascending: false }).limit(30),
+        supabase.from('checkins_bienestar').select('fecha, habitos').eq('user_id', session?.user.id).order('fecha', { ascending: false }).limit(30)
+      ]);
+      
+      const allCheckins = checkinsResult.data || [];
+      const allBienestar = (bienestarResult.data || []).filter(b => b.habitos && b.habitos.length >= 2);
+        
+      if (allCheckins.length > 0 || allBienestar.length > 0) {
+        let currentStreak = 0;
+        let checkDate = new Date();
+        const hasTodayCheckin = allCheckins.some(c => c.fecha === todayStr);
+        const hasTodayBienestar = allBienestar.some(b => b.fecha === todayStr);
+        
+        if (!hasTodayCheckin && !hasTodayBienestar) checkDate.setDate(checkDate.getDate() - 1);
+        
+        let usedToken = false;
+
+        for (let i = 0; i < 30; i++) {
+          const dateStr = checkDate.getFullYear() + '-' + String(checkDate.getMonth() + 1).padStart(2, '0') + '-' + String(checkDate.getDate()).padStart(2, '0');
+          const hasCheckin = allCheckins.some(c => c.fecha === dateStr);
+          const hasBienestar = allBienestar.some(b => b.fecha === dateStr);
+          
+          if (hasCheckin || hasBienestar) {
+            currentStreak++;
+            checkDate.setDate(checkDate.getDate() - 1);
+          } else {
+            // Solo usar la Ficha de Reposo si YA hay una racha activa (currentStreak > 0).
+            if (!usedToken && currentStreak > 0) {
+              const { data: inv } = await supabase
+                .from('rpg_inventario')
+                .select('item_id, cantidad')
+                .eq('user_id', session?.user.id)
+                .eq('item_id', 'ficha_reposo')
+                .limit(1);
+                
+              if (inv && inv.length > 0 && inv[0].cantidad > 0) {
+                const currentCantidad = inv[0].cantidad;
+                if (currentCantidad > 1) {
+                  await supabase.from('rpg_inventario').update({ cantidad: currentCantidad - 1 }).eq('user_id', session?.user.id).eq('item_id', 'ficha_reposo');
+                } else {
+                  await supabase.from('rpg_inventario').delete().eq('user_id', session?.user.id).eq('item_id', 'ficha_reposo');
+                }
+                await supabase.from('checkins').insert([{ user_id: session?.user.id, fecha: dateStr, nivel: 3 }]);
+                
+                currentStreak++;
+                checkDate.setDate(checkDate.getDate() - 1);
+                usedToken = true;
+                setTimeout(() => alert("¡El Gremio ha consumido tu Ficha de Reposo! Tu Llama Viva ha sido salvada del frío."), 2000);
+                continue;
+              }
+            }
+            break;
+          }
+        }
+        // Actualizar pantalla silenciosamente solo si el resultado cambió
+        setRacha(currentStreak);
+
+        // Guardar la racha actualizada en perfiles para que los aliados (Dúos) puedan verla
+        supabase.from('perfiles').update({ racha_actual: currentStreak }).eq('id', session?.user.id).then();
+      }
+    } catch (error) {
+      console.warn("Background streak recalculation error (non-blocking):", error);
     }
   };
 
@@ -393,7 +408,11 @@ export default function MiRutina({ session }) {
         todasRutinas: data || [], 
         customCal: savedCustomCal, 
         allCalendarios: allCals,
-        diasEntrenadosSemana: trainedDays
+        diasEntrenadosSemana: trainedDays,
+        // Cache-First: guardar stats del dashboard para arranque instantáneo
+        racha: racha,
+        totalEntrenamientos: totalEntrenamientos,
+        ultimoEntrenamiento: ultimoEntrenamiento
       });
 
       // Cargar artículos de explora
