@@ -78,6 +78,16 @@ export default function Comunidad({ session }) {
         .eq('receiver_id', session?.user.id)
         .eq('status', 'pending');
       
+      if (pendingData && pendingData.length > 0) {
+        const pendingIds = pendingData.map(p => p.sender_id);
+        const { data: pGolems } = await supabase.from('golem_progreso').select('user_id, golem_nivel').in('user_id', pendingIds);
+        if (pGolems) {
+          pendingData.forEach(p => {
+            const mg = pGolems.find(g => g.user_id === p.sender_id);
+            if (mg) p.sender.golem_nivel = mg.golem_nivel;
+          });
+        }
+      }
       setAlianzasPendientes(pendingData || []);
 
       // Fetch alianzas activas donde soy sender o receiver
@@ -95,13 +105,27 @@ export default function Comunidad({ session }) {
       
       // Filtrar para quedarnos solo con el perfil del "otro" usuario
       if (activeData) {
-        const amigosFormateados = activeData.map(a => {
+        let amigosFormateados = activeData.map(a => {
           const amIOther = a.sender_id === session?.user.id;
           return {
             alianza_id: a.id,
             amigo: amIOther ? a.receiver : a.sender
           };
         });
+
+        const amigosIds = amigosFormateados.map(a => a.amigo.id);
+        if (amigosIds.length > 0) {
+          const { data: golems } = await supabase.from('golem_progreso').select('user_id, golem_nivel').in('user_id', amigosIds);
+          if (golems) {
+            amigosFormateados = amigosFormateados.map(a => {
+              const miGolem = golems.find(g => g.user_id === a.amigo.id);
+              if (miGolem) {
+                a.amigo.golem_nivel = miGolem.golem_nivel;
+              }
+              return a;
+            });
+          }
+        }
         setAlianzas(amigosFormateados);
       }
     } catch (e) {
@@ -197,7 +221,7 @@ export default function Comunidad({ session }) {
                     <AvatarConMarco src={sol.sender.avatar_url || '/assets/niveles/semilla.png'} size={40} marco={sol.sender.marco_activo || 'ninguno'} />
                     <div>
                       <h4 style={{ margin: 0, color: '#fff', fontSize: '0.95rem' }}>{sol.sender.full_name || sol.sender.username}</h4>
-                      <p style={{ margin: 0, color: '#888', fontSize: '0.8rem' }}>{sol.sender.nivel}</p>
+                      <p style={{ margin: 0, color: '#888', fontSize: '0.8rem' }}>{sol.sender.nivel} {sol.sender.golem_nivel ? `• Golem ${sol.sender.golem_nivel}` : ''}</p>
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: '5px' }}>
@@ -234,7 +258,7 @@ export default function Comunidad({ session }) {
                       <div>
                         <h4 style={{ margin: '0 0 3px 0', color: '#fff', fontSize: '1.05rem' }}>{amigo.full_name || amigo.username}</h4>
                         <span style={{ fontSize: '0.75rem', background: 'rgba(212, 175, 55, 0.2)', color: 'var(--accent-gold)', padding: '3px 8px', borderRadius: '12px', border: '1px solid rgba(212, 175, 55, 0.5)' }}>
-                          {amigo.nivel || 'Atleta'}
+                          {amigo.nivel || 'Atleta'} {amigo.golem_nivel ? ` • Golem ${amigo.golem_nivel}` : ''}
                         </span>
                       </div>
                     </div>
