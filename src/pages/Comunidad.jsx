@@ -335,19 +335,31 @@ export default function Comunidad({ session }) {
               {alianzas.map((alianza) => {
                 const amigo = alianza.amigo;
                 return (
-                  <div key={alianza.alianza_id} className="card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '15px', borderLeft: '4px solid #4facfe' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                      <AvatarConMarco src={amigo.avatar_url || '/assets/niveles/semilla.png'} size={50} marco={amigo.marco_activo || 'ninguno'} />
-                      <div>
-                        <h4 style={{ margin: '0 0 3px 0', color: '#fff', fontSize: '1.05rem' }}>{amigo.full_name || amigo.username}</h4>
-                        <span style={{ fontSize: '0.75rem', background: 'rgba(212, 175, 55, 0.2)', color: 'var(--accent-gold)', padding: '3px 8px', borderRadius: '12px', border: '1px solid rgba(212, 175, 55, 0.5)' }}>
-                          {amigo.nivel || 'Atleta'} • Golem {amigo.golem_nivel || 1}
-                        </span>
+                  <div key={alianza.alianza_id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: '15px', padding: '15px', borderLeft: '4px solid #4facfe' }}>
+                    
+                    {/* Fila Superior: Info y Llama Viva */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                        <AvatarConMarco src={amigo.avatar_url || '/assets/niveles/semilla.png'} size={50} marco={amigo.marco_activo || 'ninguno'} />
+                        <div>
+                          <h4 style={{ margin: '0 0 3px 0', color: '#fff', fontSize: '1.05rem' }}>{amigo.full_name || amigo.username}</h4>
+                          <span style={{ fontSize: '0.75rem', background: 'rgba(212, 175, 55, 0.2)', color: 'var(--accent-gold)', padding: '3px 8px', borderRadius: '12px', border: '1px solid rgba(212, 175, 55, 0.5)' }}>
+                            {amigo.nivel || 'Atleta'} • Golem {amigo.golem_nivel || 1}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '3px', color: '#ff7675' }}>
+                          <Flame size={18} fill="#ff7675" />
+                          <span style={{ fontWeight: 'bold', fontSize: '1rem' }}>{amigo.racha_actual || 0}</span>
+                        </div>
+                        <span style={{ fontSize: '0.65rem', color: '#888' }}>Llama Viva</span>
                       </div>
                     </div>
                     
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                      {/* Botón de Zumbido si no ha entrenado */}
+                    {/* Fila Inferior: Botón de Acción */}
+                    <div style={{ width: '100%' }}>
                       {!amigo.entrenoHoy ? (
                         <button
                           onClick={() => {
@@ -357,16 +369,18 @@ export default function Comunidad({ session }) {
                           }}
                           disabled={!!zumbidosEnviados[amigo.id]}
                           style={{
+                            width: '100%',
                             background: zumbidosEnviados[amigo.id] === 'sent' ? '#333' : 'linear-gradient(135deg, rgba(212, 175, 55, 0.2) 0%, rgba(212, 175, 55, 0.05) 100%)',
                             border: zumbidosEnviados[amigo.id] === 'sent' ? '1px solid #555' : '1px solid var(--accent-gold)',
                             color: zumbidosEnviados[amigo.id] === 'sent' ? '#aaa' : 'var(--accent-gold)',
-                            padding: '6px 12px',
+                            padding: '12px',
                             borderRadius: '12px',
                             fontWeight: 'bold',
-                            fontSize: '0.8rem',
+                            fontSize: '0.9rem',
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '5px',
+                            justifyContent: 'center',
+                            gap: '8px',
                             cursor: zumbidosEnviados[amigo.id] ? 'not-allowed' : 'pointer',
                             boxShadow: zumbidosEnviados[amigo.id] ? 'none' : '0 0 10px rgba(212, 175, 55, 0.2)',
                             transition: 'all 0.3s ease'
@@ -377,23 +391,16 @@ export default function Comunidad({ session }) {
                           ) : zumbidosEnviados[amigo.id] === 'sent' ? (
                             <><span>✅</span> Zumbido Enviado</>
                           ) : (
-                            <><span>🔔</span> Enviar Zumbido</>
+                            <><span>🔔</span> Enviar Zumbido Vigoroso</>
                           )}
                         </button>
                       ) : (
-                        <div style={{ fontSize: '0.8rem', color: '#78e08f', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <span style={{ fontSize: '1rem' }}>💪</span> Entrenó hoy
+                        <div style={{ padding: '10px', background: 'rgba(120, 224, 143, 0.1)', borderRadius: '12px', textAlign: 'center' }}>
+                          <span style={{ fontSize: '0.9rem', color: '#78e08f', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                            <span style={{ fontSize: '1.2rem' }}>💪</span> ¡Misión cumplida hoy!
+                          </span>
                         </div>
                       )}
-
-                      {/* Llama Viva del Amigo */}
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '3px', color: '#ff7675' }}>
-                          <Flame size={18} fill="#ff7675" />
-                          <span style={{ fontWeight: 'bold', fontSize: '1rem' }}>{amigo.racha_actual || 0}</span>
-                        </div>
-                        <span style={{ fontSize: '0.65rem', color: '#888' }}>Llama Viva</span>
-                      </div>
                     </div>
                   </div>
                 );
