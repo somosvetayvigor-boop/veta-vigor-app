@@ -127,7 +127,7 @@ export async function onRequest(context) {
     userIds,
     "Tu lugar está confirmado",
     "Entra a La Forja y prepárate para comenzar el 10 de agosto.",
-    "https://app.vetayvigor.com/reto-21-dias",
+    "https://pro.vetayvigor.com/reto-21-dias",
     "inscripcion_confirmada"
   );
 
@@ -137,7 +137,7 @@ export async function onRequest(context) {
       userIds, 
       "Faltan 3 días", 
       "Revisa tu Madera, prepara tu espacio y activa tus notificaciones.", 
-      "https://app.vetayvigor.com/reto-21-dias", 
+      "https://pro.vetayvigor.com/reto-21-dias", 
       "faltan_3_dias"
     );
   }
@@ -148,7 +148,7 @@ export async function onRequest(context) {
       userIds, 
       "Mañana comenzamos", 
       "Descansa. Tu primera Misión estará lista al iniciar el día.", 
-      "https://app.vetayvigor.com/reto-21-dias", 
+      "https://pro.vetayvigor.com/reto-21-dias", 
       "manana_empezamos"
     );
   }
@@ -159,7 +159,7 @@ export async function onRequest(context) {
       userIds, 
       "EMPEZAMOS", 
       "Tu primera Misión del Reto Vigor 21 ya está lista.", 
-      "https://app.vetayvigor.com/reto-21-dias", 
+      "https://pro.vetayvigor.com/reto-21-dias", 
       "empezamos"
     );
   }
@@ -181,7 +181,7 @@ export async function onRequest(context) {
       usersSinCheckin,
       "Tu Misión sigue disponible",
       "Todavía puedes presentarte y completar tu registro.",
-      "https://app.vetayvigor.com/",
+      "https://pro.vetayvigor.com/",
       `mision_pendiente_${todayStr}`
     );
   }
