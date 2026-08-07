@@ -35,6 +35,7 @@ export default function Comunidad({ session }) {
   const [alianzasPendientes, setAlianzasPendientes] = useState([]);
   const [alianzaEmail, setAlianzaEmail] = useState('');
   const [loadingAlianzas, setLoadingAlianzas] = useState(false);
+  const [zumbidosEnviados, setZumbidosEnviados] = useState({});
 
   const getBadgeForWorkouts = (count) => {
     if (count >= 100) return { name: 'Titán del Vigor', icon: '💎', color: '#00d2ff' };
@@ -116,16 +117,36 @@ export default function Comunidad({ session }) {
 
         const amigosIds = amigosFormateados.map(a => a.amigo.id);
         if (amigosIds.length > 0) {
-          const { data: golems } = await supabase.from('golem_progreso').select('user_id, golem_nivel').in('user_id', amigosIds);
-          if (golems) {
-            amigosFormateados = amigosFormateados.map(a => {
-              const miGolem = golems.find(g => g.user_id === a.amigo.id);
-              if (miGolem) {
-                a.amigo.golem_nivel = miGolem.golem_nivel;
+          const todayStr = new Date().getFullYear() + '-' + String(new Date().getMonth() + 1).padStart(2, '0') + '-' + String(new Date().getDate()).padStart(2, '0');
+          
+          const [golemsResult, checksResult, bienesResult] = await Promise.all([
+            supabase.from('golem_progreso').select('user_id, golem_nivel').in('user_id', amigosIds),
+            supabase.from('checkins').select('user_id').in('user_id', amigosIds).eq('fecha', todayStr),
+            supabase.from('checkins_bienestar').select('user_id, habitos').in('user_id', amigosIds).eq('fecha', todayStr)
+          ]);
+          
+          const golems = golemsResult.data || [];
+          const checks = checksResult.data || [];
+          const bienes = bienesResult.data || [];
+
+          amigosFormateados = amigosFormateados.map(a => {
+            const miGolem = golems.find(g => g.user_id === a.amigo.id);
+            if (miGolem) {
+              a.amigo.golem_nivel = miGolem.golem_nivel;
+            }
+            
+            // Check if they trained today
+            a.amigo.entrenoHoy = false;
+            if (checks.some(c => c.user_id === a.amigo.id)) {
+              a.amigo.entrenoHoy = true;
+            } else {
+              const b = bienes.find(c => c.user_id === a.amigo.id);
+              if (b && b.habitos && b.habitos.length >= 2) {
+                a.amigo.entrenoHoy = true;
               }
-              return a;
-            });
-          }
+            }
+            return a;
+          });
         }
         setAlianzas(amigosFormateados);
       }
@@ -183,6 +204,43 @@ export default function Comunidad({ session }) {
       fetchAlianzas();
     } else {
       alert("Error al responder solicitud.");
+    }
+  };
+
+  const enviarZumbido = async (aliadoId, aliadoName) => {
+    try {
+      setZumbidosEnviados(prev => ({ ...prev, [aliadoId]: 'loading' }));
+      
+      const response = await fetch('https://onesignal.com/api/v1/notifications', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Authorization': 'Basic ' + import.meta.env.VITE_ONESIGNAL_API_KEY
+        },
+        body: JSON.stringify({
+          app_id: "f0e7f7a8-6da8-4592-92a7-542f731a91f0",
+          include_external_user_ids: [aliadoId],
+          contents: { 
+            en: `¡Zumbido Vigoroso! ⚡ ${session?.user?.user_metadata?.full_name || 'Tu aliado'} ha notado que no has entrenado. ¡Levántate y cumple tu misión!`,
+            es: `¡Zumbido Vigoroso! ⚡ ${session?.user?.user_metadata?.full_name || 'Tu aliado'} ha notado que no has entrenado. ¡Levántate y cumple tu misión!`
+          },
+          headings: {
+            en: "¡Zumbido Vigoroso! ⚡",
+            es: "¡Zumbido Vigoroso! ⚡"
+          },
+          data: { type: "zumbido_alianza" }
+        })
+      });
+
+      if (response.ok) {
+        setZumbidosEnviados(prev => ({ ...prev, [aliadoId]: 'sent' }));
+      } else {
+        throw new Error("API Error");
+      }
+    } catch (error) {
+      console.error("Error enviando zumbido:", error);
+      alert("No se pudo enviar el zumbido en este momento.");
+      setZumbidosEnviados(prev => ({ ...prev, [aliadoId]: null }));
     }
   };
 
@@ -289,6 +347,45 @@ export default function Comunidad({ session }) {
                     </div>
                     
                     <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                      {/* Botón de Zumbido si no ha entrenado */}
+                      {!amigo.entrenoHoy ? (
+                        <button
+                          onClick={() => {
+                            if (!zumbidosEnviados[amigo.id]) {
+                              enviarZumbido(amigo.id, amigo.full_name || amigo.username);
+                            }
+                          }}
+                          disabled={!!zumbidosEnviados[amigo.id]}
+                          style={{
+                            background: zumbidosEnviados[amigo.id] === 'sent' ? '#333' : 'linear-gradient(135deg, rgba(212, 175, 55, 0.2) 0%, rgba(212, 175, 55, 0.05) 100%)',
+                            border: zumbidosEnviados[amigo.id] === 'sent' ? '1px solid #555' : '1px solid var(--accent-gold)',
+                            color: zumbidosEnviados[amigo.id] === 'sent' ? '#aaa' : 'var(--accent-gold)',
+                            padding: '6px 12px',
+                            borderRadius: '12px',
+                            fontWeight: 'bold',
+                            fontSize: '0.8rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            cursor: zumbidosEnviados[amigo.id] ? 'not-allowed' : 'pointer',
+                            boxShadow: zumbidosEnviados[amigo.id] ? 'none' : '0 0 10px rgba(212, 175, 55, 0.2)',
+                            transition: 'all 0.3s ease'
+                          }}
+                        >
+                          {zumbidosEnviados[amigo.id] === 'loading' ? (
+                            <span className="fa-spin">⌛</span>
+                          ) : zumbidosEnviados[amigo.id] === 'sent' ? (
+                            <><span>✅</span> Zumbido Enviado</>
+                          ) : (
+                            <><span>🔔</span> Enviar Zumbido</>
+                          )}
+                        </button>
+                      ) : (
+                        <div style={{ fontSize: '0.8rem', color: '#78e08f', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <span style={{ fontSize: '1rem' }}>💪</span> Entrenó hoy
+                        </div>
+                      )}
+
                       {/* Llama Viva del Amigo */}
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '3px', color: '#ff7675' }}>
