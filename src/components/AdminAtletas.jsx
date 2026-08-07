@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../supabaseClient';
-import { User, Clock, Calendar, X, MessageCircle, FolderOpen, Award, CheckCircle, Crown } from 'lucide-react';
+import { User, Clock, Calendar, X, MessageCircle, FolderOpen, Award, CheckCircle, Crown, Activity } from 'lucide-react';
 import AdminChatModal from './AdminChatModal';
 import AdminExpedienteModal from './AdminExpedienteModal';
 
