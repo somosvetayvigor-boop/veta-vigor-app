@@ -286,7 +286,7 @@ export default function MiRutina({ session }) {
       // 0. Fetch Real Source of Truth (siempre usar BD central para evitar bugs de tokens caducados)
       const { data: perfilData } = await supabase
         .from('perfiles')
-        .select('plan_membresia, calendario_personalizado, sistema_activo, nivel, dias_entrenamiento')
+        .select('plan_membresia, calendario_personalizado, sistema_activo, nivel, dias_entrenamiento, racha_actual')
         .eq('id', session?.user.id)
         .single();
 
@@ -409,10 +409,10 @@ export default function MiRutina({ session }) {
         customCal: savedCustomCal, 
         allCalendarios: allCals,
         diasEntrenadosSemana: trainedDays,
-        // Cache-First: guardar stats del dashboard para arranque instantáneo
-        racha: racha,
-        totalEntrenamientos: totalEntrenamientos,
-        ultimoEntrenamiento: ultimoEntrenamiento
+        // Cache-First: usar valores frescos, no los del state (que pueden estar en 0 por el closure de React)
+        racha: perfilData?.racha_actual || 0,
+        totalEntrenamientos: historialTotal && historialTotal.length > 0 ? new Set(historialTotal.map(h => h.created_at.split('T')[0])).size : 0,
+        ultimoEntrenamiento: historialTotal && historialTotal.length > 0 ? historialTotal[0].created_at : null
       });
 
       // Cargar artículos de explora
