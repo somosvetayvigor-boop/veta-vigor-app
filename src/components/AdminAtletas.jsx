@@ -33,9 +33,22 @@ export default function AdminAtletas({ session }) {
       // Traer celulares de la tabla segura
       const { data: privadosData } = await supabase.from('datos_privados').select('user_id, whatsapp');
       
+      // Traer checkins para saber la última fecha de entrenamiento
+      const { data: checkinsData } = await supabase.from('checkins').select('user_id, fecha').order('fecha', { ascending: false });
+      const lastCheckinsMap = {};
+      if (checkinsData) {
+        for (const c of checkinsData) {
+          if (!lastCheckinsMap[c.user_id]) lastCheckinsMap[c.user_id] = c.fecha;
+        }
+      }
+      
       const mergedAtletas = data.map(atleta => {
         const priv = privadosData?.find(p => p.user_id === atleta.id);
-        return { ...atleta, whatsapp: priv?.whatsapp || null };
+        return { 
+          ...atleta, 
+          whatsapp: priv?.whatsapp || null,
+          ultimo_entrenamiento: lastCheckinsMap[atleta.id] || null
+        };
       });
 
       setAtletas(mergedAtletas);
@@ -295,12 +308,15 @@ export default function AdminAtletas({ session }) {
                 </span>
               </div>
 
-              <div style={{ display: 'flex', gap: '15px', marginTop: '12px', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+              <div style={{ display: 'flex', gap: '15px', marginTop: '12px', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.05)', flexWrap: 'wrap' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.8rem', color: '#aaa' }}>
-                  <Calendar size={14} /> Registro: {formatDate(atleta.created_at)}
+                  <Calendar size={14} /> Reg: {formatDate(atleta.created_at)}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.8rem', color: '#aaa' }}>
-                  <Clock size={14} /> Última vez: {formatTimeAgo(atleta.ultimo_ingreso)}
+                  <Clock size={14} /> Login: {formatTimeAgo(atleta.ultimo_ingreso)}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.8rem', color: atleta.ultimo_entrenamiento ? '#78e08f' : '#e74c3c' }}>
+                  <Activity size={14} /> Entrenamiento: {atleta.ultimo_entrenamiento ? formatDate(atleta.ultimo_entrenamiento) : 'Nunca'}
                 </div>
               </div>
 
