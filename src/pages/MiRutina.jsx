@@ -75,37 +75,95 @@ export default function MiRutina({ session }) {
   const [showExpediente, setShowExpediente] = useState(false);
 
   useEffect(() => {
+    let safetyTimer = null;
+
     async function init() {
-      if (navigator.onLine) {
-        const { processOfflineQueue } = await import('../utils/OfflineManager');
-        const syncCount = await processOfflineQueue();
-        if (syncCount && syncCount > 0) {
-          console.log(`Se sincronizaron ${syncCount} elementos pendientes.`);
+      // SAFETY NET: Si después de 8 segundos la app sigue en loading, forzar la salida
+      safetyTimer = setTimeout(() => {
+        console.warn("⚠️ Safety timeout triggered — forcing UI to load");
+        setLoading(false);
+        setIsCheckingStatus(false);
+      }, 8000);
+
+      try {
+        // PASO 0: Cargar del caché LOCAL PRIMERO (instantáneo, sin red)
+        const metadata = session?.user.user_metadata || {};
+        const userRole = localStorage.getItem('user_role') || 'atleta_normal';
+        const isAlumno = userRole === 'alumno_entrenador';
+        const sistemaId = isAlumno ? 'entrenador' : (metadata?.sistema_activo);
+        const dias = isAlumno ? '7' : (metadata?.dias_entrenamiento || '>3');
+
+        if (sistemaId) {
+          const cached = await DatabaseManager.getRoutines(sistemaId);
+          if (cached && cached.todasRutinas) {
+            setTodasRutinas(cached.todasRutinas || []);
+            setCustomCal(cached.customCal || {});
+            setAllCalendarios(cached.allCalendarios || {});
+            setDiasEntrenadosSemana(cached.diasEntrenadosSemana || 0);
+            buildCalendar(cached.todasRutinas || [], dias, cached.customCal || {});
+            setLoading(false); // UI liberada instantáneamente
+          }
         }
+
+        // PASO 1: Verificar check-in local
+        const today = new Date();
+        const todayStr = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+        const localCheckin = await DatabaseManager.getCheckin(session?.user.id, todayStr);
+        if (localCheckin) {
+          setHasCheckedInToday(true);
+        }
+
+        // PASO 2: Si estamos offline, ya terminamos (todo vino del caché)
+        if (!navigator.onLine) {
+          setHasCheckedInToday(true);
+          setLoading(false);
+          setIsCheckingStatus(false);
+          clearTimeout(safetyTimer);
+          return;
+        }
+
+        // PASO 3: Sincronizar cola offline
+        try {
+          const { processOfflineQueue } = await import('../utils/OfflineManager');
+          const syncCount = await processOfflineQueue();
+          if (syncCount && syncCount > 0) {
+            console.log(`Se sincronizaron ${syncCount} elementos pendientes.`);
+          }
+        } catch(e) { /* ignorar errores de sync */ }
+
+        // PASO 4: Sincronizar con la red (con timeout de 5s)
+        await checkTodayStatus();
+
+        // PASO 5: Cargar rutinas completas desde la red (actualizar caché)
+        try {
+          await Promise.race([
+            loadRutinas(),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('loadRutinas_timeout')), 8000))
+          ]);
+        } catch(e) {
+          console.warn("loadRutinas timeout, using cached data:", e.message);
+        }
+
+      } catch (error) {
+        console.warn("Init error, falling back to cache:", error);
+      } finally {
+        setLoading(false);
+        setIsCheckingStatus(false);
+        clearTimeout(safetyTimer);
       }
-      checkTodayStatus();
     }
+
     init();
+
+    return () => { if (safetyTimer) clearTimeout(safetyTimer); };
   }, []);
 
   const checkTodayStatus = async () => {
     try {
       const today = new Date();
       const todayStr = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
-      
-      // 1. Check local cache IMMEDIATELY to prevent modal from showing on timeout
-      const localCheckin = await DatabaseManager.getCheckin(session?.user.id, todayStr);
-      if (localCheckin) {
-        setHasCheckedInToday(true);
-      }
 
-      const initPromise = (async () => {
-        if (!navigator.onLine) {
-          setHasCheckedInToday(true);
-          await loadRutinas();
-          return;
-        }
-
+      const networkSync = async () => {
         const { data, error } = await supabase
           .from('checkins')
           .select('id, nivel')
@@ -187,20 +245,18 @@ export default function MiRutina({ session }) {
           }
           setRacha(currentStreak);
         }
-        
-      })();
+      };
 
-      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000));
-      await Promise.race([initPromise, timeoutPromise]);
+      // Ejecutar sync de red con timeout de 5 segundos
+      await Promise.race([
+        networkSync(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('network_timeout')), 5000))
+      ]);
     } catch (error) {
       console.warn("Network timeout or error on startup, falling back to cache:", error);
-    } finally {
-      // SIEMPRE asegurar que se carguen las rutinas, incluso si falla el checkin
-      await loadRutinas().catch(e => console.error(e));
-      setLoading(false);
-      setIsCheckingStatus(false);
     }
   };
+
 
   const loadRutinas = async () => {
     try {
