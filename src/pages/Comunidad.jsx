@@ -197,7 +197,7 @@ export default function Comunidad({ session }) {
                     <AvatarConMarco src={sol.sender.avatar_url || '/assets/niveles/semilla.png'} size={40} marco={sol.sender.marco_activo || 'ninguno'} />
                     <div>
                       <h4 style={{ margin: 0, color: '#fff', fontSize: '0.95rem' }}>{sol.sender.full_name || sol.sender.username}</h4>
-                      <p style={{ margin: 0, color: '#888', fontSize: '0.8rem' }}>{sol.sender.nivel} {sol.sender.nivel_rpg ? `Lvl ${sol.sender.nivel_rpg}` : ''}</p>
+                      <p style={{ margin: 0, color: '#888', fontSize: '0.8rem' }}>{sol.sender.nivel} {sol.sender.nivel_rpg ? `• Golem Lvl ${sol.sender.nivel_rpg}` : ''}</p>
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: '5px' }}>
@@ -234,7 +234,7 @@ export default function Comunidad({ session }) {
                       <div>
                         <h4 style={{ margin: '0 0 3px 0', color: '#fff', fontSize: '1.05rem' }}>{amigo.full_name || amigo.username}</h4>
                         <span style={{ fontSize: '0.75rem', background: 'rgba(212, 175, 55, 0.2)', color: 'var(--accent-gold)', padding: '3px 8px', borderRadius: '12px', border: '1px solid rgba(212, 175, 55, 0.5)' }}>
-                          {amigo.nivel || 'Atleta'} {amigo.nivel_rpg ? `Lvl ${amigo.nivel_rpg}` : ''}
+                          {amigo.nivel || 'Atleta'} {amigo.nivel_rpg ? `• Golem Lvl ${amigo.nivel_rpg}` : ''}
                         </span>
                       </div>
                     </div>
