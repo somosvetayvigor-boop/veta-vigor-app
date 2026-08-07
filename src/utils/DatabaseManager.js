@@ -18,7 +18,9 @@ export const DatabaseManager = {
   // ================= PERFILES =================
   saveProfile: async (userId, profileData) => {
     try {
-      await withTimeout(store.setItem(`profile_${userId}`, profileData));
+      const existing = await withTimeout(store.getItem(`profile_${userId}`)) || {};
+      const merged = { ...existing, ...profileData };
+      await withTimeout(store.setItem(`profile_${userId}`, merged));
     } catch (e) {
       console.warn('DatabaseManager: Error saving profile (timeout or idb issue)', e);
     }
