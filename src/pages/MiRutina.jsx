@@ -619,6 +619,41 @@ export default function MiRutina({ session }) {
         console.warn('Error saving bienestar to Supabase, queuing offline:', error);
         const { addToOfflineQueue } = await import('../utils/OfflineManager');
         addToOfflineQueue('INSERT_BIENESTAR', { user_id: session?.user.id, fecha: todayStr, habitos: bienestarHabitos });
+      } else {
+        // === INYECCIÓN RPG ENGINE (Recompensas por Descanso) ===
+        try {
+          const { data: perfilInfo } = await supabase.from('perfiles').select('xp_actual, puntos_forja, nivel_rpg').eq('id', session?.user.id).maybeSingle();
+          if (perfilInfo) {
+            const { calculateBienestarRewards, calculateLevel } = await import('../utils/ProgressionEngine');
+            const { xp, puntosForja } = calculateBienestarRewards(bienestarHabitos.length);
+            
+            const newXp = (perfilInfo.xp_actual || 0) + xp;
+            const newForja = (perfilInfo.puntos_forja || 0) + puntosForja;
+            const newLevelRPG = calculateLevel(newXp);
+            
+            const rpgUpdates = {
+              xp_actual: newXp,
+              puntos_forja: newForja,
+              nivel_rpg: newLevelRPG
+            };
+            
+            await supabase.from('perfiles').update(rpgUpdates).eq('id', session?.user.id);
+            
+            // Guardar historial
+            await supabase.from('rpg_historial_recompensas').insert({
+              user_id: session?.user.id,
+              xp_ganada: xp,
+              monedas_ganadas: puntosForja,
+              fuente: 'descanso_activo',
+              descripcion: `Descanso Activo (${bienestarHabitos.length} hábitos)`
+            });
+            
+            // Alerta silenciosa y motivadora
+            setTimeout(() => alert(`¡Bien hecho! Tu descanso te ha otorgado +${xp} XP y +${puntosForja} Oro del Gremio.`), 500);
+          }
+        } catch (rpgError) {
+          console.warn("Error otorgando recompensas de descanso:", rpgError);
+        }
       }
       
       // Cerrar el modal y dejar entrar al usuario
