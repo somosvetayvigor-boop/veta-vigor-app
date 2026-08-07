@@ -73,7 +73,7 @@ export default function Comunidad({ session }) {
           id,
           created_at,
           sender_id,
-          sender:perfiles!alianzas_sender_id_fkey(full_name, username, avatar_url, nivel, racha_actual, marco_activo)
+          sender:perfiles!alianzas_sender_id_fkey(full_name, username, avatar_url, nivel, nivel_rpg, racha_actual, marco_activo)
         `)
         .eq('receiver_id', session?.user.id)
         .eq('status', 'pending');
@@ -87,8 +87,8 @@ export default function Comunidad({ session }) {
           id,
           sender_id,
           receiver_id,
-          sender:perfiles!alianzas_sender_id_fkey(id, full_name, username, avatar_url, nivel, racha_actual, marco_activo),
-          receiver:perfiles!alianzas_receiver_id_fkey(id, full_name, username, avatar_url, nivel, racha_actual, marco_activo)
+          sender:perfiles!alianzas_sender_id_fkey(id, full_name, username, avatar_url, nivel, nivel_rpg, racha_actual, marco_activo),
+          receiver:perfiles!alianzas_receiver_id_fkey(id, full_name, username, avatar_url, nivel, nivel_rpg, racha_actual, marco_activo)
         `)
         .eq('status', 'accepted')
         .or(`sender_id.eq.${session?.user.id},receiver_id.eq.${session?.user.id}`);
@@ -197,7 +197,7 @@ export default function Comunidad({ session }) {
                     <AvatarConMarco src={sol.sender.avatar_url || '/assets/niveles/semilla.png'} size={40} marco={sol.sender.marco_activo || 'ninguno'} />
                     <div>
                       <h4 style={{ margin: 0, color: '#fff', fontSize: '0.95rem' }}>{sol.sender.full_name || sol.sender.username}</h4>
-                      <p style={{ margin: 0, color: '#888', fontSize: '0.8rem' }}>Nivel {sol.sender.nivel}</p>
+                      <p style={{ margin: 0, color: '#888', fontSize: '0.8rem' }}>{sol.sender.nivel} {sol.sender.nivel_rpg ? `Lvl ${sol.sender.nivel_rpg}` : ''}</p>
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: '5px' }}>
@@ -233,7 +233,9 @@ export default function Comunidad({ session }) {
                       <AvatarConMarco src={amigo.avatar_url || '/assets/niveles/semilla.png'} size={50} marco={amigo.marco_activo || 'ninguno'} />
                       <div>
                         <h4 style={{ margin: '0 0 3px 0', color: '#fff', fontSize: '1.05rem' }}>{amigo.full_name || amigo.username}</h4>
-                        <span style={{ fontSize: '0.75rem', background: 'rgba(212, 175, 55, 0.2)', color: 'var(--accent-gold)', padding: '3px 8px', borderRadius: '12px', border: '1px solid rgba(212, 175, 55, 0.5)' }}>{amigo.nivel || 'Atleta'}</span>
+                        <span style={{ fontSize: '0.75rem', background: 'rgba(212, 175, 55, 0.2)', color: 'var(--accent-gold)', padding: '3px 8px', borderRadius: '12px', border: '1px solid rgba(212, 175, 55, 0.5)' }}>
+                          {amigo.nivel || 'Atleta'} {amigo.nivel_rpg ? `Lvl ${amigo.nivel_rpg}` : ''}
+                        </span>
                       </div>
                     </div>
                     
