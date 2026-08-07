@@ -53,6 +53,17 @@ export const calculateWorkoutRewards = () => {
   };
 };
 
+// Recompensas por Descanso Activo (Bienestar)
+// 15 XP Base (requiere 2 hábitos) + 5 XP extra si selecciona más de 2 (Máx 20 XP). Oro: 15.
+export const calculateBienestarRewards = (habitosCount) => {
+  if (habitosCount < 2) return { xp: 0, puntosForja: 0 };
+  const extraXp = habitosCount > 2 ? 5 : 0;
+  return { 
+    xp: 15 + extraXp, 
+    puntosForja: 15 
+  };
+};
+
 // ==========================================
 // EL GÓLEM (SISTEMA DE JEFES)
 // ==========================================
