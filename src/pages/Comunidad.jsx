@@ -73,7 +73,7 @@ export default function Comunidad({ session }) {
           id,
           created_at,
           sender_id,
-          sender:perfiles!alianzas_sender_id_fkey(full_name, username, avatar_url, nivel, marco_activo)
+          sender:perfiles!alianzas_sender_id_fkey(full_name, username, avatar_url, nivel, racha_actual, marco_activo)
         `)
         .eq('receiver_id', session?.user.id)
         .eq('status', 'pending');
@@ -87,8 +87,8 @@ export default function Comunidad({ session }) {
           id,
           sender_id,
           receiver_id,
-          sender:perfiles!alianzas_sender_id_fkey(id, full_name, username, avatar_url, nivel, marco_activo),
-          receiver:perfiles!alianzas_receiver_id_fkey(id, full_name, username, avatar_url, nivel, marco_activo)
+          sender:perfiles!alianzas_sender_id_fkey(id, full_name, username, avatar_url, nivel, racha_actual, marco_activo),
+          receiver:perfiles!alianzas_receiver_id_fkey(id, full_name, username, avatar_url, nivel, racha_actual, marco_activo)
         `)
         .eq('status', 'accepted')
         .or(`sender_id.eq.${session?.user.id},receiver_id.eq.${session?.user.id}`);

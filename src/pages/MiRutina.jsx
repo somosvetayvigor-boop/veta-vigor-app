@@ -244,6 +244,9 @@ export default function MiRutina({ session }) {
             }
           }
           setRacha(currentStreak);
+
+          // Guardar la racha actual en el perfil para que los aliados (Dúos) puedan verla
+          supabase.from('perfiles').update({ racha_actual: currentStreak }).eq('id', session?.user.id).then();
         }
       };
 
