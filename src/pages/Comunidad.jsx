@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
-import { MessageCircle, Send, ShieldAlert, Lock, ArrowRight, User, X, ImagePlus, Heart, Award, Trophy, Loader, Users, Check, Flame } from 'lucide-react';
+import { MessageCircle, Send, ShieldAlert, Lock, ArrowRight, User, X, ImagePlus, Heart, Award, Trophy, Loader, Users, Check, Flame, Share2 } from 'lucide-react';
+import { Share } from '@capacitor/share';
 import AvatarConMarco from '../components/AvatarConMarco';
 
 export default function Comunidad({ session }) {
@@ -185,6 +186,19 @@ export default function Comunidad({ session }) {
     }
   };
 
+  const handleShareApp = async () => {
+    try {
+      await Share.share({
+        title: 'Veta & Vigor',
+        text: '¡Invita a tu persona en el camino de la forja de Veta & Vigor! Únete a mí y descarga la app aquí:',
+        url: 'https://www.vetayvigor.com',
+        dialogTitle: 'Invitar a un Aliado',
+      });
+    } catch (e) {
+      console.log('Error sharing', e);
+    }
+  };
+
   const renderAlianzasContent = () => {
     return (
       <div style={{ flex: 1, overflowY: 'auto', padding: '20px', paddingBottom: '100px' }}>
@@ -196,7 +210,7 @@ export default function Comunidad({ session }) {
 
         {/* Buscador / Enviar Solicitud */}
         <div className="card" style={{ padding: '20px', marginBottom: '20px', borderLeft: '4px solid var(--accent-gold)' }}>
-          <h3 style={{ margin: '0 0 10px 0', fontSize: '1.1rem', color: '#fff' }}>Enviar la Invitación</h3>
+          <h3 style={{ margin: '0 0 10px 0', fontSize: '1.1rem', color: '#fff' }}>Enviar Invitación (Por Correo)</h3>
           <form onSubmit={handleInviteAmigo} style={{ display: 'flex', gap: '10px' }}>
             <input 
               type="email" 
@@ -208,6 +222,17 @@ export default function Comunidad({ session }) {
             />
             <button type="submit" className="btn-primary" style={{ padding: '10px 20px', borderRadius: '8px' }}>Invitar</button>
           </form>
+
+          <div style={{ marginTop: '20px', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '15px' }}>
+            <h3 style={{ margin: '0 0 10px 0', fontSize: '1.1rem', color: '#fff' }}>¿Tu amigo aún no está en la Forja?</h3>
+            <button 
+              onClick={handleShareApp} 
+              style={{ width: '100%', padding: '12px', borderRadius: '8px', background: '#25D366', color: '#fff', border: 'none', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', cursor: 'pointer', fontSize: '1rem' }}
+            >
+              <Share2 size={20} />
+              Invitar por WhatsApp / Redes
+            </button>
+          </div>
         </div>
 
         {/* Solicitudes Pendientes */}
