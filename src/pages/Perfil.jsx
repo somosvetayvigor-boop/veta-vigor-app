@@ -246,7 +246,13 @@ export default function Perfil({ session }) {
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut();
+    } catch (e) {
+      console.warn("Error en signOut:", e);
+    }
+    localStorage.clear();
+    window.location.href = '/';
   };
 
   const handleSaveMetrics = async () => {
