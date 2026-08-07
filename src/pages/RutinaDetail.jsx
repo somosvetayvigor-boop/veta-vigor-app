@@ -271,19 +271,36 @@ export default function RutinaDetail({ session }) {
   };
 
   const logSerie = (ejId, serieNum) => {
-    const input = formInputs[ejId]?.[serieNum];
-    const reps = input?.reps || '-';
-    const peso = input?.kg || '-';
-
     setSeriesLog(prev => {
       const current = [...(prev[ejId] || [])];
-      // Si ya existía, la reemplazamos, si no la agregamos
       const existingIdx = current.findIndex(s => s.serie === serieNum);
+      
+      // 1. Si ya existe (está palomeado), lo quitamos (Toggle OFF)
       if (existingIdx >= 0) {
-        current[existingIdx] = { serie: serieNum, reps, peso };
-      } else {
-        current.push({ serie: serieNum, reps, peso });
+        current.splice(existingIdx, 1);
+        return { ...prev, [ejId]: current };
       }
+      
+      // 2. Si no existe, lo agregamos (Toggle ON)
+      const input = formInputs[ejId]?.[serieNum];
+      
+      // Buscar datos pasados para auto-rellenar
+      const userMeta = session?.user?.user_metadata || {};
+      const historial = userMeta.historial_ejercicios?.[ejId] || [];
+      const pastData = historial.find(h => h.serie === serieNum);
+      
+      let reps = input?.reps;
+      let peso = input?.kg;
+      
+      // Si están vacíos, usamos el dato anterior
+      if (!reps && pastData?.reps) reps = pastData.reps;
+      if (!peso && pastData?.peso) peso = pastData.peso;
+      
+      // Si siguen vacíos, ponemos guión
+      if (!reps) reps = '-';
+      if (!peso) peso = '-';
+
+      current.push({ serie: serieNum, reps, peso });
       return { ...prev, [ejId]: current };
     });
   };
