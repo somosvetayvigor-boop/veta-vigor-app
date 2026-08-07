@@ -270,6 +270,10 @@ export default function MiRutina({ session }) {
 
         // Guardar la racha actualizada en perfiles para que los aliados (Dúos) puedan verla
         supabase.from('perfiles').update({ racha_actual: currentStreak }).eq('id', session?.user.id).then();
+      } else {
+        // Si no hay NINGUN checkin en los ultimos 30 dias, la racha es definitivamente 0
+        setRacha(0);
+        supabase.from('perfiles').update({ racha_actual: 0 }).eq('id', session?.user.id).then();
       }
     } catch (error) {
       console.warn("Background streak recalculation error (non-blocking):", error);
