@@ -964,8 +964,9 @@ export default function MiRutina({ session }) {
     let ultimaFechaStr = "Aún no hay registros";
     if (ultimoEntrenamiento) {
       const dateObj = new Date(ultimoEntrenamiento);
-      const opciones = { day: 'numeric', month: 'long', year: 'numeric' };
-      ultimaFechaStr = dateObj.toLocaleDateString('es-ES', opciones);
+      const opciones = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
+      const rawDate = dateObj.toLocaleDateString('es-ES', opciones);
+      ultimaFechaStr = rawDate.charAt(0).toUpperCase() + rawDate.slice(1);
     }
 
     const isAlumnoCoach = localStorage.getItem('user_role') === 'alumno_entrenador';
