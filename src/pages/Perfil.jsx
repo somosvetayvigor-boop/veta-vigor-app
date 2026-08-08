@@ -34,6 +34,8 @@ export default function Perfil({ session }) {
   const [adminPinModal, setAdminPinModal] = useState(false);
   const [adminPin, setAdminPin] = useState('');
   
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  
   const [metaState, setMetaState] = useState(globalPerfilMeta || session?.user?.user_metadata || {});
   const [checkinHoyState, setCheckinHoyState] = useState(globalPerfilCheckin || null);
   const [inventarioState, setInventarioState] = useState(globalPerfilInventario || []);
@@ -277,17 +279,14 @@ export default function Perfil({ session }) {
   };
 
   const handleSelfReset = async () => {
-    if (!window.confirm('🚨 ADVERTENCIA IRREVERSIBLE: ¿Estás completamente seguro? Perderás tu nivel asignado, tus récords actuales de fuerza, tus fotos de progreso y tu historial. Tendrás que volver a hacer el cuestionario inicial. Esta acción no se puede deshacer.')) return;
+    setShowResetConfirm(false);
     try {
       // 1. Borrar metadata local de auth para forzar el cuestionario
-      await supabase.auth.updateUser({ data: { cuestionario_complete: false, expediente_completado: false } });
+      await supabase.auth.updateUser({ data: { cuestionario_complete: false } });
       
-      // 2. Borrar datos en la base de datos para este usuario
+      // 2. Borrar datos de nivel en la base de datos (conservando el expediente físico)
       await supabase.from('perfiles').update({ 
         nivel: 'Semilla', 
-        peso_inicial: null, 
-        foto_antes: null, 
-        foto_despues: null, 
         fuerza_tren_superior: null, 
         fuerza_tren_inferior: null 
       }).eq('id', session?.user.id);
@@ -860,7 +859,7 @@ export default function Perfil({ session }) {
               </button>
   
               <button 
-                onClick={handleSelfReset} 
+                onClick={() => setShowResetConfirm(true)} 
                 style={{ 
                   background: 'rgba(229, 80, 57, 0.1)', 
                   border: '1px solid rgba(229, 80, 57, 0.3)', 
@@ -1168,6 +1167,72 @@ export default function Perfil({ session }) {
                 </button>
               </div>
             </form>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* CONFIRM RESET MODAL */}
+      {showResetConfirm && createPortal(
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 3000, padding: '20px'
+        }}>
+          <div style={{
+            backgroundColor: 'var(--bg-card)', padding: '25px', borderRadius: '20px',
+            border: '1px solid rgba(229, 80, 57, 0.4)', width: '100%', maxWidth: '400px',
+            textAlign: 'center', boxShadow: '0 10px 40px rgba(0,0,0,0.5)'
+          }}>
+            <div style={{
+              width: '60px', height: '60px', borderRadius: '50%', background: 'rgba(229, 80, 57, 0.1)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px auto'
+            }}>
+              <i className="fa-solid fa-triangle-exclamation" style={{ color: '#e55039', fontSize: '24px' }}></i>
+            </div>
+            
+            <h2 style={{ color: 'white', margin: '0 0 15px 0', fontSize: '1.2rem' }}>¿Recalcular tu Nivel?</h2>
+            
+            <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.9rem', lineHeight: '1.5', marginBottom: '25px' }}>
+              Perderás tu nivel asignado actual y tus récords base de fuerza para volver a evaluarte con el cuestionario inicial.<br/><br/>
+              <strong style={{ color: 'var(--accent-gold)' }}>Tus fotos y peso actual se mantendrán intactos.</strong>
+            </p>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <button 
+                onClick={async () => {
+                  try {
+                    await supabase.auth.updateUser({ data: { cuestionario_complete: false } });
+                    await supabase.from('perfiles').update({ 
+                      nivel: 'Semilla', 
+                      fuerza_tren_superior: null, 
+                      fuerza_tren_inferior: null 
+                    }).eq('id', session?.user.id);
+                    window.location.reload();
+                  } catch(e) {
+                    alert("Error al intentar reiniciar.");
+                  }
+                }}
+                style={{ 
+                  background: 'linear-gradient(135deg, #e55039 0%, #b33939 100%)', 
+                  color: 'white', border: 'none', padding: '15px', borderRadius: '12px', 
+                  fontWeight: 'bold', fontSize: '1rem', cursor: 'pointer'
+                }}
+              >
+                Sí, Recalcular Nivel
+              </button>
+              
+              <button 
+                onClick={() => setShowResetConfirm(false)}
+                style={{ 
+                  background: 'transparent', color: '#888', border: '1px solid #444', 
+                  padding: '15px', borderRadius: '12px', fontWeight: 'bold', 
+                  fontSize: '1rem', cursor: 'pointer'
+                }}
+              >
+                Cancelar
+              </button>
+            </div>
           </div>
         </div>,
         document.body
