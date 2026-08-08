@@ -3,12 +3,13 @@ import { supabase } from '../supabaseClient';
 import { Camera, Upload, ChevronRight, LogOut } from 'lucide-react';
 
 export default function ExpedienteModal({ session, onComplete, onSkip }) {
+  const meta = session?.user?.user_metadata || {};
   const [form, setForm] = useState({
-    peso: '',
-    porcentaje_grasa: '',
-    masa_muscular: ''
+    peso: meta.peso || meta.peso_inicial || '',
+    porcentaje_grasa: meta.porcentaje_grasa || '',
+    masa_muscular: meta.masa_muscular || ''
   });
-  const [fotoAntes, setFotoAntes] = useState(null);
+  const [fotoAntes, setFotoAntes] = useState(meta.foto_antes || null);
   const [isUploading, setIsUploading] = useState(false);
 
   const isFormValid = !!form.peso;
