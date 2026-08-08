@@ -33,12 +33,12 @@ export default function AdminAtletas({ session }) {
       // Traer celulares de la tabla segura
       const { data: privadosData } = await supabase.from('datos_privados').select('user_id, whatsapp');
       
-      // Traer checkins para saber la última fecha de entrenamiento
-      const { data: checkinsData } = await supabase.from('checkins').select('user_id, fecha').order('fecha', { ascending: false });
+      // Traer historial para saber la última fecha de entrenamiento REAL
+      const { data: historialData } = await supabase.from('historial_entrenamientos').select('user_id, created_at').order('created_at', { ascending: false });
       const lastCheckinsMap = {};
-      if (checkinsData) {
-        for (const c of checkinsData) {
-          if (!lastCheckinsMap[c.user_id]) lastCheckinsMap[c.user_id] = c.fecha;
+      if (historialData) {
+        for (const c of historialData) {
+          if (!lastCheckinsMap[c.user_id]) lastCheckinsMap[c.user_id] = c.created_at;
         }
       }
       
