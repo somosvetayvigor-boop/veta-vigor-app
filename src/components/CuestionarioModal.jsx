@@ -42,8 +42,9 @@ const QUESTIONS = [
 ];
 
 export default function CuestionarioModal({ session, onComplete }) {
-  const [step, setStep] = useState(-1); 
-  // -1: Origen, 0: Dias, 1-4: questions, 5: system select, 6: calculating, 7: result
+  const [step, setStep] = useState('s1'); 
+  const [isRestricted, setIsRestricted] = useState(false);
+  // 's1'-'s3': screening, -1: Origen, 0: Dias, 1-4: questions, 5: system select, 6: calculating, 7: result
   const [origen, setOrigen] = useState('');
   const [diasEntrenamiento, setDiasEntrenamiento] = useState('');
   const [points, setPoints] = useState(0);
@@ -51,6 +52,17 @@ export default function CuestionarioModal({ session, onComplete }) {
   const [selectedSistema, setSelectedSistema] = useState(null);
   const [loading, setLoading] = useState(false);
   const [nivelAsignado, setNivelAsignado] = useState('');
+  
+  const saveHardStop = async () => {
+    setLoading(true);
+    try {
+      await supabase.auth.updateUser({
+        data: { screening_resultado: 'REQUIERE_ORIENTACION', fecha_screening: new Date().toISOString() }
+      });
+    } catch(e) {}
+    setLoading(false);
+    onComplete();
+  };
   
   useEffect(() => {
     const fetchSistemas = async () => {
@@ -125,9 +137,12 @@ export default function CuestionarioModal({ session, onComplete }) {
   };
 
   const finalizeOnboarding = async () => {
-    // Ahora sí marcamos como completado para que App.jsx quite el modal
     await supabase.auth.updateUser({
-      data: { cuestionario_complete: true }
+      data: { 
+        cuestionario_complete: true,
+        screening_resultado: isRestricted ? 'CON_RESTRICCIONES' : 'APTO',
+        fecha_screening: new Date().toISOString()
+      }
     });
     onComplete();
     if (origen === 'Reto21') {
@@ -162,6 +177,62 @@ export default function CuestionarioModal({ session, onComplete }) {
   );
 
   const renderContent = () => {
+    // --- SCREENING MÉDICO ---
+    if (step === 's1') {
+      return (
+        <div className="fade-in">
+          <h3 className="gold-gradient-text" style={{ fontSize: '1.2rem', marginBottom: '15px', textAlign: 'center' }}>
+            Antes de comenzar
+          </h3>
+          <p style={{ fontSize: '1.1rem', marginBottom: '30px', textAlign: 'center', color: 'var(--text-muted)' }}>
+            Queremos ayudarte a entrenar con seguridad. Veta & Vigor no diagnostica, trata ni rehabilita lesiones y actualmente sus rutinas no se adaptan automáticamente a condiciones médicas o lesiones individuales.<br/><br/>
+            <strong style={{ color: 'white' }}>¿Actualmente tienes alguna lesión, dolor persistente, condición médica o indicación de un profesional de salud que limite o pueda verse afectada por el ejercicio físico?</strong>
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+            <OptionButton text="No" onClick={() => setStep('s3')} />
+            <OptionButton text="Sí" onClick={() => setStep('s2')} />
+            <OptionButton text="No estoy seguro/a" onClick={() => setStep('s2')} />
+          </div>
+        </div>
+      );
+    }
+
+    if (step === 's2') {
+      return (
+        <div className="fade-in">
+          <h3 className="gold-gradient-text" style={{ fontSize: '1.2rem', marginBottom: '15px', textAlign: 'center' }}>
+            Tu seguridad va primero
+          </h3>
+          <p style={{ fontSize: '1.1rem', marginBottom: '30px', textAlign: 'center', color: 'var(--text-muted)' }}>
+            Veta & Vigor ofrece entrenamiento general y no sustituye la valoración de un profesional de salud. Como nuestras rutinas actuales no se personalizan automáticamente para lesiones o condiciones médicas, es importante conocer tus límites antes de comenzar.<br/><br/>
+            <strong style={{ color: 'white' }}>¿Un profesional de salud te ha indicado que puedes realizar ejercicio y conoces las restricciones que debes respetar?</strong>
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+            <OptionButton text="Sí, puedo realizar ejercicio y conozco mis restricciones" onClick={() => { setIsRestricted(true); setStep('s3'); }} />
+            <OptionButton text="No / No estoy seguro" onClick={saveHardStop} />
+          </div>
+        </div>
+      );
+    }
+
+    if (step === 's3') {
+      return (
+        <div className="fade-in">
+          <h3 className="gold-gradient-text" style={{ fontSize: '1.2rem', marginBottom: '15px', textAlign: 'center' }}>
+            Filtro Final
+          </h3>
+          <p style={{ fontSize: '1.1rem', marginBottom: '30px', textAlign: 'center', color: 'var(--text-muted)' }}>
+            {isRestricted && <span style={{ color: 'var(--accent-gold)', display: 'block', marginBottom: '15px' }}><strong>Confirmo que he leído esta información, que conozco las indicaciones o restricciones aplicables a mi situación y que detendré el ejercicio si presento dolor o síntomas inusuales. Entiendo que Veta & Vigor no proporciona diagnóstico, tratamiento ni rehabilitación médica.</strong><br/><br/></span>}
+            <strong style={{ color: 'white' }}>¿Has presentado recientemente durante el esfuerzo algún síntoma preocupante —por ejemplo, dolor u opresión en el pecho, desmayo o mareo inexplicable, o falta de aire inusual— por el que aún no hayas sido valorado/a?</strong>
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+            <OptionButton text="No" onClick={() => setStep(-1)} />
+            <OptionButton text="Sí / No estoy seguro/a" onClick={saveHardStop} />
+          </div>
+        </div>
+      );
+    }
+
     // Origen
     if (step === -1) {
       return (

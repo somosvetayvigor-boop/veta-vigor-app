@@ -704,6 +704,35 @@ export default function MiRutina({ session }) {
     );
   };
 
+  const screeningStatus = session?.user?.user_metadata?.screening_resultado;
+  if (screeningStatus === 'REQUIERE_ORIENTACION') {
+    return (
+       <div className="container fade-in" style={{ paddingBottom: '90px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '80vh', textAlign: 'center' }}>
+         <i className="fa-solid fa-user-doctor" style={{ fontSize: '4rem', color: '#e55039', marginBottom: '20px' }}></i>
+         <h1 className="gold-gradient-text" style={{ fontSize: '1.8rem', marginBottom: '15px' }}>Autorización Médica Requerida</h1>
+         <p style={{ fontSize: '1.1rem', color: 'var(--text-muted)', marginBottom: '30px', maxWidth: '400px', lineHeight: '1.6' }}>
+           Por tu seguridad, hemos bloqueado temporalmente tus entrenamientos. Veta & Vigor está diseñado para el desarrollo físico de personas sanas. Antes de entrenar, por favor consulta a un profesional de salud que pueda valorar tu situación y orientarte sobre qué actividad física es apropiada para ti.
+         </p>
+         <button 
+           onClick={async () => {
+             try {
+               await supabase.auth.updateUser({ data: { cuestionario_complete: false, screening_resultado: null } });
+               window.location.reload();
+             } catch(e) {}
+           }}
+           style={{ 
+             background: 'linear-gradient(135deg, var(--accent-gold) 0%, #b8860b 100%)', 
+             color: 'black', border: 'none', padding: '15px 30px', borderRadius: '12px', 
+             fontWeight: 'bold', fontSize: '1.1rem', cursor: 'pointer',
+             boxShadow: '0 4px 15px rgba(212, 175, 55, 0.3)'
+           }}
+         >
+           Ya tengo autorización médica
+         </button>
+       </div>
+    );
+  }
+
   if (loading || isCheckingStatus) {
     return (
       <div style={{

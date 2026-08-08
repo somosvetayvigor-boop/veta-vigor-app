@@ -282,7 +282,7 @@ export default function Perfil({ session }) {
     setShowResetConfirm(false);
     try {
       // 1. Borrar metadata local de auth para forzar el cuestionario
-      await supabase.auth.updateUser({ data: { cuestionario_complete: false } });
+      await supabase.auth.updateUser({ data: { cuestionario_complete: false, screening_resultado: null } });
       
       // 2. Borrar datos de nivel en la base de datos (conservando el expediente físico)
       await supabase.from('perfiles').update({ 
@@ -1202,7 +1202,7 @@ export default function Perfil({ session }) {
               <button 
                 onClick={async () => {
                   try {
-                    await supabase.auth.updateUser({ data: { cuestionario_complete: false } });
+                    await supabase.auth.updateUser({ data: { cuestionario_complete: false, screening_resultado: null } });
                     await supabase.from('perfiles').update({ 
                       nivel: 'Semilla', 
                       fuerza_tren_superior: null, 
