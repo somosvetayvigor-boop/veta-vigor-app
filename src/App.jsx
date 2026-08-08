@@ -720,12 +720,8 @@ function App() {
           }
 
           // =================================================================
-          // PASO 3: ESPERAR EL TIEMPO MÍNIMO DEL SPLASH (4s) Y MOSTRAR UI
+          // PASO 3: MOSTRAR UI INMEDIATAMENTE (Sin esperas artificiales)
           // =================================================================
-          const elapsed = Date.now() - startTime;
-          if (elapsed < 4000) {
-            await new Promise(r => setTimeout(r, 4000 - elapsed));
-          }
           
           clearTimeout(safetyTimer);
           setLoading(false); // ← EL USUARIO YA ESTÁ DENTRO 🚀
@@ -789,10 +785,7 @@ function App() {
           }
         }
 
-        const elapsed = Date.now() - startTime;
-        if (elapsed < 4000) {
-          await new Promise(r => setTimeout(r, 4000 - elapsed));
-        }
+        // Mostrar UI sin esperas adicionales
       } catch (err) {
         console.warn("Critical error in checkSession, defaulting to safe state:", err);
       } finally {
