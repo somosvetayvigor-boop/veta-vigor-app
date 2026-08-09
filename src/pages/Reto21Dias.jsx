@@ -147,6 +147,31 @@ export default function Reto21Dias({ session }) {
         }).catch(() => {});
       } catch (e) {}
 
+      // Meta CAPI: Disparar CompleteRegistration (Resiliente, sin bloquear UI)
+      try {
+        const { data: { session: currentSession } } = await supabase.auth.getSession();
+        if (currentSession?.access_token) {
+          const capiFetch = fetch('/api/capi_registration', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${currentSession.access_token}`
+            },
+            body: JSON.stringify({
+              reto_id: reto.id,
+              event_source_url: window.location.href
+            }),
+            keepalive: true
+          });
+          
+          // Esperamos máximo 1.5 segundos para no bloquear la UI si Meta/Cloudflare están lentos
+          const timeoutPromise = new Promise(resolve => setTimeout(resolve, 1500));
+          await Promise.race([capiFetch, timeoutPromise]).catch(() => {});
+        }
+      } catch (e) {
+        // Fallo silencioso de Meta, el Atleta SIGUE INSCRITO
+      }
+
       await fetchData(); // Recargar datos
     } catch (err) {
       console.error("Error al unirse al reto:", err);
