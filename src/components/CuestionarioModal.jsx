@@ -57,7 +57,11 @@ export default function CuestionarioModal({ session, onComplete }) {
     setLoading(true);
     try {
       await supabase.auth.updateUser({
-        data: { screening_resultado: 'REQUIERE_ORIENTACION', fecha_screening: new Date().toISOString() }
+        data: { 
+          cuestionario_complete: true,
+          screening_resultado: 'REQUIERE_ORIENTACION', 
+          fecha_screening: new Date().toISOString() 
+        }
       });
     } catch(e) {}
     setLoading(false);
@@ -105,7 +109,6 @@ export default function CuestionarioModal({ session, onComplete }) {
       const level = calculateLevel(points);
       setNivelAsignado(level);
       setStep(7);
-      saveToDatabase(level, sistemaId, diasEntrenamiento);
     }, 2500);
   };
 
@@ -119,13 +122,16 @@ export default function CuestionarioModal({ session, onComplete }) {
         
       if (profileError) throw profileError;
 
-      // 2. Update Auth Metadata (Sin marcar como completado todavía para no cerrar el modal)
+      // 2. Update Auth Metadata
       const { error: authError } = await supabase.auth.updateUser({
         data: { 
           nivel: nivel,
           sistema_activo: sistema_id,
           dias_entrenamiento: dias,
-          origen: origen
+          origen: origen,
+          cuestionario_complete: true,
+          screening_resultado: isRestricted ? 'CON_RESTRICCIONES' : 'APTO',
+          fecha_screening: new Date().toISOString()
         }
       });
 
@@ -137,13 +143,9 @@ export default function CuestionarioModal({ session, onComplete }) {
   };
 
   const finalizeOnboarding = async () => {
-    await supabase.auth.updateUser({
-      data: { 
-        cuestionario_complete: true,
-        screening_resultado: isRestricted ? 'CON_RESTRICCIONES' : 'APTO',
-        fecha_screening: new Date().toISOString()
-      }
-    });
+    setLoading(true);
+    await saveToDatabase(nivelAsignado, selectedSistema, diasEntrenamiento);
+    setLoading(false);
     onComplete();
     if (origen === 'Reto21') {
       window.location.href = '/reto-21-dias';
@@ -371,6 +373,15 @@ export default function CuestionarioModal({ session, onComplete }) {
       backgroundColor: 'rgba(10, 10, 15, 0.98)', backdropFilter: 'blur(15px)',
       zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px'
     }}>
+      {loading && (
+        <div style={{
+          position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 10001,
+          display: 'flex', alignItems: 'center', justifyContent: 'center'
+        }}>
+          <Activity size={50} color="var(--accent-gold)" className="pulse-glow" />
+        </div>
+      )}
       <div style={{
         backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: '24px', padding: '35px',
         width: '100%', maxWidth: '500px', border: '1px solid rgba(212, 175, 55, 0.15)',

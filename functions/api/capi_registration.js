@@ -82,12 +82,18 @@ export async function onRequest(context) {
     const event_id = `${reto_id}:${user.id}`;
     const event_time = Math.floor(Date.now() / 1000);
 
+    // Clean up event_source_url for Capacitor Android (which sends http://localhost)
+    let finalSourceUrl = event_source_url || "https://vetayvigor.com/reto-21-dias";
+    if (finalSourceUrl.includes("localhost")) {
+      finalSourceUrl = "https://vetayvigor.com/reto-21-dias";
+    }
+
     const eventData = {
       event_name: "CompleteRegistration",
       event_time: event_time,
       action_source: "website",
       event_id: event_id,
-      event_source_url: event_source_url || "https://vetayvigor.app/reto-21-dias",
+      event_source_url: finalSourceUrl,
       user_data: {
         client_user_agent: clientUserAgent,
         em: [hashedEmail]
