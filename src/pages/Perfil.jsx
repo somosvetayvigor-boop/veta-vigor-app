@@ -247,13 +247,15 @@ export default function Perfil({ session }) {
     }
   };
 
-  const handleLogout = async () => {
-    try {
-      await supabase.auth.signOut();
-    } catch (e) {
-      console.warn("Error en signOut:", e);
-    }
+  const handleLogout = () => {
+    // Intentar cerrar sesión en el servidor (sin bloquear la UI si falla o hay mala red)
+    supabase.auth.signOut().catch(e => console.warn("Error en signOut:", e));
+    
+    // Forzar la limpieza local inmediatamente
     localStorage.clear();
+    sessionStorage.clear();
+    
+    // Redirigir al inicio para reiniciar la app
     window.location.href = '/';
   };
 

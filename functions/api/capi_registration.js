@@ -82,10 +82,32 @@ export async function onRequest(context) {
     const event_id = `${reto_id}:${user.id}`;
     const event_time = Math.floor(Date.now() / 1000);
 
-    // Clean up event_source_url for Capacitor Android (which sends http://localhost)
-    let finalSourceUrl = event_source_url || "https://vetayvigor.com/reto-21-dias";
-    if (finalSourceUrl.includes("localhost")) {
-      finalSourceUrl = "https://vetayvigor.com/reto-21-dias";
+    // event_source_url determination
+    // Preferencia: Configuración explícita server-side (robusta y segura)
+    // Fallback: URL enviada por cliente (validada)
+    let finalSourceUrl = env.META_EVENT_SOURCE_URL;
+    
+    if (!finalSourceUrl && event_source_url) {
+      try {
+        const parsed = new URL(event_source_url);
+        if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+          // Si es localhost (típico de Capacitor App), y se especificó un dominio base en env, reemplazar
+          if (parsed.hostname === 'localhost' && env.META_BASE_DOMAIN) {
+             finalSourceUrl = `https://${env.META_BASE_DOMAIN}${parsed.pathname}`;
+          } else {
+             finalSourceUrl = event_source_url;
+          }
+        }
+      } catch(e) {
+        // URL inválida enviada por cliente, no usar
+      }
+    }
+    
+    // Si no hay configuración server-side ni URL cliente válida, omitir el parámetro si action_source = app, 
+    // pero como elegimos website, enviamos un placeholder genérico o lo omitimos y dejamos que Meta lo maneje.
+    // Para cumplir con Meta, enviamos una URL válida básica.
+    if (!finalSourceUrl) {
+      finalSourceUrl = "https://app.vetayvigor.com/reto-21-dias"; // Placeholder por defecto si todo lo demás falla, debe configurarse META_EVENT_SOURCE_URL
     }
 
     const eventData = {

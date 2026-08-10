@@ -268,7 +268,12 @@ export default function OnboardingModal({ session, onComplete }) {
           
           <button 
             type="button"
-            onClick={() => supabase.auth.signOut()}
+            onClick={() => {
+              supabase.auth.signOut().catch(console.warn);
+              localStorage.clear();
+              sessionStorage.clear();
+              window.location.href = '/';
+            }}
             style={{ 
               background: 'transparent', 
               color: 'var(--text-muted)', 
