@@ -353,9 +353,9 @@ export default function Reto21Dias({ session }) {
     if (session?.user?.email === 'somos.vetayvigor@gmail.com') return false; // Modo Dios Desbloqueo Infinito
     if (!perfil.reto_ultimo_completado) return false; // Nunca ha completado uno
     
-    // Comparar fecha basada en el servidor UTC para evitar trampas de zona horaria
-    const lastDate = new Date(perfil.reto_ultimo_completado).toISOString().split('T')[0];
-    const todayDate = new Date().toISOString().split('T')[0];
+    // Comparar fecha basada en la zona horaria local del usuario para evitar desfases con UTC
+    const lastDate = new Date(perfil.reto_ultimo_completado).toLocaleDateString();
+    const todayDate = new Date().toLocaleDateString();
     return lastDate === todayDate;
   };
   
