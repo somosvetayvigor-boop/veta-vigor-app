@@ -94,11 +94,39 @@ export default function Reto21Dias({ session }) {
       let activeRetoId = perfilData?.reto_activo_id || searchParams.get('retoId');
       
       if (!activeRetoId && perfilData) {
-        // Find default Reto if not passed in query
-        const { data: firstReto } = await supabase.from('retos').select('id').limit(1).single();
-        if (firstReto) {
-          activeRetoId = firstReto.id;
-          searchParams.set('retoId', firstReto.id);
+        // Find correct Reto based on user's active system and level
+        let querySistema = "Vigor"; // default
+        let queryNivel = "Semilla"; // default
+        
+        if (perfilData.nivel === 'Pino' || perfilData.nivel === 'Tzalam' || perfilData.nivel === 'Roble') {
+          queryNivel = "Pino,Tzalam"; 
+        }
+        
+        const userSysId = session?.user?.user_metadata?.sistema_activo;
+        if (userSysId) {
+          const { data: sysData } = await supabase.from('sistemas_entrenamiento').select('nombre').eq('id', userSysId).single();
+          if (sysData) {
+            const n = sysData.nombre.toLowerCase();
+            if (n.includes('hierro')) querySistema = 'Hierro';
+            else if (n.includes('híbrido') || n.includes('hibrido')) querySistema = 'Híbrido';
+          }
+        }
+        
+        const nivelReq = `${queryNivel}|${querySistema}`;
+        let matchedReto = null;
+        
+        const { data: exactMatch } = await supabase.from('retos').select('id').eq('nivel_requerido', nivelReq).maybeSingle();
+        if (exactMatch) {
+          matchedReto = exactMatch;
+        } else {
+          // Fallback if not found
+          const { data: firstMatch } = await supabase.from('retos').select('id').limit(1).maybeSingle();
+          matchedReto = firstMatch;
+        }
+
+        if (matchedReto) {
+          activeRetoId = matchedReto.id;
+          searchParams.set('retoId', matchedReto.id);
         } else {
           navigate('/');
           return;
