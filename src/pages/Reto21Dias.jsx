@@ -102,9 +102,9 @@ export default function Reto21Dias({ session }) {
           queryNivel = "Pino,Tzalam"; 
         }
         
-        const userSysId = session?.user?.user_metadata?.sistema_activo;
+        const userSysId = perfilData.sistema_activo || session?.user?.user_metadata?.sistema_activo;
         if (userSysId) {
-          const { data: sysData } = await supabase.from('sistemas_entrenamiento').select('nombre').eq('id', userSysId).single();
+          const { data: sysData } = await supabase.from('sistemas_entrenamiento').select('nombre').eq('id', userSysId).maybeSingle();
           if (sysData) {
             const n = sysData.nombre.toLowerCase();
             if (n.includes('hierro')) querySistema = 'Hierro';
