@@ -593,7 +593,7 @@ export default function RutinaRetoPlayer({ diaInfo, perfil, onClose, onComplete 
               <input 
                 type="file" 
                 accept="image/*" 
-                capture="user" 
+                capture="environment" 
                 ref={fileInputRef} 
                 style={{ display: 'none' }} 
                 onChange={handleFileChange} 
