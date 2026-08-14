@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
-import { Play, CheckCircle, X, Trophy, PlayCircle, Music, Zap, Timer, RotateCcw, ChevronRight, Droplet, Moon, Apple, Camera, Upload, Share2 } from 'lucide-react';
+import { Play, CheckCircle, X, Trophy, PlayCircle, Music, Zap, Timer, RotateCcw, ChevronRight, Droplet, Moon, Apple, Camera as CameraIcon, Upload, Share2 } from 'lucide-react';
+import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import confetti from 'canvas-confetti';
 import html2canvas from 'html2canvas';
 
@@ -160,6 +161,34 @@ export default function RutinaRetoPlayer({ diaInfo, perfil, onClose, onComplete 
     if (file) {
       setFotoFile(file);
       setFotoPreview(URL.createObjectURL(file));
+    }
+  };
+
+  const handleTakePhoto = async () => {
+    try {
+      const photo = await Camera.getPhoto({
+        quality: 80,
+        allowEditing: false,
+        resultType: CameraResultType.DataUrl,
+        source: CameraSource.Camera,
+        width: 1080,
+        height: 1080
+      });
+
+      if (photo.dataUrl) {
+        // Convert dataUrl to File for upload
+        const response = await fetch(photo.dataUrl);
+        const blob = await response.blob();
+        const file = new File([blob], `reto_foto_${Date.now()}.jpg`, { type: 'image/jpeg' });
+        setFotoFile(file);
+        setFotoPreview(photo.dataUrl);
+      }
+    } catch (err) {
+      // User cancelled or camera not available, fall back to file input
+      if (err.message !== 'User cancelled photos app') {
+        console.warn('Camera no disponible, usando selector de archivos:', err);
+        fileInputRef.current?.click();
+      }
     }
   };
 
@@ -583,13 +612,13 @@ export default function RutinaRetoPlayer({ diaInfo, perfil, onClose, onComplete 
                 </div>
               ) : (
                 <button 
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={handleTakePhoto}
                   style={{ backgroundColor: 'rgba(212,175,55,0.2)', border: 'none', color: 'var(--accent-gold)', padding: '15px 30px', borderRadius: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '10px', margin: '0 auto' }}
                 >
-                  <Camera size={20} /> ABRIR CÁMARA
+                  <CameraIcon size={20} /> ABRIR CÁMARA
                 </button>
               )}
-              {/* Force capture via camera if possible on mobile */}
+              {/* Fallback file input for when Camera plugin fails */}
               <input 
                 type="file" 
                 accept="image/*" 

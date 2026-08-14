@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../supabaseClient';
+import DatabaseService from '../services/DatabaseService';
 import { Dumbbell, Scale, FlaskConical, Lock, Gift } from 'lucide-react';
 
 export default function Dashboard({ session }) {
@@ -21,21 +21,18 @@ export default function Dashboard({ session }) {
   useEffect(() => {
     async function fetchData() {
       // 0. Fetch Real Subscription from perfiles table (to sync with admin panel)
-      const { data: perfilData } = await supabase
-        .from('perfiles')
-        .select('plan_membresia, reto_activo_id, reto_dia_actual, reto_completado, nivel, sistema_activo, retos_completados_count')
-        .eq('id', session?.user.id)
-        .single();
+      const perfilesRows = await DatabaseService.query(`
+        SELECT plan_membresia, reto_activo_id, reto_dia_actual, reto_completado, nivel, sistema_activo, retos_completados_count 
+        FROM perfiles WHERE id = ?
+      `, [session?.user.id]);
+      const perfilData = perfilesRows.length > 0 ? perfilesRows[0] : null;
         
       // 1. Fetch Sistemas
-      const { data, error } = await supabase
-        .from('sistemas_entrenamiento')
-        .select('*')
-        .order('nombre');
+      const data = await DatabaseService.query(`SELECT * FROM sistemas_entrenamiento`);
       
       let sisList = [];
-      if (error) {
-        console.error("Error cargando sistemas:", error);
+      if (!data || data.length === 0) {
+        console.error("Error cargando sistemas");
       } else {
         const orderList = ["Vigor Corporal", "Carga de Hierro", "Método Híbrido", "Rutas de Maestría"];
         const sortedData = data.sort((a, b) => {
@@ -68,15 +65,10 @@ export default function Dashboard({ session }) {
           
           const matchString = `${searchNivel}|${searchSistema}`;
 
-          const { data: retosFound } = await supabase
-            .from('retos')
-            .select('*')
-            .eq('nivel_requerido', matchString)
-            .limit(1)
-            .maybeSingle();
+          const retosFound = await DatabaseService.query(`SELECT * FROM retos WHERE nivel_requerido = ? LIMIT 1`, [matchString]);
             
-          if (retosFound) {
-            setRecommendedReto(retosFound);
+          if (retosFound && retosFound.length > 0) {
+            setRecommendedReto(retosFound[0]);
           }
         }
       }
@@ -90,19 +82,14 @@ export default function Dashboard({ session }) {
       
       // 2. Fetch Free Routine ID si es usuario gratis
       if (freeStatus) {
-        const { data: routineData } = await supabase
-          .from('rutinas')
-          .select('id')
-          .ilike('nombre', '%Cuerpo Completo%')
-          .limit(1)
-          .maybeSingle();
+        const routineDataRows = await DatabaseService.query(`SELECT id FROM rutinas WHERE nombre LIKE '%Cuerpo Completo%' LIMIT 1`);
         
-        if (routineData) {
-          setFreeRoutineId(routineData.id);
+        if (routineDataRows && routineDataRows.length > 0) {
+          setFreeRoutineId(routineDataRows[0].id);
         } else {
           // Fallback a cualquier rutina si no hay una de Cuerpo Completo
-          const { data: anyRoutine } = await supabase.from('rutinas').select('id').limit(1).maybeSingle();
-          if (anyRoutine) setFreeRoutineId(anyRoutine.id);
+          const anyRoutine = await DatabaseService.query(`SELECT id FROM rutinas LIMIT 1`);
+          if (anyRoutine && anyRoutine.length > 0) setFreeRoutineId(anyRoutine[0].id);
         }
       }
       

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
+import DatabaseService from '../services/DatabaseService';
 import { ChevronLeft, Lock } from 'lucide-react';
 
 export default function SistemaDetail({ session }) {
@@ -17,11 +18,8 @@ export default function SistemaDetail({ session }) {
   useEffect(() => {
     async function fetchData() {
       // 0. Fetch Real Subscription
-      const { data: perfilData } = await supabase
-        .from('perfiles')
-        .select('plan_membresia')
-        .eq('id', session?.user.id)
-        .single();
+      const perfilesRows = await DatabaseService.query(`SELECT plan_membresia FROM perfiles WHERE id = ?`, [session?.user.id]);
+      const perfilData = perfilesRows.length > 0 ? perfilesRows[0] : null;
         
       const suscripcionReal = perfilData?.plan_membresia || session?.user?.user_metadata?.suscripcion || session?.user?.user_metadata?.plan_membresia;
       const isAdmin = session?.user?.email === 'somos.vetayvigor@gmail.com';
@@ -31,27 +29,17 @@ export default function SistemaDetail({ session }) {
       setIsFreeUser(freeStatus);
 
       // Get Sistema
-      const { data: sysData, error: sysError } = await supabase
-        .from('sistemas_entrenamiento')
-        .select('*')
-        .eq('id', id)
-        .single();
-      
-      if (!sysError) setSistema(sysData);
+      const sysDataRows = await DatabaseService.query(`SELECT * FROM sistemas_entrenamiento WHERE id = ?`, [id]);
+      if (sysDataRows && sysDataRows.length > 0) setSistema(sysDataRows[0]);
 
       // Get Rutinas for this sistema
-      const { data: rutData, error: rutError } = await supabase
-        .from('rutinas')
-        .select('*')
-        .eq('sistema_id', id)
-        .order('nombre'); // TODO: add better sorting by level/day if needed
-      
-      if (!rutError) setRutinas(rutData);
+      const rutDataRows = await DatabaseService.query(`SELECT * FROM rutinas WHERE sistema_id = ? ORDER BY nombre`, [id]);
+      if (rutDataRows) setRutinas(rutDataRows);
 
       setLoading(false);
     }
     fetchData();
-  }, [id]);
+  }, [id, session]);
 
   const activateSystem = async () => {
     setActivating(true);
@@ -66,6 +54,8 @@ export default function SistemaDetail({ session }) {
         data: { sistema_activo: id }
       });
       if (authError) throw authError;
+
+      await DatabaseService.execute(`UPDATE perfiles SET sistema_activo = ?, is_dirty = 1 WHERE id = ?`, [id, session?.user.id]);
 
       navigate('/mirutina');
     } catch (err) {
