@@ -106,10 +106,7 @@ export default function PaywallCoach({ forced = false, onDismiss = null }) {
 
   const handleNotNow = async () => {
     if (session?.user?.id) {
-      await supabase.from('perfiles').update({
-        force_paywall: false,
-        last_paywall_shown_date: new Date().toISOString()
-      }).eq('id', session.user.id);
+      await supabase.rpc('descartar_paywall');
     }
     if (onDismiss) {
       onDismiss();

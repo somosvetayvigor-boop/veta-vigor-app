@@ -999,6 +999,39 @@ $$;
 GRANT EXECUTE ON FUNCTION public.vencer_prueba_gratis() TO authenticated;
 
 
+-- 7.8-quater — Activar el panel de entrenador gratuito (Perfil.jsx:235)
+--
+-- 'Entrenador Básico' es el escalón gratuito (2 atletas), no está en
+-- trainerPaidPlans de App.jsx:660, así que el usuario puede dárselo solo.
+--
+-- Lo que SÍ arregla esta versión: el código anterior sobrescribía
+-- plan_membresia sin mirar qué había antes, de modo que un atleta con Socio
+-- Aurum o Platinum que pulsara el botón perdía su plan de pago. Aquí el plan
+-- solo se toca si era gratuito.
+CREATE OR REPLACE FUNCTION public.convertirse_en_entrenador_gratis()
+RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$
+DECLARE
+    v_plan text;
+BEGIN
+    SELECT plan_membresia INTO v_plan FROM public.perfiles WHERE id = auth.uid();
+
+    UPDATE public.perfiles
+       SET rol_usuario    = 'entrenador',
+           plan_membresia = CASE
+               WHEN v_plan IS NULL OR v_plan IN ('Atleta Base (Gratis)', '')
+                   THEN 'Entrenador Básico'
+               ELSE v_plan   -- conserva el plan de pago que ya tuviera
+           END
+     WHERE id = auth.uid();
+
+    RETURN jsonb_build_object('ok', true);
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.convertirse_en_entrenador_gratis() TO authenticated;
+
+
 -- 7.9 — Acciones de admin restantes
 CREATE OR REPLACE FUNCTION public.admin_set_rol(p_user_id uuid, p_rol text)
 RETURNS void

@@ -275,13 +275,18 @@ export default function PanelEntrenador({ session }) {
       .eq('id', relacionId);
 
     if (!error) {
-      if (estadoFinal === 'inactivo') {
-         // Al dar de baja, se quita el rol de alumno_entrenador
-         // (Aunque el propio alumno se autogestionará en su App.jsx, es buena práctica hacerlo)
-         // La RPC comprueba que ese alumno sea realmente tuyo antes de tocarlo.
-         await supabase.rpc('entrenador_dar_baja_alumno', { p_alumno_id: alumnoId });
-      }
-      // Si es 'pendiente', NO cambiamos el rol. El rol cambiará cuando el alumno acepte.
+      // Al dar de baja NO se toca el rol del alumno, a propósito.
+      //
+      // Cambiarlo aquí a 'atleta_normal' impedía que funcionara el regalo de los
+      // 7 días: App.jsx solo concede la Prueba Gratis cuando encuentra a alguien
+      // que sigue siendo 'alumno_entrenador' y ya no tiene relación viva. Si el
+      // entrenador le quitaba el rol primero, esa comprobación nunca se cumplía
+      // y el alumno se quedaba sin nada.
+      //
+      // Dejándolo como está, el alumno abre su app, detecta que la relación pasó
+      // a 'inactivo' y llama él mismo a alumno_perdio_entrenador(), que le pone
+      // el rol y el plan — y de paso registra trial_start_date, cosa que el
+      // entrenador no puede hacer porque vive en los metadatos de auth del alumno.
       fetchAlumnos();
     }
   };

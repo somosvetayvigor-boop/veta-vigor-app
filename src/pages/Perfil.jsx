@@ -208,10 +208,9 @@ export default function Perfil({ session }) {
         
         const now = new Date().toISOString();
         
-        await supabase.from('perfiles').update({ 
-          rol_usuario: 'atleta_normal',
-          plan_membresia: 'Prueba Gratis (7 Días)'
-        }).eq('id', session.user.id);
+        // El servidor reconfirma que ya no queda ninguna relación viva antes de
+        // devolver el rol y conceder los 7 días.
+        await supabase.rpc('alumno_perdio_entrenador');
         
         await supabase.auth.updateUser({
           data: { 
@@ -232,10 +231,10 @@ export default function Perfil({ session }) {
   const handleConvertirAEntrenadorGratis = async () => {
     if (window.confirm("¿Deseas activar tu panel de Entrenador? Comenzarás en el plan gratuito con límite de 2 atletas.")) {
       try {
-        await supabase.from('perfiles').update({ 
-          rol_usuario: 'entrenador', 
-          plan_membresia: 'Entrenador Básico' 
-        }).eq('id', session?.user.id);
+        // La RPC conserva el plan si ya era de pago. Antes esto sobrescribía
+        // plan_membresia sin mirar: un atleta con Socio Aurum o Platinum que
+        // pulsara este botón perdía su plan.
+        await supabase.rpc('convertirse_en_entrenador_gratis');
         
         localStorage.setItem('user_role', 'entrenador');
         alert("¡Felicidades! Ya tienes acceso a tu panel de Entrenador.");
