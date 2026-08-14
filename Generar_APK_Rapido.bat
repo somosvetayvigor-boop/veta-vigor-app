@@ -11,7 +11,9 @@ echo Paso 3: Sincronizando el motor nativo de Android...
 call npx cap sync android
 echo Paso 4: Construyendo el archivo APK instalable...
 cd android
-set JAVA_HOME=C:\Users\grd_a\.bubblewrap\jdk\microsoft\jdk-17.0.19+10
+REM Capacitor 8 compila con JavaVersion.VERSION_21. El JDK 17 sigue instalado
+REM en .bubblewrap por si hiciera falta volver a Capacitor 6.
+set JAVA_HOME=C:\Program Files\Microsoft\jdk-21.0.12.8-hotspot
 set ANDROID_HOME=C:\Users\grd_a\.bubblewrap\android_sdk
 set /p KEYSTORE_PASSWORD="Por favor, escribe la contrasena de tu app (la que pusiste la primera vez) y presiona Enter: "
 call gradlew.bat assembleRelease
