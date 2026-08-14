@@ -9,9 +9,34 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
       workbox: {
+        // El patrón por defecto no incluye .wasm, así que sql-wasm.wasm (638 KB)
+        // se rebajaba de la red en CADA arranque en frío, incluso con la PWA
+        // instalada. Aquí se añade explícitamente.
+        //
+        // Las imágenes quedan FUERA a propósito: hay ~12 MB de PNG en assets, y
+        // precargarlas obligaría a descargar todo eso al instalar la app. Se
+        // cachean bajo demanda con la regla de runtimeCaching de más abajo.
+        globPatterns: ['**/*.{js,css,html,ico,svg,wasm}'],
         cleanupOutdatedCaches: true,
         importScripts: ['https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.sw.js'],
         runtimeCaching: [
+          {
+            // Imágenes propias (assets/niveles, /descanso, /suscripciones...).
+            // Se guardan la primera vez que se usan, en vez de descargarse todas
+            // al instalar. Same-origin, por eso el patrón mira el pathname.
+            urlPattern: ({ request, sameOrigin }) => sameOrigin && request.destination === 'image',
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'local-images-cache',
+              expiration: {
+                maxEntries: 150,
+                maxAgeSeconds: 60 * 60 * 24 * 60, // 60 días
+              },
+              cacheableResponse: {
+                statuses: [0, 200],
+              },
+            },
+          },
           {
             urlPattern: /^https:\/\/.*\.supabase\.co\/storage\/v1\/object\/public\/.*$/,
             handler: 'CacheFirst',

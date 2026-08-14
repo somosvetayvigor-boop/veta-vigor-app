@@ -672,14 +672,20 @@ function App() {
 
       try {
         // ===================================================================
-        // PASO 0: INICIALIZAR BASE DE DATOS SQLITE LOCAL
+        // PASO 0: ARRANCAR SQLITE **SIN BLOQUEAR**
+        //
+        // Antes esto era un await, y era la causa principal del arranque lento.
+        // En web, inicializar SQLite descarga el loader de jeep-sqlite (292 KB) y
+        // sql-wasm.wasm (638 KB), y encima compila el WASM — casi un mega y un
+        // motor arrancando antes de pintar un solo píxel.
+        //
+        // Ya no se espera: DatabaseService encola internamente cualquier consulta
+        // hasta que la base esté lista (ver _ready), así que ninguna pantalla se
+        // rompe por consultar antes de tiempo.
         // ===================================================================
-        try {
-          await DatabaseService.setupDatabase();
-          console.log("✅ SQLite inicializado correctamente.");
-        } catch (dbInitErr) {
-          console.error("❌ Falló inicialización de SQLite:", dbInitErr);
-        }
+        DatabaseService.setupDatabase()
+          .then(ok => console.log(ok ? "✅ SQLite listo (en segundo plano)." : "⚠️ SQLite no disponible."))
+          .catch(dbInitErr => console.error("❌ Falló inicialización de SQLite:", dbInitErr));
 
         // ===================================================================
         // PASO 1: LEER LA SESIÓN DEL CACHÉ LOCAL (localStorage) - SIN INTERNET
@@ -722,43 +728,15 @@ function App() {
           setSession(session);
 
           // =================================================================
-          // PASO 2: LEER EL PERFIL/ROL DESDE SQLite → RAM (SIN INTERNET)
+          // PASO 2: ROL DESDE localStorage — SÍNCRONO, COSTE CERO
+          //
+          // El rol ya quedó cacheado aquí en el arranque anterior (lo escribe el
+          // paso 2-bis). Leerlo de localStorage es instantáneo y evita tener que
+          // esperar a SQLite solo para saber qué menú pintar.
           // =================================================================
-          let localProfile = null;
-          try {
-            const perfilRows = await DatabaseService.query(`SELECT rol_usuario, sistema_activo FROM perfiles WHERE id = ?`, [session.user.id]);
-            if (perfilRows && perfilRows.length > 0) {
-              localProfile = perfilRows[0];
-              if (localProfile.rol_usuario) {
-                localStorage.setItem('user_role', localProfile.rol_usuario);
-                setUserRoleState(localProfile.rol_usuario);
-              }
-              console.log("✅ Perfil cargado desde SQLite (sin internet).");
-            }
-          } catch (dbErr) {
-            console.warn("SQLite read failed (non-fatal):", dbErr);
-          }
-
-          // Si es un usuario nuevo en este dispositivo, localProfile será null.
-          // Debemos forzar la sincronización ANTES de mostrar la UI.
-          if (!localProfile) {
-            console.log("⚠️ No hay perfil local, forzando sync inicial...");
-            try {
-              // Esperar a que el SDK oficial de Supabase esté 100% inicializado 
-              // y tenga el JWT antes de hacer los SELECT masivos (para evitar bloqueos por RLS)
-              const { data: officialSession } = await supabase.auth.getSession();
-              if (officialSession?.session) {
-                 console.log("✅ Sesión oficial de Supabase confirmada para el sync.");
-              }
-              
-              // NO HACER AWAIT. Dejar que corra en segundo plano para no bloquear el inicio.
-              Promise.race([
-                SyncService.syncAll(session.user.id),
-                new Promise((_, reject) => setTimeout(() => reject(new Error('sync_timeout')), 60000))
-              ]).catch(err => console.warn("Fallo sync inicial forzado:", err));
-            } catch (err) {
-              console.warn("Error lanzando sync inicial forzado:", err);
-            }
+          const rolCacheado = localStorage.getItem('user_role');
+          if (rolCacheado) {
+            setUserRoleState(rolCacheado);
           }
 
           // =================================================================
@@ -767,6 +745,44 @@ function App() {
           
           clearTimeout(safetyTimer);
           setLoading(false); // ← EL USUARIO YA ESTÁ DENTRO 🚀
+
+          // =================================================================
+          // PASO 2-BIS: HIDRATAR DESDE SQLite, YA CON LA UI PINTADA
+          //
+          // Esto era el paso 2 y estaba antes del render. Ahora corre detrás:
+          // espera sin prisa a que SQLite termine de arrancar, corrige el rol si
+          // el cacheado estaba desactualizado, y detecta si es un dispositivo
+          // nuevo para forzar el primer sync.
+          // =================================================================
+          (async () => {
+            try {
+              const perfilRows = await DatabaseService.query(
+                `SELECT rol_usuario, sistema_activo FROM perfiles WHERE id = ?`,
+                [session.user.id]
+              );
+              const localProfile = perfilRows?.[0] || null;
+
+              if (localProfile?.rol_usuario) {
+                localStorage.setItem('user_role', localProfile.rol_usuario);
+                if (localProfile.rol_usuario !== rolCacheado) {
+                  setUserRoleState(localProfile.rol_usuario);
+                }
+                console.log("✅ Perfil hidratado desde SQLite.");
+                return;
+              }
+
+              // Sin perfil local: dispositivo nuevo. Se fuerza el primer sync,
+              // que ya corría en segundo plano antes de este cambio.
+              console.log("⚠️ No hay perfil local, forzando sync inicial...");
+              await supabase.auth.getSession(); // asegura el JWT antes de los SELECT masivos
+              Promise.race([
+                SyncService.syncAll(session.user.id),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('sync_timeout')), 60000))
+              ]).catch(err => console.warn("Fallo sync inicial forzado:", err));
+            } catch (dbErr) {
+              console.warn("Hidratación desde SQLite falló (no es fatal):", dbErr);
+            }
+          })();
 
           // =================================================================
           // PASO 4: SINCRONIZACIÓN SILENCIOSA CON SUPABASE (POR DETRÁS)

@@ -9,6 +9,29 @@ class DatabaseService {
     this.isWeb = Capacitor.getPlatform() === 'web';
     // Cola de serialización: ver _enqueue
     this._chain = Promise.resolve();
+    // Promesa de inicialización: ver _ready
+    this._initPromise = null;
+    this.isReady = false;
+  }
+
+  /**
+   * Espera a que setupDatabase() haya terminado.
+   *
+   * Existe para que App.jsx pueda lanzar la inicialización SIN await y pintar la
+   * interfaz de inmediato. En web, arrancar SQLite cuesta ~930 KB (el loader de
+   * jeep-sqlite más sql-wasm.wasm) y compilar el WASM; tenerlo en el camino
+   * crítico retrasaba el primer render esos segundos enteros.
+   *
+   * Toda operación pasa por aquí, así que una pantalla que consulte antes de que
+   * la base esté lista simplemente espera, en vez de reventar contra this.db null.
+   */
+  async _ready() {
+    if (this.isReady) return true;
+    if (!this._initPromise) {
+      // Nadie llamó a setupDatabase todavía: lo arrancamos nosotros.
+      return this.setupDatabase();
+    }
+    return this._initPromise;
   }
 
   /**
@@ -56,6 +79,14 @@ class DatabaseService {
   }
 
   async setupDatabase() {
+    // Idempotente: si ya se está inicializando, devolvemos la misma promesa en
+    // vez de arrancar una segunda conexión.
+    if (this._initPromise) return this._initPromise;
+    this._initPromise = this._setupDatabaseInterno();
+    return this._initPromise;
+  }
+
+  async _setupDatabaseInterno() {
     try {
       if (this.isWeb) {
         await this.initWebStore();
@@ -83,9 +114,13 @@ class DatabaseService {
         await this.sqliteConnection.saveToStore("veta_vigor_db");
       }
 
+      this.isReady = true;
       return true;
     } catch (e) {
       console.error("Error seteando la base de datos", e);
+      // Se limpia la promesa para que un intento posterior pueda reintentar en
+      // vez de quedarse cacheado el fallo para siempre.
+      this._initPromise = null;
       return false;
     }
   }
@@ -331,6 +366,8 @@ class DatabaseService {
   }
 
   async query(sql, values = []) {
+    await this._ready();
+    if (!this.db) return [];
     return this._enqueue(async () => {
       try {
         const safeValues = this.sanitizeValues(values);
@@ -344,6 +381,8 @@ class DatabaseService {
   }
 
   async execute(sql, values = []) {
+    await this._ready();
+    if (!this.db) return null;
     return this._enqueue(async () => {
       try {
         const safeValues = this.sanitizeValues(values);
@@ -366,6 +405,8 @@ class DatabaseService {
    */
   async executeBatch(sql, rows = []) {
     if (!Array.isArray(rows) || rows.length === 0) return 0;
+    await this._ready();
+    if (!this.db) return null;
     return this._enqueue(async () => {
       try {
         const set = [{
