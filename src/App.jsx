@@ -1017,17 +1017,17 @@ function App() {
         
         supabase.from('perfiles').update({ ultimo_ingreso: new Date().toISOString() }).eq('id', session?.user.id).then();
 
-        // OneSignal Web Prompt (solo para PWA en navegador, no en app nativa)
+        // OneSignal Web Prompt (solo para PWA en navegador, no en app nativa).
+        // Se engancha a la promesa que expone index.html, que resuelve cuando
+        // init() ya terminó. Encolar en OneSignalDeferred no sirve: esa cola no
+        // espera a que el init asíncrono complete.
         if (!Capacitor.isNativePlatform() && session?.user?.id) {
-          window.OneSignalDeferred = window.OneSignalDeferred || [];
-          window.OneSignalDeferred.push(async function(OneSignal) {
-            try {
+          window.oneSignalListo
+            ?.then(async (OneSignal) => {
               await OneSignal.login(session.user.id);
               await OneSignal.Slidedown.promptPush();
-            } catch (e) {
-              console.warn('OneSignal web:', e);
-            }
-          });
+            })
+            .catch(e => console.warn('OneSignal web:', e?.message || e));
         }
 
         const metadata = session?.user.user_metadata || {};
@@ -1071,17 +1071,17 @@ function App() {
         // Track ultimo ingreso
         supabase.from('perfiles').update({ ultimo_ingreso: new Date().toISOString() }).eq('id', session?.user.id).then();
 
-        // OneSignal Web Prompt (solo para PWA en navegador, no en app nativa)
+        // OneSignal Web Prompt (solo para PWA en navegador, no en app nativa).
+        // Se engancha a la promesa que expone index.html, que resuelve cuando
+        // init() ya terminó. Encolar en OneSignalDeferred no sirve: esa cola no
+        // espera a que el init asíncrono complete.
         if (!Capacitor.isNativePlatform() && session?.user?.id) {
-          window.OneSignalDeferred = window.OneSignalDeferred || [];
-          window.OneSignalDeferred.push(async function(OneSignal) {
-            try {
+          window.oneSignalListo
+            ?.then(async (OneSignal) => {
               await OneSignal.login(session.user.id);
               await OneSignal.Slidedown.promptPush();
-            } catch (e) {
-              console.warn('OneSignal web:', e);
-            }
-          });
+            })
+            .catch(e => console.warn('OneSignal web:', e?.message || e));
         }
 
         const metadata = session?.user.user_metadata || {};
