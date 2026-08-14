@@ -938,6 +938,9 @@ CREATE OR REPLACE FUNCTION public.alumno_perdio_entrenador()
 RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
 AS $$
+DECLARE
+    v_plan  text;
+    v_regalo boolean;
 BEGIN
     IF EXISTS (
         SELECT 1 FROM public.relacion_entrenador_alumno
@@ -946,13 +949,26 @@ BEGIN
         RETURN jsonb_build_object('ok', false, 'motivo', 'aun_tiene_entrenador');
     END IF;
 
+    SELECT plan_membresia INTO v_plan FROM public.perfiles WHERE id = auth.uid();
+
+    -- Los 7 días son un consuelo para quien se queda sin nada. Quien ya paga
+    -- conserva su plan: sustituirlo por 'Prueba Gratis (7 Días)' sería
+    -- DEGRADAR a un cliente de pago, y a los 7 días acabaría en el paywall
+    -- teniendo suscripción activa.
+    v_regalo := v_plan IS NULL OR v_plan IN ('Atleta Base (Gratis)', '');
+
     UPDATE public.perfiles
        SET rol_usuario    = 'atleta_normal',
-           plan_membresia = 'Prueba Gratis (7 Días)'
+           plan_membresia = CASE WHEN v_regalo
+                                 THEN 'Prueba Gratis (7 Días)'
+                                 ELSE v_plan
+                            END
      WHERE id = auth.uid()
        AND rol_usuario = 'alumno_entrenador';
 
-    RETURN jsonb_build_object('ok', true);
+    -- 'regalo' le dice al cliente si debe registrar trial_start_date y anunciar
+    -- los 7 días, o limitarse a avisar de la desvinculación.
+    RETURN jsonb_build_object('ok', true, 'regalo', v_regalo, 'plan', v_plan);
 END;
 $$;
 GRANT EXECUTE ON FUNCTION public.alumno_perdio_entrenador() TO authenticated;

@@ -208,19 +208,24 @@ export default function Perfil({ session }) {
         
         const now = new Date().toISOString();
         
-        // El servidor reconfirma que ya no queda ninguna relación viva antes de
-        // devolver el rol y conceder los 7 días.
-        await supabase.rpc('alumno_perdio_entrenador');
-        
-        await supabase.auth.updateUser({
-          data: { 
-            trial_start_date: now,
-            trial_accepted: false
-          }
-        });
-        
+        // Los 7 días solo van para quien estaba en el plan gratuito. Un Socio
+        // Aurum o Platinum conserva su plan, y el servidor devuelve regalo=false
+        // para que no le anunciemos una prueba que no necesita.
+        const { data: baja } = await supabase.rpc('alumno_perdio_entrenador');
+
+        if (baja?.regalo) {
+          await supabase.auth.updateUser({
+            data: {
+              trial_start_date: now,
+              trial_accepted: false
+            }
+          });
+        }
+
         localStorage.setItem('user_role', 'atleta_normal');
-        alert("Te has desvinculado de tu entrenador exitosamente. ¡Tienes 7 días gratis de Platinum para probar nuestros sistemas!");
+        alert(baja?.regalo
+          ? "Te has desvinculado de tu entrenador exitosamente. ¡Tienes 7 días gratis de Platinum para probar nuestros sistemas!"
+          : "Te has desvinculado de tu entrenador exitosamente. Tu membresía sigue activa con normalidad.");
         window.location.href = "/";
       } catch (err) {
         alert("Error al desvincular: " + err.message);

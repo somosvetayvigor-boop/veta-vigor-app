@@ -604,14 +604,17 @@ function App() {
             const now = new Date().toISOString();
 
             // El servidor reconfirma que no queda ninguna relación viva antes de
-            // devolver el rol y conceder la Prueba Gratis.
-            await supabase.rpc('alumno_perdio_entrenador');
+            // devolver el rol. Solo regala los 7 días si el alumno estaba en el
+            // plan gratuito: quien ya pagaba conserva el suyo, y devuelve
+            // regalo=false para que no le arranquemos un contador de prueba.
+            const { data: baja } = await supabase.rpc('alumno_perdio_entrenador');
 
-            await supabase.auth.updateUser({
-              data: { trial_start_date: now }
-            });
-
-            setShowDroppedStudentModal(true);
+            if (baja?.regalo) {
+              await supabase.auth.updateUser({
+                data: { trial_start_date: now }
+              });
+              setShowDroppedStudentModal(true);
+            }
           }
         }
         
