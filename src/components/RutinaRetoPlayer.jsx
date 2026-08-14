@@ -2,6 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import { Play, CheckCircle, X, Trophy, PlayCircle, Music, Zap, Timer, RotateCcw, ChevronRight, Droplet, Moon, Apple, Camera as CameraIcon, Upload, Share2 } from 'lucide-react';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
+import { Capacitor } from '@capacitor/core';
+import { Share } from '@capacitor/share';
+import { Filesystem, Directory } from '@capacitor/filesystem';
 import confetti from 'canvas-confetti';
 import html2canvas from 'html2canvas';
 
@@ -328,39 +331,61 @@ export default function RutinaRetoPlayer({ diaInfo, perfil, onClose, onComplete 
     const handleShare = async () => {
       if (!shareCardRef.current) return;
       setIsSharing(true);
-      
+
+      const titulo = 'Veta & Vigor - Reto 21 Días';
+      const texto = `¡Acabo de completar el Día ${diaInfo.dia_numero} de 21 en mi Reto Veta & Vigor!\n\n"${getMensajeVigor(diaInfo?.dia_numero)}"`;
+
       try {
         await new Promise(resolve => setTimeout(resolve, 100)); // Small delay for UI updates if needed
-        
-        const canvas = await html2canvas(shareCardRef.current, { 
-          backgroundColor: '#0a0a0f', 
+
+        const canvas = await html2canvas(shareCardRef.current, {
+          backgroundColor: '#0a0a0f',
           scale: 2,
           useCORS: true
         });
-        
-        canvas.toBlob(async (blob) => {
-          if (!blob) {
-            setIsSharing(false);
-            return;
-          }
-          const file = new File([blob], 'veta_vigor_reto.jpg', { type: 'image/jpeg' });
-          const shareData = {
-            title: 'Veta & Vigor - Reto 21 Días',
-            files: [file],
-            text: `¡Acabo de completar el Día ${diaInfo.dia_numero} de 21 en mi Reto Veta & Vigor!\n\n"${getMensajeVigor(diaInfo?.dia_numero)}"`
-          };
-          
-          if (navigator.canShare && navigator.canShare({ files: [file] })) {
-             await navigator.share(shareData);
+
+        if (Capacitor.isNativePlatform()) {
+          // El WebView de Android NO implementa navigator.share: esa API existe en
+          // Chrome como navegador, pero no dentro de una app Capacitor. Antes se
+          // caía al else y salía el aviso de "no disponible en este dispositivo",
+          // así que este botón nunca funcionó en la app de Play Store.
+          //
+          // El plugin nativo sí comparte, pero necesita una RUTA de archivo, no un
+          // Blob. De ahí que haya que escribir la imagen en la caché primero.
+          const base64 = canvas.toDataURL('image/jpeg', 0.9).split(',')[1];
+          const escrito = await Filesystem.writeFile({
+            path: `veta_vigor_reto_${Date.now()}.jpg`,
+            data: base64,
+            directory: Directory.Cache
+          });
+
+          await Share.share({
+            title: titulo,
+            text: texto,
+            files: [escrito.uri],
+            dialogTitle: 'Compartir tu logro'
+          });
+        } else {
+          // En web (PWA sobre Chrome) navigator.share sí existe y admite archivos.
+          const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.9));
+          const file = blob ? new File([blob], 'veta_vigor_reto.jpg', { type: 'image/jpeg' }) : null;
+
+          if (file && navigator.canShare?.({ files: [file] })) {
+            await navigator.share({ title: titulo, text: texto, files: [file] });
           } else if (navigator.share) {
-             await navigator.share({ title: shareData.title, text: shareData.text });
+            await navigator.share({ title: titulo, text: texto });
           } else {
-             alert('La función de compartir no está disponible en este dispositivo. Puedes tomar una captura de pantalla.');
+            await navigator.clipboard.writeText(texto);
+            alert('Texto copiado al portapapeles. Puedes tomar una captura de pantalla para compartir tu logro.');
           }
-          setIsSharing(false);
-        }, 'image/jpeg', 0.9);
+        }
       } catch (err) {
-        console.log('Error sharing:', err);
+        // Cancelar el menú de compartir lanza AbortError. Es una decisión del
+        // usuario, no un fallo: no hay que avisarle de nada.
+        if (err?.name !== 'AbortError' && !/cancel/i.test(err?.message || '')) {
+          console.log('Error sharing:', err);
+        }
+      } finally {
         setIsSharing(false);
       }
     };

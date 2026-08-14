@@ -4,6 +4,9 @@ import { supabase } from '../supabaseClient';
 import DatabaseService from '../services/DatabaseService';
 import { ChevronLeft, Lock, Unlock, CheckCircle, Flame, Clock, Trophy } from 'lucide-react';
 import RutinaRetoPlayer from '../components/RutinaRetoPlayer';
+import { Capacitor } from '@capacitor/core';
+import { Share } from '@capacitor/share';
+import { Filesystem, Directory } from '@capacitor/filesystem';
 import html2canvas from 'html2canvas';
 
 const START_DATE = new Date('2026-08-10T00:00:00');
@@ -406,21 +409,38 @@ export default function Reto21Dias({ session }) {
             try {
               if (shareRef.current) {
                 const canvas = await html2canvas(shareRef.current, { backgroundColor: '#0f0f13', scale: 2 });
-                const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
-                const file = new File([blob], 'veta-vigor-reto.png', { type: 'image/png' });
-                
-                if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                  await navigator.share({ ...shareData, files: [file] });
-                } else if (navigator.share) {
-                  await navigator.share(shareData);
+
+                if (Capacitor.isNativePlatform()) {
+                  // navigator.share no existe en el WebView de Android; hay que
+                  // escribir la imagen a disco y pasarle la ruta al plugin nativo.
+                  const base64 = canvas.toDataURL('image/jpeg', 0.9).split(',')[1];
+                  const escrito = await Filesystem.writeFile({
+                    path: `veta_vigor_reto21_${Date.now()}.jpg`,
+                    data: base64,
+                    directory: Directory.Cache
+                  });
+                  await Share.share({ ...shareData, files: [escrito.uri], dialogTitle: 'Compartir el Reto' });
                 } else {
-                  await navigator.clipboard.writeText(shareData.url);
-                  alert("¡Enlace copiado al portapapeles!");
+                  const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+                  const file = blob ? new File([blob], 'veta-vigor-reto.png', { type: 'image/png' }) : null;
+
+                  if (file && navigator.canShare?.({ files: [file] })) {
+                    await navigator.share({ ...shareData, files: [file] });
+                  } else if (navigator.share) {
+                    await navigator.share(shareData);
+                  } else {
+                    await navigator.clipboard.writeText(shareData.url);
+                    alert("¡Enlace copiado al portapapeles!");
+                  }
                 }
               }
             } catch (err) {
-              console.error('Error al compartir', err);
-              if (navigator.share) navigator.share(shareData).catch(()=>null);
+              // Antes, cancelar el menú lanzaba AbortError y este catch volvía a
+              // abrirlo, esta vez sin la imagen. Cancelar es una decisión del
+              // usuario: no se reintenta ni se avisa.
+              if (err?.name !== 'AbortError' && !/cancel/i.test(err?.message || '')) {
+                console.error('Error al compartir', err);
+              }
             } finally {
               setIsSharing(false);
             }
