@@ -17,12 +17,19 @@
 -- tanto ignoran estos GRANT. Ese es el único camino que queda para tocar las
 -- columnas protegidas, que es justamente lo que buscamos.
 --
--- ⚠️ ORDEN DE APLICACIÓN — no lo saltes:
---    1. Publica primero los cambios de React que acompañan a este archivo
---       (quitar plan_membresia y force_platinum_trial del push de
---       SyncService.js:211). Si revocas antes de publicar, las apps ya
---       instaladas fallarán en cada sync y reintentarán en bucle.
---    2. Cuando la v77 esté en manos de los usuarios, corre este script.
+-- ORDEN DE APLICACIÓN
+-- Se puede correr entero AHORA, sin esperar a publicar la v77. El bloque 1 usa
+-- un trigger que descarta en silencio las escrituras prohibidas en vez de
+-- rechazarlas, así que las apps v76 ya instaladas siguen sincronizando con
+-- normalidad. Ver la explicación completa en el bloque 1.A.
+--
+-- ÚNICA CONSECUENCIA DE NO ESPERAR: si un usuario en v76 completa una compra
+-- durante la ventana, Paywall.jsx:190 (versión vieja) intentará escribir
+-- plan_membresia y el trigger lo descartará. Ese usuario SÍ conserva el acceso
+-- —porque auth.updateUser guarda el plan en user_metadata y App.jsx:37 lo lee
+-- de ahí— pero la columna de la base no se actualiza y en tu panel figurará
+-- como gratuito. Se corrige con un clic desde AdminAtletas (admin_set_plan).
+-- Contrasta RevenueCat con compras_log durante esos días.
 --
 -- =====================================================================
 
@@ -142,10 +149,97 @@ DROP POLICY IF EXISTS "Todos pueden leer relación"
 -- usuario puede escribir CUALQUIER columna de su propia fila.
 -- La vulnerabilidad del paywall está confirmada, no es hipotética.
 
+-- ---------------------------------------------------------------------
+-- 1.A — MÉTODO ELEGIDO: trigger silencioso (compatible con la v76)
+-- ---------------------------------------------------------------------
+--
+-- La app se distribuye por PWA y por Play Store. La PWA se actualiza sola en
+-- una hora (registerType: 'autoUpdate'), pero la de Play Store lleva el código
+-- web empaquetado dentro del .aab (capacitor.config.json → webDir: "dist"), y
+-- ahí el usuario actualiza cuando quiere. Esa cola es indefinida.
+--
+-- Con REVOKE, cada usuario en v76 vería fallar su sync entero y reintentar en
+-- bucle, porque SyncService.js:211 empuja plan_membresia en cada push.
+--
+-- El trigger, en cambio, DESCARTA EN SILENCIO los cambios a columnas protegidas
+-- en vez de rechazar la operación. La v76 sigue sincronizando su progreso con
+-- normalidad; simplemente su intento de escribir el plan no surte efecto — que
+-- es justo lo que queremos.
+--
+-- ⚠️ IMPORTANTE: la función NO puede ser SECURITY DEFINER. Necesita ser
+-- SECURITY INVOKER (el modo por defecto) para que current_user refleje quién
+-- llama de verdad. Dentro de una RPC SECURITY DEFINER, current_user es el dueño
+-- de la función (postgres), y ese es exactamente el salvoconducto que usamos.
+
+CREATE OR REPLACE FUNCTION public.proteger_columnas_perfiles()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    -- Las RPCs del bloque 3 en adelante corren como postgres: pasan de largo.
+    -- Solo se filtra lo que llega directamente del cliente.
+    IF current_user NOT IN ('authenticated', 'anon') THEN
+        RETURN NEW;
+    END IF;
+
+    -- Monetización y autoridad
+    NEW.plan_membresia         := OLD.plan_membresia;
+    NEW.rol_usuario            := OLD.rol_usuario;
+    NEW.force_paywall          := OLD.force_paywall;
+    NEW.force_platinum_trial   := OLD.force_platinum_trial;
+    NEW.platinum_trial_ends_at := OLD.platinum_trial_ends_at;
+
+    -- Dinero real de tus entrenadores
+    NEW.ganancias              := OLD.ganancias;
+    NEW.comision_personalizada := OLD.comision_personalizada;
+    NEW.codigo_referido        := OLD.codigo_referido;
+    NEW.referidos_count        := OLD.referidos_count;
+
+    -- Moderación
+    NEW.chat_bloqueado         := OLD.chat_bloqueado;
+
+    -- Economía RPG: ya eran autoritativas del servidor vía completar_mision_rpg,
+    -- pero sin esto el cliente podía escribir el saldo directamente y saltarse
+    -- el RPC por el costado.
+    NEW.xp_actual              := OLD.xp_actual;
+    NEW.puntos_forja           := OLD.puntos_forja;
+    NEW.racha_actual           := OLD.racha_actual;
+
+    -- Inmutables
+    NEW.id                     := OLD.id;
+    NEW.email                  := OLD.email;
+    NEW.created_at             := OLD.created_at;
+
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_proteger_columnas_perfiles ON public.perfiles;
+CREATE TRIGGER trg_proteger_columnas_perfiles
+    BEFORE UPDATE ON public.perfiles
+    FOR EACH ROW
+    EXECUTE FUNCTION public.proteger_columnas_perfiles();
+
+-- Columnas que siguen abiertas al cliente y por qué: son las que SyncService
+-- empuja y las que el usuario edita de verdad (username, fotos, progreso del
+-- reto, calendario, stats y puntos de la fase 2, marco_activo cosmético).
+
+
+-- ---------------------------------------------------------------------
+-- 1.B — ALTERNATIVA MÁS ESTRICTA: privilegios por columna
+-- ---------------------------------------------------------------------
+--
+-- ⛔ NO EJECUTAR TODAVÍA. Esto rompe el sync de cualquier app anterior a la
+-- v77. Tiene sentido más adelante, cuando Play Store Console muestre que
+-- prácticamente nadie sigue en versiones viejas.
+--
+-- Es más estricto que el trigger porque Postgres rechaza la escritura en vez de
+-- ignorarla, así que ni siquiera llega a evaluarse. Cuando llegue el momento,
+-- descomenta este bloque; el trigger puede convivir con él sin problema.
+--
+/*
 REVOKE UPDATE ON public.perfiles FROM authenticated, anon;
 
--- Solo estas columnas quedan en manos del usuario. Todo lo que no aparece
--- aquí pasa a ser exclusivo del servidor.
 GRANT UPDATE (
     -- Identidad y presentación
     username,
@@ -191,18 +285,22 @@ GRANT UPDATE (
     -- contra rpg_inventario, y eso va con la fase 2.
     marco_activo
 ) ON public.perfiles TO authenticated;
+*/
 
--- Columnas que quedan cerradas a partir de aquí:
+-- Resumen de lo que protege el trigger de 1.A:
 --   MONETIZACIÓN  plan_membresia, force_paywall, force_platinum_trial,
 --                 platinum_trial_ends_at, rol_usuario
 --   DINERO REAL   ganancias, comision_personalizada, codigo_referido,
 --                 referidos_count
 --   MODERACIÓN    chat_bloqueado
---   ECONOMÍA RPG  xp_actual, puntos_forja, racha_actual, marco_activo
+--   ECONOMÍA RPG  xp_actual, puntos_forja, racha_actual
 --                 (ya eran autoritativas del servidor vía completar_mision_rpg;
---                  sin este REVOKE el RPC era decorativo — el cliente podía
---                  escribir el saldo directamente y saltárselo)
+--                  sin esta protección el RPC era decorativo — el cliente podía
+--                  escribir el saldo directamente y saltárselo por el costado)
 --   INMUTABLES    id, created_at, email
+--
+-- marco_activo NO está protegido: es cosmético y LaPrueba.jsx:162 lo premia
+-- directamente. Aparece en la lista de 1.B para cuando se cierre en la fase 2.
 
 
 -- =====================================================================
