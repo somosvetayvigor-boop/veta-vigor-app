@@ -107,7 +107,9 @@ export default function OnboardingModal({ session, onComplete }) {
     setLoading(true);
     try {
       // Set role in perfiles table
-      await supabase.from('perfiles').update({ rol_usuario: role }).eq('id', session?.user.id);
+      // La RPC solo acepta 'atleta_normal' o 'entrenador', y nunca pisa un rol
+      // de alumno_entrenador, que se gana por invitación.
+      await supabase.rpc('elegir_rol_inicial', { p_rol: role });
       
       // Update local storage
       localStorage.setItem('user_role', role);

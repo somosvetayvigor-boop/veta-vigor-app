@@ -98,11 +98,13 @@ export default function AdminAtletas({ session }) {
 
   const cambiarPlanAtleta = async (atletaId, nuevoPlan) => {
     try {
-      const { error } = await supabase
-        .from('perfiles')
-        .update({ plan_membresia: nuevoPlan })
-        .eq('id', atletaId);
-      
+      // La comprobación de admin vive ahora en la base de datos: el check de
+      // email de AdminPanel.jsx solo esconde la interfaz, no protege la API.
+      const { error } = await supabase.rpc('admin_set_plan', {
+        p_user_id: atletaId,
+        p_plan: nuevoPlan
+      });
+
       if (error) throw error;
       
       alert('¡Membresía actualizada con éxito!');
@@ -122,11 +124,11 @@ export default function AdminAtletas({ session }) {
     if (!window.confirm(mensaje)) return;
 
     try {
-      const { error } = await supabase
-        .from('perfiles')
-        .update({ chat_bloqueado: nuevoEstado })
-        .eq('id', atletaId);
-      
+      const { error } = await supabase.rpc('admin_set_chat_bloqueado', {
+        p_user_id: atletaId,
+        p_bloqueado: nuevoEstado
+      });
+
       if (error) throw error;
       
       alert(nuevoEstado ? 'Usuario bloqueado (Cárcel Digital).' : 'Usuario perdonado.');
@@ -158,11 +160,11 @@ export default function AdminAtletas({ session }) {
 
   const lanzarPaywall = async (atletaId) => {
     try {
-      const { error } = await supabase
-        .from('perfiles')
-        .update({ force_paywall: true })
-        .eq('id', atletaId);
-      
+      const { error } = await supabase.rpc('admin_enviar_paywall', {
+        p_user_id: atletaId,
+        p_activar: true
+      });
+
       if (error) throw error;
       
       alert('¡Paywall programado! El usuario lo verá la próxima vez que entre.');
@@ -175,11 +177,10 @@ export default function AdminAtletas({ session }) {
 
   const lanzarPruebaPlatinum = async (atletaId) => {
     try {
-      const { error } = await supabase
-        .from('perfiles')
-        .update({ force_platinum_trial: true })
-        .eq('id', atletaId);
-      
+      const { error } = await supabase.rpc('admin_enviar_trial_platinum', {
+        p_user_id: atletaId
+      });
+
       if (error) throw error;
       
       alert('¡Prueba Platinum regalada! El usuario verá la oferta la próxima vez que entre.');

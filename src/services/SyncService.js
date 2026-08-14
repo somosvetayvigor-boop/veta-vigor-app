@@ -208,8 +208,12 @@ class SyncService {
           reto_ultimo_completado: p.reto_ultimo_completado,
           reto_completado: p.reto_completado === 1,
           reto_fecha_inicio: p.reto_fecha_inicio,
-          plan_membresia: p.plan_membresia,
-          force_platinum_trial: p.force_platinum_trial === 1,
+          // plan_membresia y force_platinum_trial NO se envían, por la misma razón
+          // que xp_actual y puntos_forja (ver comentario abajo): son autoritativos
+          // del servidor. Desde el blindaje de perfiles el rol `authenticated` ya
+          // no tiene privilegio de UPDATE sobre esas columnas, así que incluirlas
+          // haría fallar el push entero y dejaría is_dirty encendido para siempre.
+          // Se escriben vía activar_plan_por_compra / otorgar_trial_por_reto.
           puntos_totales: p.puntos_totales,
           // xp_actual, puntos_forja y racha_actual NO se envían acá a propósito.
           // Son autoritativos del servidor: los escribe completar_mision_rpg dentro

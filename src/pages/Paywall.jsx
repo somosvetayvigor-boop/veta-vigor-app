@@ -187,9 +187,22 @@ export default function Paywall({ forced = false, onDismiss = null }) {
         else if (productId === 'argentum_mensual:base-mensual') newPlanName = 'Socio Argentum';
 
         if (newPlanName && session?.user?.id) {
-           await supabase.from('perfiles').update({ plan_membresia: newPlanName }).eq('id', session?.user.id);
-           await supabase.auth.updateUser({ data: { suscripcion: newPlanName } });
-           alert(`¡Pago exitoso! Bienvenido a Veta & Vigor ${newPlanName}`);
+           // El nombre del plan lo decide el servidor a partir del product_id:
+           // el cliente ya no puede nombrar su propio plan. newPlanName se
+           // conserva solo como comprobación local antes de llamar.
+           const { data, error: rpcError } = await supabase.rpc('activar_plan_por_compra', {
+             p_product_id: productId
+           });
+
+           if (rpcError || !data?.ok) {
+             console.error('activar_plan_por_compra', rpcError || data);
+             alert("Tu pago se procesó, pero no pudimos activar el plan. Escríbenos y lo resolvemos.");
+             setLoading(false);
+             return;
+           }
+
+           await supabase.auth.updateUser({ data: { suscripcion: data.plan } });
+           alert(`¡Pago exitoso! Bienvenido a Veta & Vigor ${data.plan}`);
            window.location.reload();
         } else {
            navigate(-1);
@@ -217,10 +230,10 @@ export default function Paywall({ forced = false, onDismiss = null }) {
 
   const handleNotNow = async () => {
     if (session?.user?.id) {
-      await supabase.from('perfiles').update({
-        force_paywall: false,
-        last_paywall_shown_date: new Date().toISOString()
-      }).eq('id', session.user.id);
+      // Antes esto era un UPDATE directo, así que cualquiera podía apagar su
+      // propio force_paywall sin llegar a ver el paywall — y con ello cancelar
+      // el botón del panel de admin. La RPC solo sabe apagar, nunca encender.
+      await supabase.rpc('descartar_paywall');
     }
     if (onDismiss) {
       onDismiss();

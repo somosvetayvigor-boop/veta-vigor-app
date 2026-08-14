@@ -313,12 +313,16 @@ export default function Reto21Dias({ session }) {
     setPlayerDia(null);
     if (isFinished) {
       if (!perfil.plan_membresia || perfil.plan_membresia === 'Atleta Base (Gratis)') {
-        // Validar que hayan hecho al menos 18 días
-        const habitosRows = await DatabaseService.query(`SELECT count(*) as total FROM habitos_diarios WHERE user_id = ? AND dia_reto IS NOT NULL`, [perfil.id]);
-        const count = habitosRows.length > 0 ? habitosRows[0].total : 0;
-
-        if (count >= 18) {
-          await DatabaseService.execute(`UPDATE perfiles SET force_platinum_trial = 1, is_dirty = 1 WHERE id = ?`, [perfil.id]);
+        // El recuento de los 18 días lo rehace el servidor sobre habitos_diarios.
+        // Antes se escribía la bandera en el SQLite local y subía por sync, así
+        // que era el teléfono quien se declaraba ganador del reto.
+        // La bandera vive solo en Supabase: App.jsx la lee de ahí, no de local.
+        try {
+          await supabase.rpc('otorgar_trial_por_reto');
+        } catch (e) {
+          // Sin conexión no se puede otorgar todavía. Los hábitos aún no han
+          // sincronizado, así que el servidor tampoco podría validarlo.
+          console.warn('No se pudo otorgar el trial del reto (¿sin conexión?)', e);
         }
       }
       setShowVictoryModal(true);

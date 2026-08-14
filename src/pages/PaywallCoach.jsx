@@ -65,9 +65,22 @@ export default function PaywallCoach({ forced = false, onDismiss = null }) {
         await Purchases.purchasePackage({ aPackage: pkgToBuy });
         
         if (session?.user?.id) {
-           await supabase.from('perfiles').update({ plan_membresia: planName }).eq('id', session?.user.id);
-           await supabase.auth.updateUser({ data: { suscripcion: planName, plan_membresia: planName } });
-           alert(`¡Pago exitoso! Ahora eres ${planName}`);
+           // El servidor deduce el plan del product_id (mismo criterio por
+           // patrón que se usa arriba para elegir el paquete). El cliente ya no
+           // escribe plan_membresia.
+           const { data, error: rpcError } = await supabase.rpc('activar_plan_por_compra', {
+             p_product_id: pkgToBuy.product.identifier
+           });
+
+           if (rpcError || !data?.ok) {
+             console.error('activar_plan_por_compra', rpcError || data);
+             alert("Tu pago se procesó, pero no pudimos activar el plan. Escríbenos y lo resolvemos.");
+             setLoading(false);
+             return;
+           }
+
+           await supabase.auth.updateUser({ data: { suscripcion: data.plan, plan_membresia: data.plan } });
+           alert(`¡Pago exitoso! Ahora eres ${data.plan}`);
            window.location.reload();
         } else {
            navigate('/panel-entrenador');

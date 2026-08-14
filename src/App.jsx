@@ -514,18 +514,14 @@ function App() {
           }
         }
         
-        const { data, error } = await supabase
-          .from('compras_pendientes')
-          .select('*')
-          .eq('email', session?.user.email)
-          .maybeSingle();
-          
-        if (data) {
-          const plan = data.plan_membresia;
-          await supabase.from('perfiles').update({ plan_membresia: plan }).eq('id', session?.user.id);
-          await supabase.auth.updateUser({ data: { suscripcion: plan } });
-          await supabase.from('compras_pendientes').delete().eq('id', data.id);
-          alert(`¡Felicidades! Hemos detectado y aplicado exitosamente tu compra de: ${plan}. ¡Bienvenido!`);
+        // El servidor busca la compra por el email de la sesión, aplica el plan
+        // y consume la fila en una sola transacción. Antes el cliente leía la
+        // tabla y se escribía el plan a sí mismo.
+        const { data } = await supabase.rpc('aplicar_compra_pendiente');
+
+        if (data?.ok) {
+          await supabase.auth.updateUser({ data: { suscripcion: data.plan } });
+          alert(`¡Felicidades! Hemos detectado y aplicado exitosamente tu compra de: ${data.plan}. ¡Bienvenido!`);
           window.location.reload();
         }
       } catch (err) {
@@ -566,14 +562,13 @@ function App() {
       let finalRole = rolData?.rol_usuario || null;
       let forcePlatinumModal = false;
 
-      // Logic for Platinum Trial Expiration
+      // Vencimiento del trial Platinum.
+      // La comparación de fechas la hace el servidor con su propio now(), así el
+      // reloj del teléfono ya no decide cuándo se acaba el regalo. La RPC solo
+      // degrada, nunca asciende.
       if (rolData?.platinum_trial_ends_at && rolData?.plan_membresia === 'Platinum') {
-        const expirationDate = new Date(rolData.platinum_trial_ends_at);
-        if (new Date() > expirationDate) {
-          await supabase.from('perfiles').update({
-            plan_membresia: 'Atleta Base (Gratis)',
-            platinum_trial_ends_at: null
-          }).eq('id', user.id);
+        const { data: sync } = await supabase.rpc('sincronizar_mi_plan');
+        if (sync?.degradado) {
           rolData.plan_membresia = 'Atleta Base (Gratis)';
           rolData.platinum_trial_ends_at = null;
         }
@@ -584,25 +579,14 @@ function App() {
       }
 
       // Check Invitaciones de Entrenador (Para usuarios nuevos)
+      // El servidor busca la invitación por el email de la sesión, crea la
+      // relación, asigna el rol y consume la invitación en una transacción.
+      // Antes el cliente insertaba la relación por su cuenta — que era la vía
+      // por la que cualquiera podía declararse entrenador de cualquiera.
       if (user.email) {
-        const { data: invitacion } = await supabase
-          .from('invitaciones_entrenador')
-          .select('*')
-          .eq('email_alumno', user.email.toLowerCase())
-          .maybeSingle();
-
-        if (invitacion) {
-          // Auto-Vincular
-          await supabase.from('relacion_entrenador_alumno').insert({
-            entrenador_id: invitacion.entrenador_id,
-            alumno_id: user.id,
-            estado: 'activo'
-          });
-          
-          await supabase.from('perfiles').update({ rol_usuario: 'alumno_entrenador' }).eq('id', user.id);
+        const { data: canje } = await supabase.rpc('canjear_invitacion_entrenador');
+        if (canje?.ok) {
           finalRole = 'alumno_entrenador';
-          
-          await supabase.from('invitaciones_entrenador').delete().eq('id', invitacion.id);
         }
       }
 
@@ -618,16 +602,15 @@ function App() {
           if (!rel) {
             finalRole = 'atleta_normal';
             const now = new Date().toISOString();
-            
-            await supabase.from('perfiles').update({ 
-              rol_usuario: 'atleta_normal',
-              plan_membresia: 'Prueba Gratis (7 Días)'
-            }).eq('id', user.id);
-            
+
+            // El servidor reconfirma que no queda ninguna relación viva antes de
+            // devolver el rol y conceder la Prueba Gratis.
+            await supabase.rpc('alumno_perdio_entrenador');
+
             await supabase.auth.updateUser({
               data: { trial_start_date: now }
             });
-            
+
             setShowDroppedStudentModal(true);
           }
         }
@@ -641,7 +624,8 @@ function App() {
             const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
             
             if (diffDays >= 7) {
-               await supabase.from('perfiles').update({ plan_membresia: 'Atleta Base (Gratis)' }).eq('id', user.id);
+               // El servidor revalida los 7 días contra su propio reloj.
+               await supabase.rpc('vencer_prueba_gratis');
                setShowTrialWarningModal(true);
             } else if (diffDays >= 5 && diffDays < 7) {
                setShowTrialWarningModal(true);
@@ -911,7 +895,8 @@ function App() {
                 // Si la BD piensa que es VIP, pero RevenueCat dice que no, lo regresamos a Gratis
                 if (isPaidPlan) {
                     console.log("Suscripción expirada en RevenueCat. Regresando a Gratis automáticamente.");
-                    await supabase.from('perfiles').update({ plan_membresia: 'Atleta Base (Gratis)' }).eq('id', session?.user.id);
+                    // Solo degrada, nunca asciende, así que exponerla es inofensivo.
+                    await supabase.rpc('degradar_plan_sin_suscripcion');
                     await supabase.auth.updateUser({ data: { suscripcion: 'Atleta Base (Gratis)' } });
                     // Recargamos para que la app aplique el bloqueo inmediatamente
                     window.location.reload();
@@ -1115,16 +1100,18 @@ function App() {
   const handleAceptarVinculacion = async () => {
     if (!pendingVinculacion) return;
     try {
-      await supabase
-        .from('relacion_entrenador_alumno')
-        .update({ estado: 'activo' })
-        .eq('id', pendingVinculacion.relacionId);
-      
-      await supabase
-        .from('perfiles')
-        .update({ rol_usuario: 'alumno_entrenador' })
-        .eq('id', session?.user?.id);
-      
+      // Una sola RPC: activa la relación y asigna el rol, tras comprobar que esa
+      // vinculación es realmente tuya.
+      const { data: aceptada } = await supabase.rpc('aceptar_vinculacion', {
+        p_relacion_id: pendingVinculacion.relacionId
+      });
+
+      if (!aceptada?.ok) {
+        alert('No pudimos aceptar la vinculación. Intenta de nuevo.');
+        return;
+      }
+
+
       localStorage.setItem('user_role', 'alumno_entrenador');
       setPendingVinculacion(null);
       alert('¡Vinculación aceptada! Ahora verás las rutinas que te asigne tu entrenador.');

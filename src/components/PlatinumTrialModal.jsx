@@ -9,18 +9,18 @@ export default function PlatinumTrialModal({ session, onComplete }) {
     setLoading(true);
     try {
 
-      // 2. Calcular expiración (7 días a partir de ahora)
-      const expirationDate = new Date();
-      expirationDate.setDate(expirationDate.getDate() + 7);
-
-      // 3. Actualizar perfiles con el nuevo plan y apagar la bandera
-      const { error } = await supabase.from('perfiles').update({
-        plan_membresia: 'Platinum',
-        force_platinum_trial: false,
-        platinum_trial_ends_at: expirationDate.toISOString()
-      }).eq('id', session.user.id);
+      // La fecha de expiración la calcula el servidor. El cliente ya no elige
+      // cuándo se le acaba el trial, ni se escribe el plan a sí mismo: la RPC
+      // exige que force_platinum_trial esté puesta y fija now() + 7 días.
+      const { data, error } = await supabase.rpc('activar_trial_platinum');
 
       if (error) throw error;
+      if (!data?.ok) {
+        alert(data?.motivo === 'sin_oferta_pendiente'
+          ? "Esta oferta ya no está disponible."
+          : "No pudimos activar tu plan. Intenta de nuevo.");
+        return;
+      }
 
       alert("¡Felicidades! Tu Plan Platinum de 7 días está activo.");
       
@@ -84,7 +84,7 @@ export default function PlatinumTrialModal({ session, onComplete }) {
           onClick={async () => {
             if (window.confirm("¿Seguro que quieres rechazar tus 7 Días Premium Gratis? Esta oferta no volverá a aparecer.")) {
               setLoading(true);
-              await supabase.from('perfiles').update({ force_platinum_trial: false }).eq('id', session.user.id);
+              await supabase.rpc('descartar_oferta_platinum');
               if (onComplete) onComplete();
               else window.location.reload();
             }

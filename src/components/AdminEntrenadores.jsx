@@ -63,11 +63,11 @@ export default function AdminEntrenadores() {
   const promoverAEntrenador = async (userId, email) => {
     if (!window.confirm(`¿Dar privilegios de Entrenador a ${email}? Tendrá su propio panel.`)) return;
     
-    const { error } = await supabase
-      .from('perfiles')
-      .update({ rol_usuario: 'entrenador' })
-      .eq('id', userId);
-      
+    const { error } = await supabase.rpc('admin_set_rol', {
+      p_user_id: userId,
+      p_rol: 'entrenador'
+    });
+
     if (!error) {
       alert("¡Usuario promovido a Entrenador exitosamente!");
       setSearchTerm('');
@@ -81,11 +81,11 @@ export default function AdminEntrenadores() {
   const updatePlan = async (entrenadorId, planName, nombre) => {
     if (!window.confirm(`¿Cambiar el plan de ${nombre || 'este entrenador'} a ${planName || 'Freemium'}?`)) return;
     
-    const { error } = await supabase
-      .from('perfiles')
-      .update({ plan_membresia: planName })
-      .eq('id', entrenadorId);
-      
+    const { error } = await supabase.rpc('admin_set_plan', {
+      p_user_id: entrenadorId,
+      p_plan: planName
+    });
+
     if (!error) {
       alert(`Plan actualizado exitosamente.`);
       fetchEntrenadores();
@@ -98,11 +98,11 @@ export default function AdminEntrenadores() {
     if (!window.confirm(`¿Quitar rol de Entrenador a ${nombre}? Sus alumnos pasarán a inactivos automáticamente.`)) return;
     
     // 1. Quitar rol
-    const { error: errorRol } = await supabase
-      .from('perfiles')
-      .update({ rol_usuario: 'atleta_normal' })
-      .eq('id', entrenadorId);
-      
+    const { error: errorRol } = await supabase.rpc('admin_set_rol', {
+      p_user_id: entrenadorId,
+      p_rol: 'atleta_normal'
+    });
+
     // 2. Desactivar a sus alumnos
     if (!errorRol) {
       await supabase
@@ -119,11 +119,11 @@ export default function AdminEntrenadores() {
 
   const lanzarPaywall = async (entrenadorId) => {
     try {
-      const { error } = await supabase
-        .from('perfiles')
-        .update({ force_paywall: true })
-        .eq('id', entrenadorId);
-      
+      const { error } = await supabase.rpc('admin_enviar_paywall', {
+        p_user_id: entrenadorId,
+        p_activar: true
+      });
+
       if (error) throw error;
       
       alert('¡Paywall programado! El usuario lo verá la próxima vez que entre.');
@@ -136,11 +136,11 @@ export default function AdminEntrenadores() {
 
   const cancelarPaywall = async (entrenadorId) => {
     try {
-      const { error } = await supabase
-        .from('perfiles')
-        .update({ force_paywall: false })
-        .eq('id', entrenadorId);
-      
+      const { error } = await supabase.rpc('admin_enviar_paywall', {
+        p_user_id: entrenadorId,
+        p_activar: false
+      });
+
       if (error) throw error;
       
       alert('Paywall cancelado. Ya no se le forzará a verlo.');

@@ -189,7 +189,7 @@ export default function Perfil({ session }) {
     if (window.confirm("¿Estás seguro de que quieres dejar de ser Entrenador? Volverás a tu plan anterior y perderás el acceso al panel de atletas.")) {
       alert("Nota: Si compraste tu suscripción de Entrenador recientemente, por favor cancélala en tu tienda de aplicaciones (App Store o Google Play) para evitar cobros. Tus beneficios vitalicios u originales se mantendrán.");
       localStorage.setItem('user_role', 'atleta_normal');
-      supabase.from('perfiles').update({ rol_usuario: 'atleta_normal' }).eq('id', session.user.id).then(() => {
+      supabase.rpc('volver_a_atleta_normal').then(() => {
         window.location.href = "/";
       });
     }

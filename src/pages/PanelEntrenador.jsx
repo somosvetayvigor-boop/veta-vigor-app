@@ -278,7 +278,8 @@ export default function PanelEntrenador({ session }) {
       if (estadoFinal === 'inactivo') {
          // Al dar de baja, se quita el rol de alumno_entrenador
          // (Aunque el propio alumno se autogestionará en su App.jsx, es buena práctica hacerlo)
-         await supabase.from('perfiles').update({ rol_usuario: 'atleta_normal' }).eq('id', alumnoId);
+         // La RPC comprueba que ese alumno sea realmente tuyo antes de tocarlo.
+         await supabase.rpc('entrenador_dar_baja_alumno', { p_alumno_id: alumnoId });
       }
       // Si es 'pendiente', NO cambiamos el rol. El rol cambiará cuando el alumno acepte.
       fetchAlumnos();
