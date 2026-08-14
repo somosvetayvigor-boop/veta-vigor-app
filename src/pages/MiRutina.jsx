@@ -7,6 +7,8 @@ import DescansoActivoModal from '../components/DescansoActivoModal';
 import TuMusicaModal from '../components/TuMusicaModal';
 import { requestNotificationPermissions, scheduleTrainingReminder, cancelTrainingReminder, scheduleDailyMotivation } from '../utils/notifications';
 import { DatabaseManager } from '../utils/DatabaseManager';
+import DatabaseService from '../services/DatabaseService';
+import SyncService from '../services/SyncService';
 
 let globalRutinaSemana = [];
 let globalRutinaTodas = [];
@@ -79,12 +81,12 @@ export default function MiRutina({ session }) {
     let safetyTimer = null;
 
     async function init() {
-      // SAFETY NET: Si después de 8 segundos la app sigue en loading, forzar la salida
+      // SAFETY NET: Si después de 30 segundos la app sigue en loading, forzar la salida
       safetyTimer = setTimeout(() => {
         console.warn("⚠️ Safety timeout triggered — forcing UI to load");
         setLoading(false);
         setIsCheckingStatus(false);
-      }, 8000);
+      }, 30000);
 
       try {
         // PASO 0: Cargar del caché LOCAL PRIMERO (instantáneo, sin red)
@@ -141,12 +143,14 @@ export default function MiRutina({ session }) {
 
         // PASO 5: Cargar rutinas completas desde la red (actualizar caché)
         try {
+          console.log("🔄 Iniciando loadRutinas...");
           await Promise.race([
             loadRutinas(),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('loadRutinas_timeout')), 8000))
+            new Promise((_, reject) => setTimeout(() => reject(new Error('loadRutinas_timeout')), 25000))
           ]);
+          console.log("✅ loadRutinas completado exitosamente");
         } catch(e) {
-          console.warn("loadRutinas timeout, using cached data:", e.message);
+          console.warn("loadRutinas timeout or error:", e.message);
         }
 
       } catch (error) {
@@ -168,55 +172,67 @@ export default function MiRutina({ session }) {
       const today = new Date();
       const todayStr = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
 
-      const networkSync = async () => {
-        // PASO A: Verificar check-in de hoy + leer racha_actual directo de perfiles (RÁPIDO)
-        const [checkinResult, perfilResult, bienestarTodayResult] = await Promise.all([
-          supabase.from('checkins').select('id, nivel').eq('user_id', session?.user.id).eq('fecha', todayStr).maybeSingle(),
-          supabase.from('perfiles').select('racha_actual').eq('id', session?.user.id).single(),
-          supabase.from('checkins_bienestar').select('fecha, habitos').eq('user_id', session?.user.id).eq('fecha', todayStr).maybeSingle()
-        ]);
+      let checkinResult = await DatabaseService.query(`SELECT id, nivel FROM checkins WHERE user_id = ? AND fecha = ?`, [session?.user.id, todayStr]);
+      let perfilResult = await DatabaseService.query(`SELECT racha_actual FROM perfiles WHERE id = ?`, [session?.user.id]);
+      let bienestarTodayResult = await DatabaseService.query(`SELECT fecha, habitos FROM checkins_bienestar WHERE user_id = ? AND fecha = ?`, [session?.user.id, todayStr]);
 
-        if (checkinResult.data) {
-          setHasCheckedInToday(true);
-          setEntrenoHoy(true);
-          await DatabaseManager.saveCheckin(session?.user.id, todayStr, checkinResult.data.nivel || 3);
+      // FALLBACK: Si SQLite está vacío, leer de Supabase
+      if ((!checkinResult || checkinResult.length === 0) && (!perfilResult || perfilResult.length === 0) && navigator.onLine) {
+        console.log("⚠️ checkTodayStatus: SQLite vacío, leyendo de Supabase...");
+        try {
+          const [checkinRes, perfilRes, bienestarRes] = await Promise.all([
+            supabase.from('checkins').select('id, nivel').eq('user_id', session?.user.id).eq('fecha', todayStr),
+            supabase.from('perfiles').select('racha_actual').eq('id', session?.user.id).single(),
+            supabase.from('checkins_bienestar').select('fecha, habitos').eq('user_id', session?.user.id).eq('fecha', todayStr)
+          ]);
+          checkinResult = checkinRes.data || [];
+          perfilResult = perfilRes.data ? [perfilRes.data] : [];
+          bienestarTodayResult = bienestarRes.data || [];
+        } catch (sbErr) {
+          console.warn("Supabase fallback failed in checkTodayStatus:", sbErr);
         }
+      }
 
-        if (bienestarTodayResult.data && bienestarTodayResult.data.habitos?.length >= 2) {
+      const checkinData = checkinResult.length > 0 ? checkinResult[0] : null;
+      if (checkinData) {
+        setHasCheckedInToday(true);
+        setEntrenoHoy(true);
+      }
+
+      const bienestarData = bienestarTodayResult.length > 0 ? bienestarTodayResult[0] : null;
+      if (bienestarData) {
+        const habitos = typeof bienestarData.habitos === 'string' ? bienestarData.habitos : JSON.stringify(bienestarData.habitos || []);
+        const habitosParsed = JSON.parse(habitos || '[]');
+        if (habitosParsed.length >= 2) {
           setBienestarDone(true);
           setHasCheckedInToday(true);
         }
+      }
 
-        // Inyectar racha_actual de la BD directo a la pantalla (sin calcular)
-        if (perfilResult.data?.racha_actual !== undefined) {
-          setRacha(perfilResult.data.racha_actual);
-        }
+      // Inyectar racha_actual de la BD directo a la pantalla (sin calcular)
+      if (perfilResult.length > 0 && perfilResult[0].racha_actual !== undefined) {
+        setRacha(perfilResult[0].racha_actual);
+      }
 
-        // PASO B: Recálculo profundo EN SEGUNDO PLANO (no bloquea la UI)
-        // Esto verifica si se perdió un día y consume la Ficha de Reposo si aplica
-        recalcularRachaEnFondo(todayStr, checkinResult.data);
-      };
-
-      // Ejecutar sync de red con timeout de 5 segundos
-      await Promise.race([
-        networkSync(),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('network_timeout')), 5000))
-      ]);
+      // PASO B: Recálculo profundo EN SEGUNDO PLANO (no bloquea la UI)
+      // Esto verifica si se perdió un día y consume la Ficha de Reposo si aplica
+      recalcularRachaEnFondo(todayStr, checkinData);
     } catch (error) {
-      console.warn("Network timeout or error on startup, falling back to cache:", error);
+      console.warn("Error on startup local check:", error);
     }
   };
 
   // Recálculo profundo de la Llama Viva — se ejecuta SIN bloquear la pantalla
   const recalcularRachaEnFondo = async (todayStr, todayCheckinData) => {
     try {
-      const [checkinsResult, bienestarResult] = await Promise.all([
-        supabase.from('checkins').select('fecha').eq('user_id', session?.user.id).order('fecha', { ascending: false }).limit(30),
-        supabase.from('checkins_bienestar').select('fecha, habitos').eq('user_id', session?.user.id).order('fecha', { ascending: false }).limit(30)
-      ]);
+      const checkinsResult = await DatabaseService.query(`SELECT fecha FROM checkins WHERE user_id = ? ORDER BY fecha DESC LIMIT 30`, [session?.user.id]);
+      const bienestarResult = await DatabaseService.query(`SELECT fecha, habitos FROM checkins_bienestar WHERE user_id = ? ORDER BY fecha DESC LIMIT 30`, [session?.user.id]);
       
-      const allCheckins = checkinsResult.data || [];
-      const allBienestar = (bienestarResult.data || []).filter(b => b.habitos && b.habitos.length >= 2);
+      const allCheckins = checkinsResult || [];
+      const allBienestar = (bienestarResult || []).filter(b => {
+        const h = JSON.parse(b.habitos || '[]');
+        return h.length >= 2;
+      });
         
       if (allCheckins.length > 0 || allBienestar.length > 0) {
         let currentStreak = 0;
@@ -239,21 +255,14 @@ export default function MiRutina({ session }) {
           } else {
             // Solo usar la Ficha de Reposo si YA hay una racha activa (currentStreak > 0).
             if (!usedToken && currentStreak > 0) {
-              const { data: inv } = await supabase
-                .from('rpg_inventario')
-                .select('item_id, cantidad')
-                .eq('user_id', session?.user.id)
-                .eq('item_id', 'ficha_reposo')
-                .limit(1);
+              const invResult = await DatabaseService.query(`SELECT id, cantidad FROM rpg_inventario WHERE user_id = ? AND item_id = ?`, [session?.user.id, 'ficha_reposo']);
                 
-              if (inv && inv.length > 0 && inv[0].cantidad > 0) {
-                const currentCantidad = inv[0].cantidad;
-                if (currentCantidad > 1) {
-                  await supabase.from('rpg_inventario').update({ cantidad: currentCantidad - 1 }).eq('user_id', session?.user.id).eq('item_id', 'ficha_reposo');
-                } else {
-                  await supabase.from('rpg_inventario').delete().eq('user_id', session?.user.id).eq('item_id', 'ficha_reposo');
-                }
-                await supabase.from('checkins').insert([{ user_id: session?.user.id, fecha: dateStr, nivel: 3 }]);
+              if (invResult.length > 0 && invResult[0].cantidad > 0) {
+                const currentCantidad = invResult[0].cantidad;
+                await DatabaseService.execute(`UPDATE rpg_inventario SET cantidad = ?, is_dirty = 1 WHERE id = ?`, [currentCantidad - 1, invResult[0].id]);
+                
+                const newCheckinId = crypto.randomUUID();
+                await DatabaseService.execute(`INSERT INTO checkins (id, user_id, fecha, nivel, is_dirty) VALUES (?, ?, ?, ?, 1)`, [newCheckinId, session?.user.id, dateStr, 3]);
                 
                 currentStreak++;
                 checkDate.setDate(checkDate.getDate() - 1);
@@ -269,11 +278,11 @@ export default function MiRutina({ session }) {
         setRacha(currentStreak);
 
         // Guardar la racha actualizada en perfiles para que los aliados (Dúos) puedan verla
-        supabase.from('perfiles').update({ racha_actual: currentStreak }).eq('id', session?.user.id).then();
+        await DatabaseService.execute(`UPDATE perfiles SET racha_actual = ?, is_dirty = 1 WHERE id = ?`, [currentStreak, session?.user.id]);
       } else {
         // Si no hay NINGUN checkin en los ultimos 30 dias, la racha es definitivamente 0
         setRacha(0);
-        supabase.from('perfiles').update({ racha_actual: 0 }).eq('id', session?.user.id).then();
+        await DatabaseService.execute(`UPDATE perfiles SET racha_actual = ?, is_dirty = 1 WHERE id = ?`, [0, session?.user.id]);
       }
     } catch (error) {
       console.warn("Background streak recalculation error (non-blocking):", error);
@@ -287,15 +296,41 @@ export default function MiRutina({ session }) {
       const userRole = localStorage.getItem('user_role') || 'atleta_normal';
       const isAlumno = userRole === 'alumno_entrenador';
 
-      // 0. Fetch Real Source of Truth (siempre usar BD central para evitar bugs de tokens caducados)
-      const { data: perfilData } = await supabase
-        .from('perfiles')
-        .select('plan_membresia, calendario_personalizado, sistema_activo, nivel, dias_entrenamiento, racha_actual')
-        .eq('id', session?.user.id)
-        .single();
+      // 0. Intentar leer perfil de SQLite primero (rápido, offline)
+      let perfilData = null;
+      try {
+        const perfilesRows = await DatabaseService.query(`SELECT plan_membresia, calendario_personalizado, sistema_activo, nivel, dias_entrenamiento, racha_actual FROM perfiles WHERE id = ?`, [session?.user.id]);
+        perfilData = perfilesRows.length > 0 ? perfilesRows[0] : null;
+      } catch (dbErr) {
+        console.warn("SQLite query failed in loadRutinas:", dbErr);
+      }
+
+      // FALLBACK CRÍTICO: Si SQLite no tiene el perfil, leerlo directo de Supabase
+      if (!perfilData && navigator.onLine) {
+        console.log("⚠️ Perfil no encontrado en SQLite, leyendo de Supabase directamente...");
+        try {
+          const { data: perfilRemoto } = await supabase.from('perfiles').select('plan_membresia, calendario_personalizado, sistema_activo, nivel, dias_entrenamiento, racha_actual').eq('id', session?.user.id).single();
+          if (perfilRemoto) {
+            perfilData = {
+              ...perfilRemoto,
+              calendario_personalizado: typeof perfilRemoto.calendario_personalizado === 'string' 
+                ? perfilRemoto.calendario_personalizado 
+                : JSON.stringify(perfilRemoto.calendario_personalizado || {}),
+              dias_entrenamiento: typeof perfilRemoto.dias_entrenamiento === 'string'
+                ? perfilRemoto.dias_entrenamiento
+                : JSON.stringify(perfilRemoto.dias_entrenamiento || [])
+            };
+            console.log("✅ Perfil obtenido de Supabase:", perfilData.sistema_activo, perfilData.nivel);
+            
+            // Intentar guardar en SQLite para la próxima vez (no bloqueante)
+            SyncService.syncAll(session.user.id).catch(e => console.warn("Background sync:", e));
+          }
+        } catch (sbErr) {
+          console.warn("Supabase perfil fetch failed:", sbErr);
+        }
+      }
 
       let nivel = isAlumno ? 'Entrenador' : (perfilData?.nivel || metadata?.nivel);
-      // Para los alumnos, su calendario se guarda bajo la clave 'entrenador'
       const sistemaId = isAlumno ? 'entrenador' : (perfilData?.sistema_activo || metadata?.sistema_activo);
       const dias = isAlumno ? '7' : (perfilData?.dias_entrenamiento || metadata?.dias_entrenamiento || '>3');
         
@@ -311,31 +346,13 @@ export default function MiRutina({ session }) {
       }
 
       if (!nivel || !sistemaId) {
-        if (!isFreeUser) navigate('/sistemas');
+        navigate('/sistemas');
         return;
       }
 
-      const cacheKey = `veta_vigor_mis_datos_${sistemaId}`;
-
-      // 1. Intentar cargar de caché INMEDIATAMENTE para evitar pantallas de carga largas
-      const cached = await DatabaseManager.getRoutines(sistemaId);
-      if (cached) {
-        try {
-          if (cached && cached.todasRutinas) {
-            setTodasRutinas(cached.todasRutinas || []);
-            setCustomCal(cached.customCal || {});
-            setAllCalendarios(cached.allCalendarios || {});
-            setDiasEntrenadosSemana(cached.diasEntrenadosSemana || 0);
-            buildCalendar(cached.todasRutinas || [], dias, cached.customCal || {});
-            setLoading(false); // Libera la UI inmediatamente gracias al caché
-          }
-        } catch(e) {
-          console.warn("Cache corrupto, ignorando.");
-        }
-      }
-
-      if (!navigator.onLine) {
-        return;
+      // Racha
+      if (perfilData?.racha_actual !== undefined) {
+        setRacha(perfilData.racha_actual);
       }
 
       // Calcular inicio de semana (Lunes)
@@ -344,88 +361,121 @@ export default function MiRutina({ session }) {
       const startOfWeek = new Date(now);
       if (day !== 1) startOfWeek.setHours(-24 * (day - 1));
       startOfWeek.setHours(0,0,0,0);
+      const startOfWeekStr = startOfWeek.toISOString().split('T')[0];
 
-      // Traer historial de la semana para el semáforo
-      const { data: historial } = await supabase
-        .from('historial_entrenamientos')
-        .select('created_at')
-        .eq('user_id', session?.user.id)
-        .gte('created_at', startOfWeek.toISOString());
+      // Traer historial — SQLite primero, Supabase fallback
+      let historialRows = await DatabaseService.query(`SELECT fecha_completado FROM historial_entrenamientos WHERE user_id = ? AND fecha_completado >= ?`, [session?.user.id, startOfWeekStr]);
+      let historialTotal = await DatabaseService.query(`SELECT fecha_completado FROM historial_entrenamientos WHERE user_id = ? ORDER BY fecha_completado DESC`, [session?.user.id]);
 
-      const trainedDays = historial ? new Set(historial.map(h => h.created_at.split('T')[0])).size : 0;
+      // FALLBACK: Si SQLite no tiene historial, leer de Supabase
+      if ((!historialTotal || historialTotal.length === 0) && navigator.onLine) {
+        console.log("⚠️ Historial no en SQLite, leyendo de Supabase...");
+        try {
+          const { data: histRemoto } = await supabase.from('historial_entrenamientos').select('fecha_completado, created_at').eq('user_id', session?.user.id).order('created_at', { ascending: false });
+          if (histRemoto && histRemoto.length > 0) {
+            historialTotal = histRemoto.map(h => ({ fecha_completado: h.fecha_completado || h.created_at }));
+            historialRows = historialTotal.filter(h => h.fecha_completado >= startOfWeekStr);
+            console.log(`✅ Historial obtenido de Supabase: ${histRemoto.length} registros`);
+          }
+        } catch (hErr) {
+          console.warn("Supabase historial fetch failed:", hErr);
+        }
+      }
+
+      const trainedDays = historialRows ? new Set(historialRows.map(h => h.fecha_completado.split('T')[0])).size : 0;
       setDiasEntrenadosSemana(trainedDays);
 
-      // Traer historial total para la tarjeta de nivel
-      const { data: historialTotal } = await supabase
-        .from('historial_entrenamientos')
-        .select('created_at')
-        .eq('user_id', session?.user.id)
-        .order('created_at', { ascending: false });
-
       if (historialTotal && historialTotal.length > 0) {
-        const uniqueDays = new Set(historialTotal.map(h => h.created_at.split('T')[0]));
+        const uniqueDays = new Set(historialTotal.map(h => h.fecha_completado.split('T')[0]));
         setTotalEntrenamientos(uniqueDays.size);
-        setUltimoEntrenamiento(historialTotal[0].created_at);
+        setUltimoEntrenamiento(historialTotal[0].fecha_completado);
       }
 
       // 2. Cargar preferencias guardadas (calendario personalizado)
-
-      const allCals = perfilData?.calendario_personalizado || {};
+      const allCalsStr = perfilData?.calendario_personalizado;
+      const allCals = allCalsStr ? JSON.parse(allCalsStr) : {};
       setAllCalendarios(allCals);
       
       const savedCustomCal = allCals[sistemaId] || {};
       setCustomCal(savedCustomCal);
 
-      // 3. Cargar rutinas
+      // 3. Cargar rutinas — SQLite primero, Supabase fallback
       let data = [];
-      let error = null;
       if (isAlumno) {
         const routineIds = Object.values(savedCustomCal).filter(id => id);
         if (routineIds.length > 0) {
-          const res = await supabase.from('rutinas').select('*').in('id', routineIds);
-          data = res.data;
-          error = res.error;
+          const placeholders = routineIds.map(() => '?').join(',');
+          const res = await DatabaseService.query(`SELECT * FROM rutinas WHERE id IN (${placeholders})`, routineIds);
+          data = res || [];
+          
+          // FALLBACK alumno
+          if (data.length === 0 && navigator.onLine) {
+            const { data: rutRemoto } = await supabase.from('rutinas').select('*').in('id', routineIds);
+            data = rutRemoto || [];
+          }
         }
 
-        // Fetch coach brand
-        const { data: rel } = await supabase.from('relacion_entrenador_alumno').select('perfiles!relacion_entrenador_alumno_entrenador_id_fkey(full_name, logo_entrenador)').eq('alumno_id', session?.user.id).eq('estado', 'activo').single();
-        if (rel?.perfiles) {
-          setCoachBrand({ name: rel.perfiles.full_name, logo: rel.perfiles.logo_entrenador });
+        if (navigator.onLine) {
+          const { data: rel } = await supabase.from('relacion_entrenador_alumno').select('perfiles!relacion_entrenador_alumno_entrenador_id_fkey(full_name, logo_entrenador)').eq('alumno_id', session?.user.id).eq('estado', 'activo').single();
+          if (rel?.perfiles) {
+            setCoachBrand({ name: rel.perfiles.full_name, logo: rel.perfiles.logo_entrenador });
+          }
         }
       } else {
-        const res = await supabase
-          .from('rutinas')
-          .select('*')
-          .or(`and(nivel.eq.${nivel},sistema_id.eq.${sistemaId}),user_id.eq.${session?.user.id}`)
-          .order('nombre');
-        data = res.data;
-        error = res.error;
+        // If the user is forced to 'Semilla', do not enforce the exact system_id match, 
+        // because they might have selected a system that doesn't have a specific Semilla routine.
+        if (nivel === 'Semilla') {
+           data = await DatabaseService.query(`SELECT * FROM rutinas WHERE nivel = ? OR user_id = ? ORDER BY nombre`, [nivel, session?.user.id]);
+        } else {
+           data = await DatabaseService.query(`SELECT * FROM rutinas WHERE (nivel = ? AND sistema_id = ?) OR user_id = ? ORDER BY nombre`, [nivel, sistemaId, session?.user.id]);
+        }
+        
+        // FALLBACK: Si SQLite no tiene rutinas, leer de Supabase
+        if ((!data || data.length === 0) && navigator.onLine) {
+          console.log("⚠️ Rutinas no encontradas en SQLite, leyendo de Supabase...");
+          let rutRemoto;
+          if (nivel === 'Semilla') {
+            const { data: res } = await supabase.from('rutinas').select('*').eq('nivel', nivel).order('nombre');
+            rutRemoto = res;
+          } else {
+            const { data: res } = await supabase.from('rutinas').select('*').eq('nivel', nivel).eq('sistema_id', sistemaId).order('nombre');
+            rutRemoto = res;
+          }
+          data = rutRemoto || [];
+          console.log(`✅ Rutinas obtenidas de Supabase: ${data.length}`);
+        }
       }
-
-      if (error) throw error;
       
       setTodasRutinas(data || []);
       buildCalendar(data || [], dias, savedCustomCal);
 
-      // Guardar en caché
-      await DatabaseManager.saveRoutines(sistemaId, { 
-        todasRutinas: data || [], 
-        customCal: savedCustomCal, 
-        allCalendarios: allCals,
-        diasEntrenadosSemana: trainedDays,
-        // Cache-First: usar valores frescos, no los del state (que pueden estar en 0 por el closure de React)
-        racha: perfilData?.racha_actual || 0,
-        totalEntrenamientos: historialTotal && historialTotal.length > 0 ? new Set(historialTotal.map(h => h.created_at.split('T')[0])).size : 0,
-        ultimoEntrenamiento: historialTotal && historialTotal.length > 0 ? historialTotal[0].created_at : null
-      });
+      // Guardar en caché local para carga instantánea en el próximo inicio
+      try {
+        await DatabaseManager.saveRoutines(sistemaId, {
+          todasRutinas: data || [],
+          customCal: savedCustomCal,
+          allCalendarios: allCals,
+          diasEntrenadosSemana: trainedDays,
+          racha: perfilData?.racha_actual || 0,
+          totalEntrenamientos: historialTotal ? new Set(historialTotal.map(h => h.fecha_completado?.split('T')[0])).size : 0,
+          ultimoEntrenamiento: historialTotal?.[0]?.fecha_completado || null
+        });
+        console.log("✅ Datos guardados en caché local para próximo inicio");
+      } catch (cacheErr) {
+        console.warn("Error guardando en caché:", cacheErr);
+      }
 
-      // Cargar artículos de explora
-      const { data: artData } = await supabase
-        .from('articulos_explora')
-        .select('*')
-        .order('orden', { ascending: true })
-        .order('created_at', { ascending: false });
-      if (artData) setArticulos(artData);
+      // Cargar artículos de explora (solo online)
+      if (navigator.onLine) {
+        const { data: artData } = await supabase
+          .from('articulos_explora')
+          .select('*')
+          .order('orden', { ascending: true })
+          .order('created_at', { ascending: false });
+        if (artData) setArticulos(artData);
+      }
+
+      console.log(`✅ loadRutinas COMPLETADO: ${(data||[]).length} rutinas, nivel=${nivel}, sistema=${sistemaId}`);
 
     } catch (error) {
       console.error("Error loading rutinas:", error);
@@ -518,12 +568,9 @@ export default function MiRutina({ session }) {
       const newCustomCal = { ...customCal, [diaToChange]: rutinaId };
       const updatedDB = { ...allCalendarios, [sistemaId]: newCustomCal };
       
-      const { error } = await supabase
-        .from('perfiles')
-        .update({ calendario_personalizado: updatedDB })
-        .eq('id', session?.user.id);
-        
-      if (error) throw error;
+      const updatedDBStr = JSON.stringify(updatedDB);
+      
+      await DatabaseService.execute(`UPDATE perfiles SET calendario_personalizado = ?, is_dirty = 1 WHERE id = ?`, [updatedDBStr, session?.user.id]);
       
       setCustomCal(newCustomCal);
       setAllCalendarios(updatedDB);
@@ -545,34 +592,13 @@ export default function MiRutina({ session }) {
       const today = new Date();
       const todayStr = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
       
-      // Guardar en cache local INMEDIATAMENTE
-      await DatabaseManager.saveCheckin(session?.user.id, todayStr, disposicion);
+      const checkinId = crypto.randomUUID();
+      await DatabaseService.execute(`INSERT INTO checkins (id, user_id, fecha, nivel, is_dirty) VALUES (?, ?, ?, ?, 1) ON CONFLICT(id) DO UPDATE SET nivel=excluded.nivel, is_dirty=1`, [checkinId, session?.user.id, todayStr, disposicion]);
       
-      // Optimistically let the user in to avoid being trapped on errors
       setHasCheckedInToday(true);
       setEntrenoHoy(true);
-
-      if (!navigator.onLine) {
-        const { addToOfflineQueue } = await import('../utils/OfflineManager');
-        addToOfflineQueue('INSERT_CHECKIN', { user_id: session?.user.id, nivel: disposicion, fecha: todayStr });
-        return;
-      }
-
-      const { error } = await supabase
-        .from('checkins')
-        .insert([
-          { user_id: session?.user.id, nivel: disposicion, fecha: todayStr }
-        ]);
-
-      if (error) {
-        // Log the error but don't throw to prevent unhandled rejection state
-        console.warn("Supabase checkin error (likely stale token or network). Queuing offline.", error);
-        const { addToOfflineQueue } = await import('../utils/OfflineManager');
-        addToOfflineQueue('INSERT_CHECKIN', { user_id: session?.user.id, nivel: disposicion, fecha: todayStr });
-      }
     } catch (error) {
       console.error("Error saving checkin:", error);
-      // Failsafe ensure user isn't trapped
       setHasCheckedInToday(true);
     } finally {
       setSaving(false);
@@ -605,60 +631,46 @@ export default function MiRutina({ session }) {
       const today = new Date();
       const todayStr = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
       
-      // Guardar en IndexedDB inmediatamente
-      await DatabaseManager.saveBienestar(session?.user.id, todayStr, bienestarHabitos);
+      const checkinId = crypto.randomUUID();
+      await DatabaseService.execute(`INSERT INTO checkins_bienestar (id, user_id, fecha, habitos, is_dirty) VALUES (?, ?, ?, ?, 1)`, [checkinId, session?.user.id, todayStr, JSON.stringify(bienestarHabitos)]);
       setBienestarDone(true);
 
-      if (!navigator.onLine) {
-        const { addToOfflineQueue } = await import('../utils/OfflineManager');
-        addToOfflineQueue('INSERT_BIENESTAR', { user_id: session?.user.id, fecha: todayStr, habitos: bienestarHabitos });
-        return;
-      }
+      // === INYECCIÓN RPG ENGINE (Recompensas por Descanso) ===
+      try {
+        const perfilesRows = await DatabaseService.query(`SELECT xp_actual, puntos_forja, nivel_rpg FROM perfiles WHERE id = ?`, [session?.user.id]);
+        if (perfilesRows.length > 0) {
+          const perfilInfo = perfilesRows[0];
+          const { calculateBienestarRewards, calculateLevel } = await import('../utils/ProgressionEngine');
+          const { xp, puntosForja } = calculateBienestarRewards(bienestarHabitos.length);
+          
+          const newXp = (perfilInfo.xp_actual || 0) + xp;
+          const newForja = (perfilInfo.puntos_forja || 0) + puntosForja;
+          const newLevelRPG = calculateLevel(newXp);
+          
+          // Guardar en SQLite local
+          await DatabaseService.execute(`UPDATE perfiles SET xp_actual = ?, puntos_forja = ?, nivel_rpg = ?, is_dirty = 1 WHERE id = ?`, [newXp, newForja, newLevelRPG, session?.user.id]);
+          
+          // Encolar la recompensa (is_dirty = 1): el push la reproduce contra
+          // completar_mision_rpg con este id como clave de idempotencia.
+          const recId = crypto.randomUUID();
+          await DatabaseService.execute(`INSERT INTO rpg_historial_recompensas (id, user_id, xp_ganada, monedas_ganadas, fuente, descripcion, fecha_reclamo, is_dirty) VALUES (?, ?, ?, ?, ?, ?, ?, 1)`, [
+            recId, session?.user.id, xp, puntosForja, 'descanso_activo', `Descanso Activo (${bienestarHabitos.length} hábitos)`, new Date().toISOString()
+          ]);
 
-      const { error } = await supabase
-        .from('checkins_bienestar')
-        .upsert([{ user_id: session?.user.id, fecha: todayStr, habitos: bienestarHabitos }], { onConflict: 'user_id,fecha' });
-
-      if (error) {
-        console.warn('Error saving bienestar to Supabase, queuing offline:', error);
-        const { addToOfflineQueue } = await import('../utils/OfflineManager');
-        addToOfflineQueue('INSERT_BIENESTAR', { user_id: session?.user.id, fecha: todayStr, habitos: bienestarHabitos });
-      } else {
-        // === INYECCIÓN RPG ENGINE (Recompensas por Descanso) ===
-        try {
-          const { data: perfilInfo } = await supabase.from('perfiles').select('xp_actual, puntos_forja, nivel_rpg').eq('id', session?.user.id).maybeSingle();
-          if (perfilInfo) {
-            const { calculateBienestarRewards, calculateLevel } = await import('../utils/ProgressionEngine');
-            const { xp, puntosForja } = calculateBienestarRewards(bienestarHabitos.length);
-            
-            const newXp = (perfilInfo.xp_actual || 0) + xp;
-            const newForja = (perfilInfo.puntos_forja || 0) + puntosForja;
-            const newLevelRPG = calculateLevel(newXp);
-            
-            const rpgUpdates = {
-              xp_actual: newXp,
-              puntos_forja: newForja,
+          // === SYNC DIRECTO A SUPABASE (cuando hay internet) ===
+          // Solo nivel: xp_actual y puntos_forja los escribe el RPC.
+          if (navigator.onLine) {
+            supabase.from('perfiles').update({
               nivel_rpg: newLevelRPG
-            };
-            
-            await supabase.from('perfiles').update(rpgUpdates).eq('id', session?.user.id);
-            
-            // Guardar historial
-            await supabase.from('rpg_historial_recompensas').insert({
-              user_id: session?.user.id,
-              xp_ganada: xp,
-              monedas_ganadas: puntosForja,
-              fuente: 'descanso_activo',
-              descripcion: `Descanso Activo (${bienestarHabitos.length} hábitos)`
-            });
-            
-            // Alerta silenciosa y motivadora
+            }).eq('id', session?.user.id).then().catch(e => console.warn('Sync RPG bienestar error:', e));
+          }
+          
+          // Alerta silenciosa y motivadora
             setTimeout(() => alert(`¡Bien hecho! Tu descanso te ha otorgado +${xp} XP y +${puntosForja} Oro del Gremio.`), 500);
           }
         } catch (rpgError) {
           console.warn("Error otorgando recompensas de descanso:", rpgError);
         }
-      }
       
       // Cerrar el modal y dejar entrar al usuario
       setHasCheckedInToday(true);
