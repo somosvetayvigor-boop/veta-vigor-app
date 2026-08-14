@@ -1,12 +1,50 @@
 import { supabase } from '../supabaseClient';
 import DatabaseService from './DatabaseService';
 
+// Cada cuánto se vuelven a bajar los catálogos (sistemas, retos, rutinas, ejercicios).
+// Son datos que cambian rara vez, así que no tiene sentido traerlos en cada arranque.
+// Los datos del usuario (perfil, checkins, historial, hábitos) se sincronizan siempre.
+const HORAS_FRESCURA_CATALOGOS = 6;
+const CLAVE_CATALOGOS = 'catalogos';
+
 class SyncService {
+  /**
+   * ¿Hace falta volver a bajar los catálogos?
+   * Sin columnas updated_at en Supabase no hay sync incremental posible, así que
+   * lo que hacemos es limitar la frecuencia usando sync_metadata.
+   */
+  async catalogosEstanFrescos() {
+    try {
+      const filas = await DatabaseService.query(
+        `SELECT last_sync_timestamp FROM sync_metadata WHERE table_name = ?`,
+        [CLAVE_CATALOGOS]
+      );
+      const ultimo = filas?.[0]?.last_sync_timestamp;
+      if (!ultimo) return false;
+      const horas = (Date.now() - new Date(ultimo).getTime()) / 36e5;
+      return horas >= 0 && horas < HORAS_FRESCURA_CATALOGOS;
+    } catch {
+      return false;
+    }
+  }
+
+  async marcarCatalogosSincronizados() {
+    await DatabaseService.execute(
+      `INSERT OR REPLACE INTO sync_metadata (table_name, last_sync_timestamp) VALUES (?, ?)`,
+      [CLAVE_CATALOGOS, new Date().toISOString()]
+    );
+  }
+
+  /** Fuerza que el próximo pull vuelva a bajar los catálogos. */
+  async invalidarCatalogos() {
+    await DatabaseService.execute(`DELETE FROM sync_metadata WHERE table_name = ?`, [CLAVE_CATALOGOS]);
+  }
+
   /**
    * Sincroniza desde Supabase hacia la base de datos local (Pull)
    * Ideal llamarlo al iniciar la app
    */
-  async pullData(userId) {
+  async pullData(userId, { force = false } = {}) {
     if (!userId) return;
     console.log("Iniciando Pull de datos desde Supabase...");
 
@@ -30,55 +68,69 @@ class SyncService {
         ]);
       }
 
+      // === CATÁLOGOS (contenido compartido, cambia rara vez) ===
+      const saltarCatalogos = !force && await this.catalogosEstanFrescos();
+      if (saltarCatalogos) {
+        console.log(`Catálogos aún frescos (<${HORAS_FRESCURA_CATALOGOS}h), se omiten.`);
+      } else {
+
       // 2. Pull Sistemas de Entrenamiento
       const { data: sistemas } = await supabase.from('sistemas_entrenamiento').select('*');
       await DatabaseService.executeBatch(`
-        INSERT OR REPLACE INTO sistemas_entrenamiento (id, nombre, descripcion, imagen_url, orden)
-        VALUES (?, ?, ?, ?, ?)
-      `, (sistemas || []).map(s => [s.id, s.nombre, s.descripcion, s.imagen_url, s.orden]));
+        INSERT OR REPLACE INTO sistemas_entrenamiento (id, nombre, descripcion, imagen_url)
+        VALUES (?, ?, ?, ?)
+      `, (sistemas || []).map(s => [s.id, s.nombre, s.descripcion, s.imagen_url]));
 
       // 3. Pull Retos
       const { data: retos } = await supabase.from('retos').select('*');
       await DatabaseService.executeBatch(`
-        INSERT OR REPLACE INTO retos (id, nombre, descripcion, nivel_requerido, puntos_recompensa)
+        INSERT OR REPLACE INTO retos (id, nombre, descripcion, nivel_requerido, created_at)
         VALUES (?, ?, ?, ?, ?)
-      `, (retos || []).map(r => [r.id, r.nombre, r.descripcion, r.nivel_requerido, r.puntos_recompensa || 0]));
+      `, (retos || []).map(r => [r.id, r.nombre, r.descripcion, r.nivel_requerido, r.created_at]));
 
       // 3.5 Pull Reto Dias
+      // rutina_json es el contenido real del día. Pese al nombre no es JSON: es texto
+      // plano con un ejercicio por línea (ver parseRutinaText en RutinaRetoPlayer).
+      // Se guarda tal cual; serializarlo agregaría comillas y rompería el parseo.
       const { data: retoDias } = await supabase.from('reto_dias').select('*');
       await DatabaseService.executeBatch(`
-        INSERT OR REPLACE INTO reto_dias (id, reto_id, dia_numero, nombre_dia, descripcion, video_url, minutos_estimados, puntos_dia)
+        INSERT OR REPLACE INTO reto_dias (id, reto_id, dia_numero, semana, enfoque, trabajo_descanso, rutina_json, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `, (retoDias || []).map(rd => [
         rd.id,
         rd.reto_id,
         rd.dia_numero || 0,
-        rd.nombre_dia || '',
-        rd.descripcion || null,
-        rd.video_url || null,
-        rd.minutos_estimados || 0,
-        rd.puntos_dia || 0
+        rd.semana,
+        rd.enfoque,
+        rd.trabajo_descanso,
+        rd.rutina_json ?? null,
+        rd.created_at
       ]));
 
       // 4. Pull Rutinas
       const { data: rutinas } = await supabase.from('rutinas').select('*');
       await DatabaseService.executeBatch(`
-        INSERT OR REPLACE INTO rutinas (id, nombre, nivel, frecuencia, descripcion, sistema_id, premium)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `, (rutinas || []).map(ru => [ru.id, ru.nombre, ru.nivel, ru.frecuencia, ru.descripcion, ru.sistema_id, ru.premium ? 1 : 0]));
+        INSERT OR REPLACE INTO rutinas (id, sistema_id, nombre, enfoque, nivel, imagen_url, user_id, is_custom)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `, (rutinas || []).map(ru => [ru.id, ru.sistema_id, ru.nombre, ru.enfoque, ru.nivel, ru.imagen_url, ru.user_id, ru.is_custom ? 1 : 0]));
 
       // 4.5 Pull Ejercicios
       const { data: ejerciciosLib } = await supabase.from('ejercicios_biblioteca').select('*');
       await DatabaseService.executeBatch(`
-        INSERT OR REPLACE INTO ejercicios_biblioteca (id, nombre, equipo_necesario, instrucciones, consejos_pro, musculos_trabajados, imagen_url)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `, (ejerciciosLib || []).map(ej => [ej.id, ej.nombre, ej.equipo_necesario, ej.instrucciones, ej.consejos_pro, ej.musculos_trabajados, ej.imagen_url]));
+        INSERT OR REPLACE INTO ejercicios_biblioteca (id, nombre, equipo_necesario, instrucciones, consejos_pro, musculos_trabajados, imagen_url, is_custom, created_by, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, (ejerciciosLib || []).map(ej => [ej.id, ej.nombre, ej.equipo_necesario, ej.instrucciones, ej.consejos_pro, ej.musculos_trabajados, ej.imagen_url, ej.is_custom ? 1 : 0, ej.created_by, ej.status]));
 
       const { data: rutEjercicios } = await supabase.from('rutina_ejercicios').select('*');
       await DatabaseService.executeBatch(`
         INSERT OR REPLACE INTO rutina_ejercicios (id, rutina_id, ejercicio_id, orden_ejercicio, repeticiones_objetivo)
         VALUES (?, ?, ?, ?, ?)
       `, (rutEjercicios || []).map(re => [re.id, re.rutina_id, re.ejercicio_id, re.orden_ejercicio, re.repeticiones_objetivo]));
+
+        await this.marcarCatalogosSincronizados();
+      } // fin del bloque de catálogos
+
+      // === DATOS DEL USUARIO (siempre se sincronizan) ===
 
       // 5. Pull Habitos Diarios
       const { data: habitos } = await supabase.from('habitos_diarios').select('*').eq('user_id', userId);
@@ -275,12 +327,12 @@ class SyncService {
   /**
    * Ejecuta sincronización bidireccional
    */
-  async syncAll(userId) {
+  async syncAll(userId, { force = false } = {}) {
     if (!userId) return;
     // 1. Primero subimos lo local a la nube (para no sobrescribirlo)
     await this.pushData(userId);
     // 2. Bajamos los datos frescos de la nube
-    await this.pullData(userId);
+    await this.pullData(userId, { force });
   }
 }
 

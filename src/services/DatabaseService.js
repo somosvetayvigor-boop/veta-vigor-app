@@ -71,6 +71,10 @@ class DatabaseService {
 
       await this.db.open();
 
+      // Migrar antes de crear: createSchema usa CREATE TABLE IF NOT EXISTS, así que
+      // sin esto los dispositivos ya instalados conservarían el esquema viejo para siempre.
+      await this.migrateIfNeeded();
+
       // Create Tables
       await this.createSchema();
 
@@ -83,6 +87,38 @@ class DatabaseService {
     } catch (e) {
       console.error("Error seteando la base de datos", e);
       return false;
+    }
+  }
+
+  /**
+   * Migración por versión de esquema.
+   *
+   * Las tablas de catálogo son un espejo desechable de Supabase: se pueden borrar
+   * sin perder nada porque el próximo sync las rellena. Las tablas con datos del
+   * usuario NO se tocan jamás: pueden contener filas is_dirty = 1 todavía sin subir.
+   */
+  async migrateIfNeeded() {
+    // v2: el esquema local no coincidía con el real de Supabase (faltaba rutinas.user_id,
+    // faltaba reto_dias.rutina_json, y sobraban 9 columnas que no existen del otro lado).
+    const SCHEMA_VERSION = 2;
+    const TABLAS_CATALOGO = [
+      'sistemas_entrenamiento', 'retos', 'reto_dias',
+      'rutinas', 'rutina_dias', 'rutina_ejercicios', 'ejercicios_biblioteca'
+    ];
+
+    try {
+      const res = await this.db.query('PRAGMA user_version;');
+      const version = res.values?.[0]?.user_version ?? 0;
+      if (version >= SCHEMA_VERSION) return;
+
+      console.log(`Migrando esquema local v${version} → v${SCHEMA_VERSION}...`);
+      for (const tabla of TABLAS_CATALOGO) {
+        await this.db.execute(`DROP TABLE IF EXISTS ${tabla};`);
+      }
+      await this.db.execute(`PRAGMA user_version = ${SCHEMA_VERSION};`);
+      console.log('Migración completada. Los catálogos se rellenan en el próximo sync.');
+    } catch (e) {
+      console.error('Error migrando el esquema local:', e);
     }
   }
 
@@ -128,12 +164,15 @@ class DatabaseService {
         is_dirty INTEGER DEFAULT 0
       );
 
+      -- === TABLAS DE CATÁLOGO ===
+      -- Espejo exacto del esquema real de Supabase (verificado 2026-08-14).
+      -- No inventar columnas: las que no existen del otro lado se sincronizan como NULL.
+
       CREATE TABLE IF NOT EXISTS sistemas_entrenamiento (
         id TEXT PRIMARY KEY,
         nombre TEXT,
         descripcion TEXT,
-        imagen_url TEXT,
-        orden INTEGER
+        imagen_url TEXT
       );
 
       CREATE TABLE IF NOT EXISTS retos (
@@ -141,35 +180,29 @@ class DatabaseService {
         nombre TEXT,
         descripcion TEXT,
         nivel_requerido TEXT,
-        puntos_recompensa INTEGER
+        created_at TEXT
       );
 
       CREATE TABLE IF NOT EXISTS reto_dias (
         id TEXT PRIMARY KEY,
         reto_id TEXT,
         dia_numero INTEGER,
-        nombre_dia TEXT,
-        descripcion TEXT,
-        video_url TEXT,
-        minutos_estimados INTEGER,
-        puntos_dia INTEGER
+        semana INTEGER,
+        enfoque TEXT,
+        trabajo_descanso TEXT,
+        rutina_json TEXT,
+        created_at TEXT
       );
 
       CREATE TABLE IF NOT EXISTS rutinas (
         id TEXT PRIMARY KEY,
-        nombre TEXT,
-        nivel TEXT,
-        frecuencia TEXT,
-        descripcion TEXT,
         sistema_id TEXT,
-        premium INTEGER
-      );
-
-      CREATE TABLE IF NOT EXISTS rutina_dias (
-        id TEXT PRIMARY KEY,
-        rutina_id TEXT,
-        dia_numero INTEGER,
-        nombre_dia TEXT
+        nombre TEXT,
+        enfoque TEXT,
+        nivel TEXT,
+        imagen_url TEXT,
+        user_id TEXT,
+        is_custom INTEGER
       );
 
       CREATE TABLE IF NOT EXISTS ejercicios_biblioteca (
@@ -179,7 +212,10 @@ class DatabaseService {
         instrucciones TEXT,
         consejos_pro TEXT,
         musculos_trabajados TEXT,
-        imagen_url TEXT
+        imagen_url TEXT,
+        is_custom INTEGER,
+        created_by TEXT,
+        status TEXT
       );
 
       CREATE TABLE IF NOT EXISTS rutina_ejercicios (
@@ -250,6 +286,33 @@ class DatabaseService {
         table_name TEXT PRIMARY KEY,
         last_sync_timestamp TEXT
       );
+
+      -- === ÍNDICES ===
+      -- Sin estos, cada WHERE user_id = ? recorre la tabla entera. Las columnas
+      -- id son PRIMARY KEY y ya están indexadas, por eso no aparecen acá.
+
+      CREATE INDEX IF NOT EXISTS idx_historial_user_fecha ON historial_entrenamientos(user_id, fecha_completado);
+      CREATE INDEX IF NOT EXISTS idx_checkins_user_fecha ON checkins(user_id, fecha);
+      CREATE INDEX IF NOT EXISTS idx_bienestar_user_fecha ON checkins_bienestar(user_id, fecha);
+      CREATE INDEX IF NOT EXISTS idx_habitos_user ON habitos_diarios(user_id);
+      CREATE INDEX IF NOT EXISTS idx_inventario_user_item ON rpg_inventario(user_id, item_id);
+      CREATE INDEX IF NOT EXISTS idx_recompensas_user ON rpg_historial_recompensas(user_id);
+      CREATE INDEX IF NOT EXISTS idx_entrenador_alumno ON relacion_entrenador_alumno(alumno_id);
+
+      CREATE INDEX IF NOT EXISTS idx_reto_dias_reto ON reto_dias(reto_id, dia_numero);
+      CREATE INDEX IF NOT EXISTS idx_retos_nivel ON retos(nivel_requerido);
+      CREATE INDEX IF NOT EXISTS idx_rutinas_sistema ON rutinas(sistema_id);
+      CREATE INDEX IF NOT EXISTS idx_rutinas_nivel ON rutinas(nivel);
+      CREATE INDEX IF NOT EXISTS idx_rutinas_user ON rutinas(user_id);
+      CREATE INDEX IF NOT EXISTS idx_rutina_ejercicios_rutina ON rutina_ejercicios(rutina_id, orden_ejercicio);
+
+      -- Índices parciales para el push: solo indexan las filas pendientes de subir,
+      -- que son unas pocas, en vez de toda la tabla.
+      CREATE INDEX IF NOT EXISTS idx_historial_dirty ON historial_entrenamientos(user_id) WHERE is_dirty = 1;
+      CREATE INDEX IF NOT EXISTS idx_checkins_dirty ON checkins(user_id) WHERE is_dirty = 1;
+      CREATE INDEX IF NOT EXISTS idx_bienestar_dirty ON checkins_bienestar(user_id) WHERE is_dirty = 1;
+      CREATE INDEX IF NOT EXISTS idx_habitos_dirty ON habitos_diarios(user_id) WHERE is_dirty = 1;
+      CREATE INDEX IF NOT EXISTS idx_inventario_dirty ON rpg_inventario(user_id) WHERE is_dirty = 1;
     `;
 
     try {

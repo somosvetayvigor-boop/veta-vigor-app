@@ -212,8 +212,15 @@ const TopHeader = ({ session }) => {
           </button>
         )}
 
-        <button 
-          onClick={() => window.location.reload()} 
+        <button
+          onClick={() => {
+            // Invalidar los catálogos para que la recarga los vuelva a bajar:
+            // si no, el throttle de 6h los daría por frescos y el refresco no traería
+            // el contenido nuevo publicado desde el panel de administración.
+            SyncService.invalidarCatalogos()
+              .catch(() => {})
+              .finally(() => window.location.reload());
+          }}
           style={{ background: 'transparent', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', padding: 0 }}
         >
           <RefreshCw size={20} />

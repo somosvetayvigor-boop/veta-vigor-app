@@ -192,15 +192,18 @@ export default function Reto21Dias({ session }) {
         
         // Guardar en SQLite para acceso offline
         if (retoData) {
-          await DatabaseService.execute(`INSERT OR REPLACE INTO retos (id, nombre, descripcion, nivel_requerido, puntos_recompensa) VALUES (?, ?, ?, ?, ?)`,
-            [retoData.id, retoData.nombre, retoData.descripcion, retoData.nivel_requerido, retoData.puntos_recompensa || 0]);
+          await DatabaseService.execute(`INSERT OR REPLACE INTO retos (id, nombre, descripcion, nivel_requerido, created_at) VALUES (?, ?, ?, ?, ?)`,
+            [retoData.id, retoData.nombre, retoData.descripcion, retoData.nivel_requerido, retoData.created_at]);
         }
         if (diasData.length > 0) {
           // Un solo lote: antes eran 21 inserts concurrentes sin await, y cada uno
           // abría su propia transacción ("cannot start a transaction within a transaction").
           await DatabaseService.executeBatch(
-            `INSERT OR REPLACE INTO reto_dias (id, reto_id, dia_numero, nombre_dia, descripcion, video_url, minutos_estimados, puntos_dia) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-            diasData.map(rd => [rd.id, rd.reto_id, rd.dia_numero || 0, rd.nombre_dia || '', rd.descripcion || null, rd.video_url || null, rd.minutos_estimados || 0, rd.puntos_dia || 0])
+            `INSERT OR REPLACE INTO reto_dias (id, reto_id, dia_numero, semana, enfoque, trabajo_descanso, rutina_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            diasData.map(rd => [
+              rd.id, rd.reto_id, rd.dia_numero || 0, rd.semana, rd.enfoque, rd.trabajo_descanso,
+              rd.rutina_json ?? null, rd.created_at
+            ])
           );
         }
         
