@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
+import DatabaseService from '../services/DatabaseService';
 import { ChevronLeft, PlayCircle, Timer, CheckCircle, ChevronRight, X, Loader, Play, Pause, RotateCcw } from 'lucide-react';
 import { warmupsData } from '../data/warmupsData';
 import { cancelTrainingReminder } from '../utils/ScheduledNotifications';
@@ -53,67 +54,58 @@ export default function RutinaDetail({ session }) {
 
   useEffect(() => {
     async function fetchData() {
-      if (!navigator.onLine) {
-        const { obtenerRutinaLocal } = await import('../utils/LocalDB');
-        const localData = await obtenerRutinaLocal(id);
-        if (localData) {
-          setRutina(localData.rutina);
-          setEjercicios(localData.ejercicios);
-          setWarmups(localData.warmups);
-          setSeriesLog(localData.seriesLog || {});
-          setFormInputs(localData.formInputs || {});
-          setLoading(false);
-          return;
-        } else {
-          alert('No hay internet y esta rutina no está descargada.');
-          navigate('/mi-rutina');
-          return;
-        }
+      // Offline fallback still works if we used IndexedDB before, but now we use SQLite everywhere.
+      const rutDataRows = await DatabaseService.query(`
+        SELECT r.*, s.nombre as sistema_nombre 
+        FROM rutinas r 
+        LEFT JOIN sistemas_entrenamiento s ON r.sistema_id = s.id 
+        WHERE r.id = ?
+      `, [id]);
+      
+      let rutData = null;
+      if (rutDataRows && rutDataRows.length > 0) {
+        rutData = rutDataRows[0];
+        rutData.sistemas_entrenamiento = { nombre: rutData.sistema_nombre };
+        setRutina(rutData);
       }
 
-      const { data: rutData } = await supabase.from('rutinas').select('*, sistemas_entrenamiento(nombre)').eq('id', id).single();
-      if (rutData) setRutina(rutData);
+      const ejRows = await DatabaseService.query(`
+        SELECT 
+          re.orden_ejercicio, 
+          re.repeticiones_objetivo, 
+          eb.id as ej_id, 
+          eb.nombre, 
+          eb.equipo_necesario, 
+          eb.instrucciones, 
+          eb.consejos_pro, 
+          eb.musculos_trabajados, 
+          eb.imagen_url
+        FROM rutina_ejercicios re
+        INNER JOIN ejercicios_biblioteca eb ON re.ejercicio_id = eb.id
+        WHERE re.rutina_id = ?
+        ORDER BY re.orden_ejercicio ASC
+      `, [id]);
 
-      const { data: ejData } = await supabase
-        .from('rutina_ejercicios')
-        .select(`
-          orden_ejercicio,
-          repeticiones_objetivo,
-          ejercicios_biblioteca (
-            id,
-            nombre,
-            equipo_necesario,
-            instrucciones,
-            consejos_pro,
-            musculos_trabajados,
-            imagen_url
-          )
-        `)
-        .eq('rutina_id', id)
-        .order('orden_ejercicio');
-      
-      if (ejData) {
-        let n = (rutData?.nivel || meta.nivel || 'semilla').toLowerCase();
-        let currentWarmups = warmupsData.semilla;
-        if (n.includes('pino')) currentWarmups = warmupsData.pino;
-        else if (n.includes('tzalam')) currentWarmups = warmupsData.tzalam;
-        else if (n.includes('roble')) currentWarmups = warmupsData.roble;
-
-        const warmupsArray = currentWarmups.map((w, i) => ({
-          ...w,
-          orden_ejercicio: i,
+      if (ejRows && ejRows.length > 0) {
+        const formattedEjs = ejRows.map(row => ({
+          orden_ejercicio: row.orden_ejercicio,
+          repeticiones_objetivo: row.repeticiones_objetivo,
           ejercicios_biblioteca: {
-            ...w.ejercicios_biblioteca,
-            id: `warmup-${i}`
+            id: row.ej_id,
+            nombre: row.nombre,
+            equipo_necesario: row.equipo_necesario,
+            instrucciones: row.instrucciones,
+            consejos_pro: row.consejos_pro,
+            musculos_trabajados: row.musculos_trabajados,
+            imagen_url: row.imagen_url
           }
         }));
 
-        setWarmups(warmupsArray);
-        setEjercicios(ejData);
+        setEjercicios(formattedEjs);
 
         const initLogs = {};
         const initInputs = {};
-        ejData.forEach(e => {
+        formattedEjs.forEach(e => {
           if(e.ejercicios_biblioteca) {
             initLogs[e.ejercicios_biblioteca.id] = [];
             initInputs[e.ejercicios_biblioteca.id] = {};
@@ -122,6 +114,24 @@ export default function RutinaDetail({ session }) {
         setSeriesLog(initLogs);
         setFormInputs(initInputs);
       }
+
+      const meta = session?.user?.user_metadata || {};
+      let n = (rutData?.nivel || meta.nivel || 'semilla').toLowerCase();
+      let currentWarmups = warmupsData.semilla;
+      if (n.includes('pino')) currentWarmups = warmupsData.pino;
+      else if (n.includes('tzalam')) currentWarmups = warmupsData.tzalam;
+      else if (n.includes('roble')) currentWarmups = warmupsData.roble;
+
+      const warmupsArray = currentWarmups.map((w, i) => ({
+        ...w,
+        orden_ejercicio: i,
+        ejercicios_biblioteca: {
+          ...w.ejercicios_biblioteca,
+          id: `warmup-${i}`
+        }
+      }));
+
+      setWarmups(warmupsArray);
       
       const { obtenerRutinaLocal } = await import('../utils/LocalDB');
       const localData = await obtenerRutinaLocal(id);
@@ -132,7 +142,7 @@ export default function RutinaDetail({ session }) {
       setLoading(false);
     }
     fetchData();
-  }, [id]);
+  }, [id, session]);
 
   const descargarParaOffline = async () => {
     setIsDownloading(true);
@@ -394,10 +404,10 @@ export default function RutinaDetail({ session }) {
 
     // === INYECCIÓN RPG ENGINE (Silencioso) ===
     try {
-      const { data: perfilInfo } = await supabase.from('perfiles').select('xp_actual, puntos_forja, stat_fuerza, stat_agilidad, stat_resistencia, nivel_rpg').eq('id', session?.user.id).maybeSingle();
-      if (perfilInfo) {
+      const perfilesRows = await DatabaseService.query(`SELECT xp_actual, puntos_forja, stat_fuerza, stat_agilidad, stat_resistencia, nivel_rpg FROM perfiles WHERE id = ?`, [session?.user.id]);
+      if (perfilesRows && perfilesRows.length > 0) {
+        const perfilInfo = perfilesRows[0];
         const { calculateWorkoutRewards, calculateLevel } = await import('../utils/ProgressionEngine');
-        // Asumimos racha guardada o 0 para el bonus
         const { xp, puntosForja, statsBonus } = calculateWorkoutRewards(rutina?.sistemas_entrenamiento?.nombre, 1);
         
         const newXp = (perfilInfo.xp_actual || 0) + xp;
@@ -407,20 +417,26 @@ export default function RutinaDetail({ session }) {
         const newResistencia = (perfilInfo.stat_resistencia || 0) + statsBonus.resistencia;
         const newLevelRPG = calculateLevel(newXp);
 
-        const rpgUpdates = {
-          xp_actual: newXp, 
-          puntos_forja: newForja, 
-          stat_fuerza: newFuerza, 
-          stat_agilidad: newAgilidad, 
-          stat_resistencia: newResistencia,
-          nivel_rpg: newLevelRPG
-        };
+        // Guardar en SQLite local
+        await DatabaseService.execute(`
+          UPDATE perfiles 
+          SET xp_actual = ?, puntos_forja = ?, stat_fuerza = ?, stat_agilidad = ?, stat_resistencia = ?, nivel_rpg = ?, is_dirty = 1 
+          WHERE id = ?
+        `, [newXp, newForja, newFuerza, newAgilidad, newResistencia, newLevelRPG, session?.user.id]);
 
+        // Guardar historial local (is_dirty = 0: no se sincroniza, la tabla remota no existe)
+        const recId = crypto.randomUUID();
+        await DatabaseService.execute(`INSERT INTO rpg_historial_recompensas (id, user_id, xp_ganada, monedas_ganadas, fuente, descripcion, fecha_reclamo, is_dirty) VALUES (?, ?, ?, ?, ?, ?, ?, 0)`, [
+          recId, session?.user.id, xp, puntosForja, 'entrenamiento', `Rutina completada (+${xp} XP, +${puntosForja} Oro)`, new Date().toISOString()
+        ]);
+
+        // === SYNC DIRECTO A SUPABASE (cuando hay internet) ===
         if (navigator.onLine) {
-          await supabase.from('perfiles').update(rpgUpdates).eq('id', session?.user.id);
-        } else {
-          const { addToOfflineQueue } = await import('../utils/OfflineManager');
-          addToOfflineQueue('UPDATE_PERFIL', { id: session?.user.id, ...rpgUpdates });
+          supabase.from('perfiles').update({
+            xp_actual: newXp, puntos_forja: newForja,
+            stat_fuerza: newFuerza, stat_agilidad: newAgilidad, stat_resistencia: newResistencia,
+            nivel_rpg: newLevelRPG
+          }).eq('id', session?.user.id).then().catch(e => console.warn('Sync RPG error:', e));
         }
 
         // Mostrar Animación de Victoria si es Admin
@@ -555,10 +571,8 @@ export default function RutinaDetail({ session }) {
 
         // --- INICIO LÓGICA DE GAMIFICACIÓN E INSIGNIAS ---
         try {
-          // Llama al RPC que crearemos en la DB para obtener el ranking actualizado
-          const { data: historialCountData } = await supabase.rpc('get_leaderboard');
-          const myStats = historialCountData?.find(user => user.user_id === session?.user.id);
-          const totalWorkouts = myStats ? parseInt(myStats.total_workouts) : 1;
+          const historialRows = await DatabaseService.query(`SELECT count(*) as total_workouts FROM historial_entrenamientos WHERE user_id = ?`, [session?.user.id]);
+          const totalWorkouts = historialRows.length > 0 ? historialRows[0].total_workouts : 1;
           
           let achievedBadge = null;
           if (totalWorkouts === 10) achievedBadge = '🥉 Acero Templado (10 Entrenamientos)';
@@ -566,7 +580,7 @@ export default function RutinaDetail({ session }) {
           else if (totalWorkouts === 50) achievedBadge = '🥇 Oro Vigoroso (50 Entrenamientos)';
           else if (totalWorkouts === 100) achievedBadge = '💎 Titán del Vigor (100 Entrenamientos)';
 
-          if (achievedBadge) {
+          if (achievedBadge && navigator.onLine) {
              const username = session?.user.user_metadata?.username || session?.user.user_metadata?.nombre_completo || 'Atleta';
              await supabase.from('chat_mensajes').insert([{
                room_id: 'vip_comunidad',
@@ -681,23 +695,14 @@ export default function RutinaDetail({ session }) {
 
     
     if (logs.length > 0) {
-      const payload = {
-        user_id: session?.user.id,
-        rutina_id: id,
-        ejercicio_id: ejId,
-        series_log: logs,
-        completado: true
-      };
-
       try {
-        if (!navigator.onLine) {
-          const { addToOfflineQueue } = await import('../utils/OfflineManager');
-          addToOfflineQueue('INSERT_HISTORIAL', payload);
-        } else {
-          await supabase.from('historial_entrenamientos').insert([payload]);
-          // Cancelar el recordatorio de las 6 PM ya que el usuario entrenó
-          cancelTrainingReminder();
-        }
+        const historialId = crypto.randomUUID();
+        await DatabaseService.execute(`
+          INSERT INTO historial_entrenamientos (id, user_id, rutina_id, ejercicio_id, series_log, completado, is_dirty)
+          VALUES (?, ?, ?, ?, ?, 1, 1)
+        `, [historialId, session?.user.id, id, ejId, JSON.stringify(logs)]);
+        
+        cancelTrainingReminder();
       } catch (err) {
         console.error("Error guardando historial:", err);
       }

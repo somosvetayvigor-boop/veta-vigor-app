@@ -9,8 +9,11 @@
     <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
     <script>
       window.OneSignalDeferred = window.OneSignalDeferred || [];
-      OneSignalDeferred.push(function(OneSignal) {
-        OneSignal.init({
+      // async + await: init() es asíncrono. Sin esperarlo, los callbacks que la app
+      // encola después (login, promptPush) corren contra un SDK a medio inicializar
+      // y fallan con "Cannot read properties of undefined".
+      OneSignalDeferred.push(async function(OneSignal) {
+        await OneSignal.init({
           appId: "f0e7f7a8-6da8-4592-92a7-542f731a91f0"
         });
       });

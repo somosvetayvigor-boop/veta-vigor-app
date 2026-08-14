@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
+import DatabaseService from '../services/DatabaseService';
 import { ChevronLeft, Lock, Unlock, CheckCircle, Flame, Clock, Trophy } from 'lucide-react';
 import RutinaRetoPlayer from '../components/RutinaRetoPlayer';
 import html2canvas from 'html2canvas';
@@ -81,68 +82,158 @@ export default function Reto21Dias({ session }) {
   const fetchData = async () => {
     try {
       setLoading(true);
-      // 1. Fetch Perfil
-      const { data: perfilData, error: perfilError } = await supabase
-        .from('perfiles')
-        .select('*')
-        .eq('id', session?.user.id)
-        .single();
-        
-      if (perfilError) throw perfilError;
+      const userId = session?.user?.id;
+      if (!userId) { navigate('/'); return; }
+
+      // ============================================
+      // PASO 1: OBTENER PERFIL (Supabase primero, SQLite respaldo)
+      // ============================================
+      let perfilData = null;
+      
+      if (navigator.onLine) {
+        try {
+          const { data: p } = await supabase.from('perfiles').select('*').eq('id', userId).single();
+          if (p) perfilData = p;
+        } catch (e) {
+          console.warn("Supabase perfil error:", e);
+        }
+      }
+      
+      // Si no hay internet o falló Supabase, usar SQLite
+      if (!perfilData) {
+        const perfilesRows = await DatabaseService.query(`SELECT * FROM perfiles WHERE id = ?`, [userId]);
+        if (perfilesRows && perfilesRows.length > 0) perfilData = perfilesRows[0];
+      }
+
+      if (!perfilData) { navigate('/'); return; }
       setPerfil(perfilData);
 
-      let activeRetoId = perfilData?.reto_activo_id || searchParams.get('retoId');
-      
-      if (!activeRetoId && perfilData) {
-        // Find correct Reto based on user's active system and level
-        let querySistema = "Vigor"; // default
-        let queryNivel = "Semilla"; // default
+      // ============================================
+      // PASO 2: DETERMINAR QUÉ RETO CARGAR
+      // ============================================
+      let activeRetoId = perfilData.reto_activo_id || searchParams.get('retoId');
+      let retoData = null;
+      let diasData = [];
+
+      // ============================================
+      // PASO 3: CARGAR RETO Y DÍAS (Supabase primero, SQLite respaldo)
+      // ============================================
+      if (navigator.onLine) {
+        // --- ONLINE: Leer TODO de Supabase ---
         
-        if (perfilData.nivel === 'Pino' || perfilData.nivel === 'Tzalam' || perfilData.nivel === 'Roble') {
-          queryNivel = "Pino,Tzalam"; 
+        // Si tenemos un retoId activo, intentar cargarlo directamente
+        if (activeRetoId) {
+          const [sbReto, sbDias] = await Promise.all([
+            supabase.from('retos').select('*').eq('id', activeRetoId).single(),
+            supabase.from('reto_dias').select('*').eq('reto_id', activeRetoId).order('dia_numero', { ascending: true })
+          ]);
+          
+          if (sbReto.data) retoData = sbReto.data;
+          if (sbDias.data && sbDias.data.length > 0) diasData = sbDias.data;
         }
         
-        const userSysId = perfilData.sistema_activo || session?.user?.user_metadata?.sistema_activo;
-        if (userSysId) {
-          const { data: sysData } = await supabase.from('sistemas_entrenamiento').select('nombre').eq('id', userSysId).maybeSingle();
-          if (sysData) {
-            const n = sysData.nombre.toLowerCase();
-            if (n.includes('hierro')) querySistema = 'Hierro';
-            else if (n.includes('híbrido') || n.includes('hibrido')) querySistema = 'Híbrido';
+        // Si el retoId no existe o no tiene días, buscar un reto válido en Supabase
+        if (!retoData || diasData.length === 0) {
+          console.log("⚠️ Reto21Dias: Buscando reto válido en Supabase...");
+          
+          // Determinar sistema del usuario
+          let querySistema = "Vigor";
+          if (perfilData.sistema_activo) {
+            try {
+              const { data: sysData } = await supabase.from('sistemas_entrenamiento').select('nombre').eq('id', perfilData.sistema_activo).single();
+              if (sysData) {
+                const n = sysData.nombre.toLowerCase();
+                if (n.includes('hierro')) querySistema = 'Hierro';
+                else if (n.includes('híbrido') || n.includes('hibrido')) querySistema = 'Híbrido';
+              }
+            } catch (e) {}
+          }
+          
+          // Determinar nivel del usuario
+          let queryNivel = "Semilla";
+          if (perfilData.nivel === 'Pino' || perfilData.nivel === 'Tzalam' || perfilData.nivel === 'Roble') {
+            queryNivel = "Pino,Tzalam";
+          }
+          
+          // Buscar reto que coincida con sistema y nivel
+          const nivelFilter = `%${queryNivel}%${querySistema}%`;
+          let { data: matchingRetos } = await supabase.from('retos').select('*').like('nivel_requerido', nivelFilter);
+          
+          // Si no encontramos con filtro exacto, probar solo con sistema
+          if (!matchingRetos || matchingRetos.length === 0) {
+            const sysFilter = `%${querySistema}%`;
+            const result = await supabase.from('retos').select('*').like('nivel_requerido', sysFilter);
+            matchingRetos = result.data;
+          }
+          
+          // Si aún nada, tomar el primer reto disponible
+          if (!matchingRetos || matchingRetos.length === 0) {
+            const result = await supabase.from('retos').select('*').limit(1);
+            matchingRetos = result.data;
+          }
+          
+          if (matchingRetos && matchingRetos.length > 0) {
+            retoData = matchingRetos[0];
+            activeRetoId = retoData.id;
+            
+            // Cargar sus días
+            const { data: sbDias } = await supabase.from('reto_dias').select('*').eq('reto_id', activeRetoId).order('dia_numero', { ascending: true });
+            if (sbDias && sbDias.length > 0) diasData = sbDias;
+            
+            // Actualizar perfil en Supabase y SQLite para fijar el reto correcto
+            try {
+              await supabase.from('perfiles').update({ reto_activo_id: activeRetoId }).eq('id', userId);
+              await DatabaseService.execute(`UPDATE perfiles SET reto_activo_id = ? WHERE id = ?`, [activeRetoId, userId]);
+            } catch (e) {
+              console.warn("Error actualizando perfil con reto correcto:", e);
+            }
           }
         }
         
-        const nivelReq = `${queryNivel}|${querySistema}`;
-        let matchedReto = null;
-        
-        const { data: exactMatch } = await supabase.from('retos').select('id').eq('nivel_requerido', nivelReq).maybeSingle();
-        if (exactMatch) {
-          matchedReto = exactMatch;
-        } else {
-          // Fallback if not found
-          const { data: firstMatch } = await supabase.from('retos').select('id').limit(1).maybeSingle();
-          matchedReto = firstMatch;
+        // Guardar en SQLite para acceso offline
+        if (retoData) {
+          await DatabaseService.execute(`INSERT OR REPLACE INTO retos (id, nombre, descripcion, nivel_requerido, puntos_recompensa) VALUES (?, ?, ?, ?, ?)`,
+            [retoData.id, retoData.nombre, retoData.descripcion, retoData.nivel_requerido, retoData.puntos_recompensa || 0]);
         }
-
-        if (matchedReto) {
-          activeRetoId = matchedReto.id;
-          searchParams.set('retoId', matchedReto.id);
-        } else {
-          navigate('/');
-          return;
+        if (diasData.length > 0) {
+          // Un solo lote: antes eran 21 inserts concurrentes sin await, y cada uno
+          // abría su propia transacción ("cannot start a transaction within a transaction").
+          await DatabaseService.executeBatch(
+            `INSERT OR REPLACE INTO reto_dias (id, reto_id, dia_numero, nombre_dia, descripcion, video_url, minutos_estimados, puntos_dia) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            diasData.map(rd => [rd.id, rd.reto_id, rd.dia_numero || 0, rd.nombre_dia || '', rd.descripcion || null, rd.video_url || null, rd.minutos_estimados || 0, rd.puntos_dia || 0])
+          );
+        }
+        
+      } else {
+        // --- OFFLINE: Leer de SQLite ---
+        if (activeRetoId) {
+          const retoRows = await DatabaseService.query(`SELECT * FROM retos WHERE id = ?`, [activeRetoId]);
+          if (retoRows && retoRows.length > 0) {
+            retoData = retoRows[0];
+            const diasRows = await DatabaseService.query(`SELECT * FROM reto_dias WHERE reto_id = ? ORDER BY dia_numero ASC`, [activeRetoId]);
+            if (diasRows) diasData = diasRows;
+          }
+        }
+        
+        // Si SQLite no tiene datos para el reto activo, buscar cualquiera
+        if (!retoData || diasData.length === 0) {
+          const anyReto = await DatabaseService.query(`SELECT DISTINCT r.* FROM retos r JOIN reto_dias d ON r.id = d.reto_id LIMIT 1`);
+          if (anyReto && anyReto.length > 0) {
+            retoData = anyReto[0];
+            activeRetoId = retoData.id;
+            const diasRows = await DatabaseService.query(`SELECT * FROM reto_dias WHERE reto_id = ? ORDER BY dia_numero ASC`, [activeRetoId]);
+            if (diasRows) diasData = diasRows;
+          }
         }
       }
 
-      if (activeRetoId) {
-        // 2 & 3. Fetch Reto and Dias in parallel
-        const [retoResponse, diasResponse] = await Promise.all([
-          supabase.from('retos').select('*').eq('id', activeRetoId).single(),
-          supabase.from('reto_dias').select('*').eq('reto_id', activeRetoId).order('dia_numero', { ascending: true })
-        ]);
-        
-        if (retoResponse.data) setReto(retoResponse.data);
-        if (diasResponse.data) setDias(diasResponse.data || []);
-      }
+      // ============================================
+      // PASO 4: ACTUALIZAR ESTADO DE REACT
+      // ============================================
+      console.log(`✅ Reto21Dias: retoData=${retoData?.nombre || 'null'}, dias=${diasData.length}`);
+      
+      if (retoData) setReto(retoData);
+      setDias(diasData);
       
     } catch (err) {
       console.error("Error cargando reto:", err);
@@ -166,6 +257,12 @@ export default function Reto21Dias({ session }) {
         .eq('id', session?.user.id);
         
       if (error) throw error;
+
+      await DatabaseService.execute(`
+        UPDATE perfiles 
+        SET reto_activo_id = ?, reto_dia_actual = 1, reto_completado = 0, reto_ultimo_completado = NULL 
+        WHERE id = ?
+      `, [reto.id, session?.user.id]);
       
       // Trigger inmediato de notificación de bienvenida (silent fail)
       try {
@@ -214,17 +311,11 @@ export default function Reto21Dias({ session }) {
     if (isFinished) {
       if (!perfil.plan_membresia || perfil.plan_membresia === 'Atleta Base (Gratis)') {
         // Validar que hayan hecho al menos 18 días
-        const { count } = await supabase
-          .from('habitos_diarios')
-          .select('*', { count: 'exact', head: true })
-          .eq('user_id', perfil.id)
-          .not('dia_reto', 'is', null);
+        const habitosRows = await DatabaseService.query(`SELECT count(*) as total FROM habitos_diarios WHERE user_id = ? AND dia_reto IS NOT NULL`, [perfil.id]);
+        const count = habitosRows.length > 0 ? habitosRows[0].total : 0;
 
         if (count >= 18) {
-          await supabase
-            .from('perfiles')
-            .update({ force_platinum_trial: true })
-            .eq('id', perfil.id);
+          await DatabaseService.execute(`UPDATE perfiles SET force_platinum_trial = 1, is_dirty = 1 WHERE id = ?`, [perfil.id]);
         }
       }
       setShowVictoryModal(true);
@@ -348,15 +439,24 @@ export default function Reto21Dias({ session }) {
     );
   }
 
-  // Calculamos lógica de desbloqueo (Opción C)
+  // Calculamos lógica de desbloqueo — el "día" se reinicia a las 4:00 AM
   const isLockedToday = () => {
     if (session?.user?.email === 'somos.vetayvigor@gmail.com') return false; // Modo Dios Desbloqueo Infinito
     if (!perfil.reto_ultimo_completado) return false; // Nunca ha completado uno
     
-    // Comparar fecha basada en la zona horaria local del usuario para evitar desfases con UTC
-    const lastDate = new Date(perfil.reto_ultimo_completado).toLocaleDateString();
-    const todayDate = new Date().toLocaleDateString();
-    return lastDate === todayDate;
+    // Obtener la "fecha efectiva" (el día calendario cambia a las 4AM, no a medianoche)
+    const getEffectiveDate = (date) => {
+      const d = new Date(date);
+      // Si es antes de las 4AM, todavía cuenta como el día anterior
+      if (d.getHours() < 4) {
+        d.setDate(d.getDate() - 1);
+      }
+      return d.toLocaleDateString();
+    };
+    
+    const lastEffective = getEffectiveDate(perfil.reto_ultimo_completado);
+    const todayEffective = getEffectiveDate(new Date());
+    return lastEffective === todayEffective;
   };
   
   const todayLocked = isLockedToday();

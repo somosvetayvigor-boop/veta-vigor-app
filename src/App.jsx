@@ -6,6 +6,8 @@ import { Capacitor } from '@capacitor/core';
 import { Home, Dumbbell, MessageCircle, User, CalendarCheck, Users, Menu, X, Bot, Scale, FlaskConical, Activity, WifiOff, Calculator, RefreshCw, Loader } from 'lucide-react';
 import { processOfflineQueue } from './utils/OfflineManager';
 import { DatabaseManager } from './utils/DatabaseManager';
+import DatabaseService from './services/DatabaseService';
+import SyncService from './services/SyncService';
 import UserChatModal from './components/UserChatModal';
 import CreadorRutinas from './pages/CreadorRutinas';
 import OneSignal from '@onesignal/capacitor-plugin';
@@ -664,15 +666,27 @@ function App() {
     };
 
     const checkSession = async () => {
-      // SAFETY NET: Force-kill the splash screen after 10 seconds no matter what.
+      // SAFETY NET: Force-kill the splash screen after 60 seconds no matter what.
+      // Native SQLite inserts can take up to 30-40 seconds on older devices
+      // due to lack of batching in SyncService.
       const safetyTimer = setTimeout(() => {
-        console.warn("⚠️ SAFETY TIMEOUT: Forcing splash screen to close after 10 seconds.");
+        console.warn("⚠️ SAFETY TIMEOUT: Forcing splash screen to close after 60 seconds.");
         setLoading(false);
-      }, 10000);
+      }, 60000);
 
       const startTime = Date.now();
 
       try {
+        // ===================================================================
+        // PASO 0: INICIALIZAR BASE DE DATOS SQLITE LOCAL
+        // ===================================================================
+        try {
+          await DatabaseService.setupDatabase();
+          console.log("✅ SQLite inicializado correctamente.");
+        } catch (dbInitErr) {
+          console.error("❌ Falló inicialización de SQLite:", dbInitErr);
+        }
+
         // ===================================================================
         // PASO 1: LEER LA SESIÓN DEL CACHÉ LOCAL (localStorage) - SIN INTERNET
         // Supabase guarda automáticamente el token en localStorage.
@@ -692,6 +706,16 @@ function App() {
                 refresh_token: raw.refresh_token,
                 user: raw.user
               };
+              // IMPORTANTE: Inyectar la sesión en el cliente de Supabase para evitar fallos RLS
+              // si las pantallas hacen consultas antes de que Supabase termine su init interno.
+              try {
+                await supabase.auth.setSession({
+                  access_token: session.access_token,
+                  refresh_token: session.refresh_token
+                });
+              } catch (e) {
+                console.warn("Error injecting session to Supabase client", e);
+              }
               console.log("✅ Sesión cargada desde caché local (sin internet).");
             }
           } catch (parseErr) {
@@ -704,19 +728,43 @@ function App() {
           setSession(session);
 
           // =================================================================
-          // PASO 2: LEER EL PERFIL/ROL DESDE IndexedDB → RAM (SIN INTERNET)
+          // PASO 2: LEER EL PERFIL/ROL DESDE SQLite → RAM (SIN INTERNET)
           // =================================================================
+          let localProfile = null;
           try {
-            const localProfile = await DatabaseManager.getProfile(session.user.id);
-            if (localProfile) {
+            const perfilRows = await DatabaseService.query(`SELECT rol_usuario, sistema_activo FROM perfiles WHERE id = ?`, [session.user.id]);
+            if (perfilRows && perfilRows.length > 0) {
+              localProfile = perfilRows[0];
               if (localProfile.rol_usuario) {
                 localStorage.setItem('user_role', localProfile.rol_usuario);
                 setUserRoleState(localProfile.rol_usuario);
               }
-              console.log("✅ Perfil cargado desde IndexedDB (sin internet).");
+              console.log("✅ Perfil cargado desde SQLite (sin internet).");
             }
           } catch (dbErr) {
-            console.warn("IndexedDB read failed (non-fatal):", dbErr);
+            console.warn("SQLite read failed (non-fatal):", dbErr);
+          }
+
+          // Si es un usuario nuevo en este dispositivo, localProfile será null.
+          // Debemos forzar la sincronización ANTES de mostrar la UI.
+          if (!localProfile) {
+            console.log("⚠️ No hay perfil local, forzando sync inicial...");
+            try {
+              // Esperar a que el SDK oficial de Supabase esté 100% inicializado 
+              // y tenga el JWT antes de hacer los SELECT masivos (para evitar bloqueos por RLS)
+              const { data: officialSession } = await supabase.auth.getSession();
+              if (officialSession?.session) {
+                 console.log("✅ Sesión oficial de Supabase confirmada para el sync.");
+              }
+              
+              // NO HACER AWAIT. Dejar que corra en segundo plano para no bloquear el inicio.
+              Promise.race([
+                SyncService.syncAll(session.user.id),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('sync_timeout')), 60000))
+              ]).catch(err => console.warn("Fallo sync inicial forzado:", err));
+            } catch (err) {
+              console.warn("Error lanzando sync inicial forzado:", err);
+            }
           }
 
           // =================================================================
@@ -747,6 +795,12 @@ function App() {
                 await Promise.race([
                   checkUserRoleAndPaywall(freshSession.user),
                   new Promise(r => setTimeout(r, 5000))
+                ]);
+
+                // Sincronizar SQLite bidireccionalmente
+                await Promise.race([
+                  SyncService.syncAll(freshSession.user.id),
+                  new Promise(r => setTimeout(r, 10000))
                 ]);
               }
             } catch (bgErr) {
@@ -780,8 +834,15 @@ function App() {
               checkUserRoleAndPaywall(session.user),
               new Promise(r => setTimeout(r, 2000))
             ]);
+
+            // Sincronizar SQLite bidireccionalmente
+            console.log("⚠️ Nuevo login, forzando sincronización completa inicial (en segundo plano)...");
+            Promise.race([
+              SyncService.syncAll(session.user.id),
+              new Promise((_, reject) => setTimeout(() => reject(new Error('initial_sync_timeout')), 60000))
+            ]).catch(syncErr => console.warn("Background sync error (non-fatal):", syncErr));
           } catch (syncErr) {
-            console.warn("Background sync error (non-fatal):", syncErr);
+            console.warn("Background role/paywall check error:", syncErr);
           }
         }
 
@@ -950,11 +1011,15 @@ function App() {
         supabase.from('perfiles').update({ ultimo_ingreso: new Date().toISOString() }).eq('id', session?.user.id).then();
 
         // OneSignal Web Prompt (solo para PWA en navegador, no en app nativa)
-        if (!Capacitor.isNativePlatform()) {
+        if (!Capacitor.isNativePlatform() && session?.user?.id) {
           window.OneSignalDeferred = window.OneSignalDeferred || [];
-          window.OneSignalDeferred.push(function(OneSignal) {
-            OneSignal.login(session?.user.id);
-            OneSignal.Slidedown.promptPush();
+          window.OneSignalDeferred.push(async function(OneSignal) {
+            try {
+              await OneSignal.login(session.user.id);
+              await OneSignal.Slidedown.promptPush();
+            } catch (e) {
+              console.warn('OneSignal web:', e);
+            }
           });
         }
 
@@ -1000,11 +1065,15 @@ function App() {
         supabase.from('perfiles').update({ ultimo_ingreso: new Date().toISOString() }).eq('id', session?.user.id).then();
 
         // OneSignal Web Prompt (solo para PWA en navegador, no en app nativa)
-        if (!Capacitor.isNativePlatform()) {
+        if (!Capacitor.isNativePlatform() && session?.user?.id) {
           window.OneSignalDeferred = window.OneSignalDeferred || [];
-          window.OneSignalDeferred.push(function(OneSignal) {
-            OneSignal.login(session?.user.id);
-            OneSignal.Slidedown.promptPush();
+          window.OneSignalDeferred.push(async function(OneSignal) {
+            try {
+              await OneSignal.login(session.user.id);
+              await OneSignal.Slidedown.promptPush();
+            } catch (e) {
+              console.warn('OneSignal web:', e);
+            }
           });
         }
 
@@ -1087,25 +1156,23 @@ function App() {
         top: 0, left: 0, right: 0, bottom: 0,
         zIndex: 9999
       }}>
-        <h1 className="gold-gradient-text" style={{ 
-          fontSize: '4.5rem', 
-          fontWeight: '900', 
-          letterSpacing: '4px',
-          animation: 'pulseGold 2s infinite',
-          margin: 0
-        }}>
-          V&V
-        </h1>
+        <img 
+          src="/VV_emblema_dorado_sobre_negro_2048.png" 
+          alt="Veta & Vigor" 
+          style={{ width: '80%', maxWidth: '300px', height: 'auto', animation: 'pulseGold 2s infinite' }} 
+        />
         <p style={{ 
           color: 'var(--accent-gold)', 
-          marginTop: '30px', 
-          fontSize: '0.85rem', 
-          opacity: 0.7, 
+          marginTop: '40px', 
+          fontSize: '0.9rem', 
+          opacity: 0.8, 
           letterSpacing: '3px', 
           textTransform: 'uppercase',
-          animation: 'pulse 2s infinite'
+          animation: 'pulse 2s infinite',
+          textAlign: 'center',
+          maxWidth: '80%'
         }}>
-          Forjando...
+          Iniciando App...
         </p>
       </div>
     );
