@@ -896,7 +896,7 @@ RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
 AS $$
 DECLARE
-    v_cambiado boolean := false;
+    v_filas integer;
 BEGIN
     UPDATE public.perfiles
        SET plan_membresia         = 'Atleta Base (Gratis)',
@@ -906,8 +906,10 @@ BEGIN
        AND platinum_trial_ends_at IS NOT NULL
        AND platinum_trial_ends_at < now();
 
-    GET DIAGNOSTICS v_cambiado = FOUND;
-    RETURN jsonb_build_object('ok', true, 'degradado', v_cambiado);
+    -- GET DIAGNOSTICS solo acepta ROW_COUNT y similares; FOUND es una variable
+    -- especial de plpgsql que se lee directamente, no un item de diagnóstico.
+    GET DIAGNOSTICS v_filas = ROW_COUNT;
+    RETURN jsonb_build_object('ok', true, 'degradado', v_filas > 0);
 END;
 $$;
 GRANT EXECUTE ON FUNCTION public.sincronizar_mi_plan() TO authenticated;
@@ -971,9 +973,16 @@ AS $$
 DECLARE
     v_inicio timestamptz;
 BEGIN
-    SELECT (raw_user_meta_data ->> 'trial_start_date')::timestamptz
-      INTO v_inicio
-      FROM auth.users WHERE id = auth.uid();
+    -- El cast va dentro de un BEGIN/EXCEPTION porque trial_start_date lo escribe
+    -- el cliente con auth.updateUser: un valor no parseable haría fallar la
+    -- función entera en vez de simplemente no vencer nada.
+    BEGIN
+        SELECT (raw_user_meta_data ->> 'trial_start_date')::timestamptz
+          INTO v_inicio
+          FROM auth.users WHERE id = auth.uid();
+    EXCEPTION WHEN others THEN
+        v_inicio := NULL;
+    END;
 
     IF v_inicio IS NULL OR now() - v_inicio < interval '7 days' THEN
         RETURN jsonb_build_object('ok', false, 'motivo', 'aun_vigente');
