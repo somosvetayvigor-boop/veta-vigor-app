@@ -101,6 +101,12 @@ DROP POLICY IF EXISTS "Entrenadores manejan a sus alumnos"
     ON public.relacion_entrenador_alumno;
 
 -- Se reemplaza por los tres verbos que el entrenador sí necesita, sin INSERT.
+-- Los DROP previos hacen el bloque reejecutable: CREATE POLICY no admite
+-- IF NOT EXISTS, así que sin ellos una segunda pasada aborta con 42710.
+DROP POLICY IF EXISTS "Entrenadores ven sus vinculos"        ON public.relacion_entrenador_alumno;
+DROP POLICY IF EXISTS "Entrenadores actualizan sus vinculos" ON public.relacion_entrenador_alumno;
+DROP POLICY IF EXISTS "Entrenadores eliminan sus vinculos"   ON public.relacion_entrenador_alumno;
+
 CREATE POLICY "Entrenadores ven sus vinculos"
     ON public.relacion_entrenador_alumno FOR SELECT
     USING (auth.uid() = entrenador_id);
@@ -123,6 +129,7 @@ CREATE POLICY "Entrenadores eliminan sus vinculos"
 -- quitarla te quedarías sin datos. Por eso el orden aquí importa —
 -- crear la política de admin ANTES del DROP.
 
+DROP POLICY IF EXISTS "Admin ve todas las relaciones" ON public.relacion_entrenador_alumno;
 CREATE POLICY "Admin ve todas las relaciones"
     ON public.relacion_entrenador_alumno FOR SELECT
     USING ((auth.jwt() ->> 'email') = 'somos.vetayvigor@gmail.com');
@@ -820,6 +827,7 @@ CREATE TABLE IF NOT EXISTS public.compras_log (
 );
 ALTER TABLE public.compras_log ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Admin lee compras_log" ON public.compras_log;
 CREATE POLICY "Admin lee compras_log" ON public.compras_log
     FOR SELECT USING ((auth.jwt() ->> 'email') = 'somos.vetayvigor@gmail.com');
 
