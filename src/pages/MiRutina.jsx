@@ -650,16 +650,18 @@ export default function MiRutina({ session }) {
           // Guardar en SQLite local
           await DatabaseService.execute(`UPDATE perfiles SET xp_actual = ?, puntos_forja = ?, nivel_rpg = ?, is_dirty = 1 WHERE id = ?`, [newXp, newForja, newLevelRPG, session?.user.id]);
           
-          // Guardar historial local (is_dirty = 0: no se sincroniza, la tabla remota no existe)
+          // Encolar la recompensa (is_dirty = 1): el push la reproduce contra
+          // completar_mision_rpg con este id como clave de idempotencia.
           const recId = crypto.randomUUID();
-          await DatabaseService.execute(`INSERT INTO rpg_historial_recompensas (id, user_id, xp_ganada, monedas_ganadas, fuente, descripcion, fecha_reclamo, is_dirty) VALUES (?, ?, ?, ?, ?, ?, ?, 0)`, [
+          await DatabaseService.execute(`INSERT INTO rpg_historial_recompensas (id, user_id, xp_ganada, monedas_ganadas, fuente, descripcion, fecha_reclamo, is_dirty) VALUES (?, ?, ?, ?, ?, ?, ?, 1)`, [
             recId, session?.user.id, xp, puntosForja, 'descanso_activo', `Descanso Activo (${bienestarHabitos.length} hábitos)`, new Date().toISOString()
           ]);
 
           // === SYNC DIRECTO A SUPABASE (cuando hay internet) ===
+          // Solo nivel: xp_actual y puntos_forja los escribe el RPC.
           if (navigator.onLine) {
             supabase.from('perfiles').update({
-              xp_actual: newXp, puntos_forja: newForja, nivel_rpg: newLevelRPG
+              nivel_rpg: newLevelRPG
             }).eq('id', session?.user.id).then().catch(e => console.warn('Sync RPG bienestar error:', e));
           }
           

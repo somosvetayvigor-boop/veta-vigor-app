@@ -211,13 +211,15 @@ class SyncService {
           plan_membresia: p.plan_membresia,
           force_platinum_trial: p.force_platinum_trial === 1,
           puntos_totales: p.puntos_totales,
-          xp_actual: p.xp_actual,
-          puntos_forja: p.puntos_forja,
+          // xp_actual, puntos_forja y racha_actual NO se envían acá a propósito.
+          // Son autoritativos del servidor: los escribe completar_mision_rpg dentro
+          // de una transacción con idempotencia. Si los empujáramos desde el cliente
+          // pisaríamos el saldo del ledger con un valor calculado localmente, que es
+          // exactamente el doble cobro que el RPC existe para evitar.
           stat_fuerza: p.stat_fuerza,
           stat_agilidad: p.stat_agilidad,
           stat_resistencia: p.stat_resistencia,
-          nivel_rpg: p.nivel_rpg,
-          racha_actual: p.racha_actual
+          nivel_rpg: p.nivel_rpg
         }).eq('id', userId);
 
         if (!error) {
@@ -315,10 +317,47 @@ class SyncService {
         }
       }
 
-      // 7. Push RPG Rewards: eliminado. Ver nota en pullData — la tabla remota no existe,
-      // así que estos inserts siempre fallaban con 404 y las filas quedaban is_dirty = 1
-      // para siempre, reintentándose una por una en cada sincronización.
-      // Las filas sucias que ya existan en instalaciones antiguas simplemente se ignoran.
+      // 7. Push de recompensas RPG.
+      //
+      // rpg_historial_recompensas no se sincroniza como tabla: esa tabla no existe en
+      // Supabase. Funciona como outbox local, y cada fila pendiente se reproduce como
+      // una llamada a completar_mision_rpg, que acredita XP y monedas de forma atómica
+      // y las registra en rpg_transacciones.
+      //
+      // El id de la fila es un UUID generado una sola vez cuando se ganó la recompensa,
+      // así que sirve directamente como clave de idempotencia: reproducirla dos veces
+      // (por reintento, por doble toque o al recuperar la conexión) no acredita de más.
+      const recSucio = await DatabaseService.query(
+        `SELECT * FROM rpg_historial_recompensas WHERE is_dirty = 1 AND user_id = ?`, [userId]
+      );
+      for (const r of recSucio || []) {
+        const { data, error } = await supabase.rpc('completar_mision_rpg', {
+          p_user_id: r.user_id,
+          p_origen: r.fuente || 'entrenamiento',
+          p_idempotency_key: r.id,
+          p_xp: r.xp_ganada || 0,
+          p_monedas: r.monedas_ganadas || 0
+        });
+
+        if (error) {
+          console.warn('Recompensa pendiente, se reintenta luego:', error.message);
+          continue; // sigue sucia, se reintenta en el próximo sync
+        }
+
+        // 'Ya se registró esta misión' también es éxito: significa que el ledger ya
+        // la tiene y no hay que volver a intentarlo.
+        await DatabaseService.execute(
+          `UPDATE rpg_historial_recompensas SET is_dirty = 0 WHERE id = ?`, [r.id]
+        );
+
+        if (data?.success) {
+          // Adoptar el saldo autoritativo que devolvió el servidor.
+          await DatabaseService.execute(
+            `UPDATE perfiles SET xp_actual = ?, puntos_forja = ?, racha_actual = ? WHERE id = ?`,
+            [data.xp_total, data.monedas_total, data.racha, userId]
+          );
+        }
+      }
     } catch (error) {
       console.error("Error durante el Push de datos:", error);
     }

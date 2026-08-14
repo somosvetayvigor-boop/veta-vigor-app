@@ -424,16 +424,19 @@ export default function RutinaDetail({ session }) {
           WHERE id = ?
         `, [newXp, newForja, newFuerza, newAgilidad, newResistencia, newLevelRPG, session?.user.id]);
 
-        // Guardar historial local (is_dirty = 0: no se sincroniza, la tabla remota no existe)
+        // Encolar la recompensa (is_dirty = 1). El push la reproduce contra
+        // completar_mision_rpg usando este id como clave de idempotencia, así que
+        // el XP se acredita una sola vez aunque se reintente o se toque dos veces.
+        // Funciona igual sin conexión: queda pendiente y se cobra al reconectar.
         const recId = crypto.randomUUID();
-        await DatabaseService.execute(`INSERT INTO rpg_historial_recompensas (id, user_id, xp_ganada, monedas_ganadas, fuente, descripcion, fecha_reclamo, is_dirty) VALUES (?, ?, ?, ?, ?, ?, ?, 0)`, [
+        await DatabaseService.execute(`INSERT INTO rpg_historial_recompensas (id, user_id, xp_ganada, monedas_ganadas, fuente, descripcion, fecha_reclamo, is_dirty) VALUES (?, ?, ?, ?, ?, ?, ?, 1)`, [
           recId, session?.user.id, xp, puntosForja, 'entrenamiento', `Rutina completada (+${xp} XP, +${puntosForja} Oro)`, new Date().toISOString()
         ]);
 
         // === SYNC DIRECTO A SUPABASE (cuando hay internet) ===
+        // Solo stats y nivel: xp_actual y puntos_forja los escribe el RPC.
         if (navigator.onLine) {
           supabase.from('perfiles').update({
-            xp_actual: newXp, puntos_forja: newForja,
             stat_fuerza: newFuerza, stat_agilidad: newAgilidad, stat_resistencia: newResistencia,
             nivel_rpg: newLevelRPG
           }).eq('id', session?.user.id).then().catch(e => console.warn('Sync RPG error:', e));
