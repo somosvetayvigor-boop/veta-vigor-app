@@ -486,6 +486,15 @@ function App() {
       if (procesados > 0) {
         alert(`¡Conexión recuperada! Se han sincronizado ${procesados} registros guardados offline.`);
       }
+
+      // processOfflineQueue solo vacía la cola de OfflineManager (localStorage).
+      // Lo que se entrenó sin conexión vive en SQLite y lo sube SyncService, que
+      // antes no se disparaba aquí: si volvía el internet sin cerrar la app, ese
+      // trabajo se quedaba esperando al siguiente arranque.
+      const userId = session?.user?.id;
+      if (userId) {
+        SyncService.syncAll(userId).catch(e => console.warn("Sync al recuperar conexión:", e));
+      }
     };
     const handleOffline = () => setIsOffline(true);
 
@@ -496,7 +505,9 @@ function App() {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, []);
+    // session va en las dependencias a propósito: con [] el handler capturaba la
+    // sesión inicial (null) para siempre y nunca habría sabido a quién sincronizar.
+  }, [session]);
 
   useEffect(() => {
     const checkPendingPurchases = async (session) => {

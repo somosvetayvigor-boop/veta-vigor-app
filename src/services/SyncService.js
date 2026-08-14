@@ -41,6 +41,69 @@ class SyncService {
   }
 
   /**
+   * Ids de una tabla local que aún no se han subido a Supabase.
+   *
+   * El pull usa INSERT OR REPLACE, que pisa la fila entera. Si una fila local
+   * tiene cambios sin subir —porque el push falló o porque se editó estando sin
+   * conexión— sobrescribirla con la versión del servidor borra el trabajo del
+   * usuario, y encima el is_dirty = 0 del pull hacía que no se reintentara jamás.
+   * Estas filas se excluyen de la bajada y se quedan esperando su push.
+   */
+  async _idsSucios(tabla, userId, columnaUsuario = 'user_id') {
+    try {
+      const filas = await DatabaseService.query(
+        `SELECT id FROM ${tabla} WHERE is_dirty = 1 AND ${columnaUsuario} = ?`,
+        [userId]
+      );
+      return new Set((filas || []).map(f => String(f.id)));
+    } catch {
+      // Ante la duda, no filtramos nada: es peor bloquear el pull entero.
+      return new Set();
+    }
+  }
+
+  /** Quita de las filas bajadas las que tienen cambios locales pendientes. */
+  _sinSucias(filas, idsSucios) {
+    if (!idsSucios.size) return filas || [];
+    return (filas || []).filter(f => !idsSucios.has(String(f.id)));
+  }
+
+  /** Tablas locales con marca is_dirty, y la columna por la que se filtra al usuario. */
+  static get TABLAS_SINCRONIZADAS() {
+    return [
+      ['perfiles', 'id'],
+      ['habitos_diarios', 'user_id'],
+      ['checkins', 'user_id'],
+      ['checkins_bienestar', 'user_id'],
+      ['historial_entrenamientos', 'user_id'],
+      ['rpg_inventario', 'user_id'],
+      ['relacion_entrenador_alumno', 'alumno_id'],
+    ];
+  }
+
+  /**
+   * ¿Queda algo sin subir después de un push?
+   *
+   * Se comprueba el estado real de la base en vez de ir acumulando banderas por
+   * cada rama de error: si algo falló, su is_dirty sigue encendido, y eso es más
+   * fiable que recordar marcarlo en cada uno de los sitios de subida.
+   */
+  async _quedanCambiosSinSubir(userId) {
+    for (const [tabla, columna] of SyncService.TABLAS_SINCRONIZADAS) {
+      try {
+        const filas = await DatabaseService.query(
+          `SELECT 1 AS x FROM ${tabla} WHERE is_dirty = 1 AND ${columna} = ? LIMIT 1`,
+          [userId]
+        );
+        if (filas && filas.length) return tabla;
+      } catch {
+        // Tabla aún no creada en este dispositivo: no es un pendiente.
+      }
+    }
+    return null;
+  }
+
+  /**
    * Sincroniza desde Supabase hacia la base de datos local (Pull)
    * Ideal llamarlo al iniciar la app
    */
@@ -50,6 +113,17 @@ class SyncService {
 
     try {
       // 1. Pull Perfil
+      //
+      // Se salta si el perfil local tiene cambios sin subir. Es la fila más
+      // delicada de todas: lleva reto_dia_actual, reto_completado y racha_actual,
+      // o sea el progreso del reto. Pisarla con la versión del servidor tras un
+      // push fallido borraba el entrenamiento del día en silencio.
+      const perfilSucio = await DatabaseService.query(
+        `SELECT is_dirty FROM perfiles WHERE id = ?`, [userId]
+      );
+      if (perfilSucio?.[0]?.is_dirty === 1) {
+        console.warn("Perfil local con cambios sin subir: se omite la bajada para no pisarlos.");
+      } else {
       const { data: perfil } = await supabase.from('perfiles').select('*').eq('id', userId).single();
       if (perfil) {
         await DatabaseService.execute(`
@@ -67,6 +141,7 @@ class SyncService {
           typeof perfil.dias_entrenamiento === 'string' ? perfil.dias_entrenamiento : JSON.stringify(perfil.dias_entrenamiento || [])
         ]);
       }
+      } // fin del else de perfilSucio
 
       // === CATÁLOGOS (contenido compartido, cambia rara vez) ===
       const saltarCatalogos = !force && await this.catalogosEstanFrescos();
@@ -134,10 +209,11 @@ class SyncService {
 
       // 5. Pull Habitos Diarios
       const { data: habitos } = await supabase.from('habitos_diarios').select('*').eq('user_id', userId);
+      const habitosSuciosIds = await this._idsSucios('habitos_diarios', userId);
       await DatabaseService.executeBatch(`
         INSERT OR REPLACE INTO habitos_diarios (id, user_id, dia_reto, agua, sueno, comida_sana, puntos_ganados, created_at, is_dirty)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
-      `, (habitos || []).map(h => [h.id, h.user_id, h.dia_reto, h.agua, h.sueno, h.comida_sana ? 1 : 0, h.puntos_ganados, h.created_at]));
+      `, this._sinSucias(habitos, habitosSuciosIds).map(h => [h.id, h.user_id, h.dia_reto, h.agua, h.sueno, h.comida_sana ? 1 : 0, h.puntos_ganados, h.created_at]));
 
       // 6. Pull Checkins & Bienestar
       const limitDate = new Date();
@@ -145,29 +221,33 @@ class SyncService {
       const limitStr = limitDate.toISOString().split('T')[0];
 
       const { data: checkins } = await supabase.from('checkins').select('*').eq('user_id', userId).gte('fecha', limitStr);
+      const checkinsSuciosIds = await this._idsSucios('checkins', userId);
       await DatabaseService.executeBatch(`
         INSERT OR REPLACE INTO checkins (id, user_id, fecha, nivel, is_dirty)
         VALUES (?, ?, ?, ?, 0)
-      `, (checkins || []).map(c => [c.id, c.user_id, c.fecha, c.nivel]));
+      `, this._sinSucias(checkins, checkinsSuciosIds).map(c => [c.id, c.user_id, c.fecha, c.nivel]));
 
       const { data: checkinsB } = await supabase.from('checkins_bienestar').select('*').eq('user_id', userId).gte('fecha', limitStr);
+      const checkinsBSuciosIds = await this._idsSucios('checkins_bienestar', userId);
       await DatabaseService.executeBatch(`
         INSERT OR REPLACE INTO checkins_bienestar (id, user_id, fecha, habitos, is_dirty)
         VALUES (?, ?, ?, ?, 0)
-      `, (checkinsB || []).map(cb => [cb.id, cb.user_id, cb.fecha, JSON.stringify(cb.habitos)]));
+      `, this._sinSucias(checkinsB, checkinsBSuciosIds).map(cb => [cb.id, cb.user_id, cb.fecha, JSON.stringify(cb.habitos)]));
 
       // 7. Pull RPG Inventory & Rewards
       const { data: historial } = await supabase.from('historial_entrenamientos').select('*').eq('user_id', userId);
+      const historialSuciosIds = await this._idsSucios('historial_entrenamientos', userId);
       await DatabaseService.executeBatch(`
         INSERT OR REPLACE INTO historial_entrenamientos (id, user_id, rutina_id, ejercicio_id, series_log, completado, fecha_completado, is_dirty)
         VALUES (?, ?, ?, ?, ?, ?, ?, 0)
-      `, (historial || []).map(h => [h.id, h.user_id, h.rutina_id, h.ejercicio_id, h.series_log ? JSON.stringify(h.series_log) : null, h.completado ? 1 : 0, h.fecha_completado || h.created_at]));
+      `, this._sinSucias(historial, historialSuciosIds).map(h => [h.id, h.user_id, h.rutina_id, h.ejercicio_id, h.series_log ? JSON.stringify(h.series_log) : null, h.completado ? 1 : 0, h.fecha_completado || h.created_at]));
 
       const { data: inv } = await supabase.from('rpg_inventario').select('*').eq('user_id', userId);
+      const invSuciosIds = await this._idsSucios('rpg_inventario', userId);
       await DatabaseService.executeBatch(`
         INSERT OR REPLACE INTO rpg_inventario (id, user_id, item_id, cantidad, is_dirty)
         VALUES (?, ?, ?, ?, 0)
-      `, (inv || []).map(i => [i.id, i.user_id, i.item_id, i.cantidad]));
+      `, this._sinSucias(inv, invSuciosIds).map(i => [i.id, i.user_id, i.item_id, i.cantidad]));
 
       // NOTA: rpg_historial_recompensas no se sincroniza. Esa tabla no existe en
       // Supabase (el esquema real es rpg_transacciones) y cada intento devolvía 404.
@@ -176,10 +256,11 @@ class SyncService {
 
       // 8. Pull Entrenador
       const { data: relEntrenador } = await supabase.from('relacion_entrenador_alumno').select('*').eq('alumno_id', userId).eq('estado', 'activo');
+      const relSuciasIds = await this._idsSucios('relacion_entrenador_alumno', userId, 'alumno_id');
       await DatabaseService.executeBatch(`
         INSERT OR REPLACE INTO relacion_entrenador_alumno (id, entrenador_id, alumno_id, estado, is_dirty)
         VALUES (?, ?, ?, ?, 0)
-      `, (relEntrenador || []).map(rel => [rel.id, rel.entrenador_id, rel.alumno_id, rel.estado]));
+      `, this._sinSucias(relEntrenador, relSuciasIds).map(rel => [rel.id, rel.entrenador_id, rel.alumno_id, rel.estado]));
 
       console.log("Pull completado exitosamente.");
     } catch (error) {
@@ -192,7 +273,7 @@ class SyncService {
    * Solo envía registros marcados como is_dirty = 1
    */
   async pushData(userId) {
-    if (!userId) return;
+    if (!userId) return false;
     console.log("Iniciando Push de datos hacia Supabase...");
 
     try {
@@ -362,8 +443,17 @@ class SyncService {
           );
         }
       }
+
+      // Se comprueba el resultado real: si algo falló, su is_dirty sigue en 1.
+      const pendiente = await this._quedanCambiosSinSubir(userId);
+      if (pendiente) {
+        console.warn(`Push incompleto: quedan cambios sin subir en "${pendiente}". Se reintentará.`);
+        return false;
+      }
+      return true;
     } catch (error) {
       console.error("Error durante el Push de datos:", error);
+      return false;
     }
   }
 
@@ -373,8 +463,18 @@ class SyncService {
   async syncAll(userId, { force = false } = {}) {
     if (!userId) return;
     // 1. Primero subimos lo local a la nube (para no sobrescribirlo)
-    await this.pushData(userId);
-    // 2. Bajamos los datos frescos de la nube
+    const pushCompleto = await this.pushData(userId);
+
+    // 2. Bajamos los datos frescos de la nube.
+    //
+    // Se baja aunque el push haya quedado incompleto, A PROPÓSITO: pullData ya
+    // excluye fila por fila lo que sigue marcado como sucio, así que no puede
+    // pisar nada pendiente. Abortar el pull entero por una sola fila atascada
+    // dejaría al usuario sin catálogos ni datos nuevos indefinidamente, que es
+    // peor que la enfermedad.
+    if (!pushCompleto) {
+      console.warn("Sync: el push quedó incompleto; el pull respetará las filas sin subir.");
+    }
     await this.pullData(userId, { force });
   }
 }
