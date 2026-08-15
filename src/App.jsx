@@ -777,10 +777,15 @@ function App() {
           // Telemetría: se marca aquí, cuando la app es realmente utilizable,
           // no al empezar a cargar. Así "app_abierta" mide sesiones de verdad
           // y no intentos fallidos de arranque.
-          identificarUsuario(session.user.id, {
-            plataforma: Capacitor.isNativePlatform() ? 'nativo' : 'web',
-            rol: rolCacheado || 'desconocido',
-          });
+          identificarUsuario(
+            session.user.id,
+            {
+              plataforma: Capacitor.isNativePlatform() ? 'nativo' : 'web',
+              rol: rolCacheado || 'desconocido',
+            },
+            // El email se usa solo para marcar la cuenta como interna; no viaja.
+            session.user.email
+          );
           evento(EVENTOS.APP_ABIERTA, {
             plataforma: Capacitor.isNativePlatform() ? 'nativo' : 'web',
           });

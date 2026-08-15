@@ -74,14 +74,37 @@ export function iniciarTelemetria() {
 }
 
 /**
+ * Cuentas propias y de prueba, para poder excluirlas de las métricas.
+ *
+ * Se define en VITE_EMAILS_INTERNOS, separadas por comas. El email NO se envía
+ * a ningún sitio: solo se usa aquí para decidir si marcar a la persona con
+ * `interno: true`, y es esa etiqueta la que viaja.
+ *
+ * Importa más de lo que parece. Con pocos usuarios activos, tus propias
+ * pruebas dominan cualquier estadística: verías una retención altísima que en
+ * realidad eres tú abriendo la app veinte veces al día.
+ */
+const EMAILS_INTERNOS = (import.meta.env.VITE_EMAILS_INTERNOS || '')
+  .split(',')
+  .map(e => e.trim().toLowerCase())
+  .filter(Boolean);
+
+/**
  * Asocia lo que pase a partir de ahora con este usuario.
  * Se manda el id, nunca el email: para cruzarlo con una persona real ya tienes
  * Supabase, y así la telemetría no guarda datos personales.
+ *
+ * @param {string} userId
+ * @param {object} propiedades
+ * @param {string} [email] solo para clasificar como interno; no se envía
  */
-export function identificarUsuario(userId, propiedades = {}) {
+export function identificarUsuario(userId, propiedades = {}, email = null) {
   if (!userId) return;
+
+  const esInterno = !!email && EMAILS_INTERNOS.includes(email.toLowerCase());
+
   if (sentryListo)  Sentry.setUser({ id: userId });
-  if (posthogListo) posthog.identify(userId, propiedades);
+  if (posthogListo) posthog.identify(userId, { ...propiedades, interno: esInterno });
 }
 
 export function olvidarUsuario() {
