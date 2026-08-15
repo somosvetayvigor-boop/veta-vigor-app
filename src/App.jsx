@@ -718,16 +718,27 @@ function App() {
                 refresh_token: raw.refresh_token,
                 user: raw.user
               };
-              // IMPORTANTE: Inyectar la sesión en el cliente de Supabase para evitar fallos RLS
-              // si las pantallas hacen consultas antes de que Supabase termine su init interno.
-              try {
-                await supabase.auth.setSession({
-                  access_token: session.access_token,
-                  refresh_token: session.refresh_token
-                });
-              } catch (e) {
-                console.warn("Error injecting session to Supabase client", e);
-              }
+              // Inyectar la sesión en el cliente de Supabase, para que las pantallas
+              // que consulten pronto lleven el JWT y no choquen contra RLS.
+              //
+              // PERO CON TOPE DE ESPERA. El token de acceso caduca a la hora, así que
+              // si la app llevaba tiempo cerrada, setSession sale a la red a renovarlo
+              // — con la radio del móvil recién despertando. Era el único await del
+              // arranque y explicaba por qué abrir tras muchas horas tardaba tanto,
+              // mientras que abrirla dos veces seguidas iba fina.
+              //
+              // Si en 1,5 s no ha renovado, se pinta igual y la renovación termina
+              // por detrás: la app arranca con datos locales de todos modos, y el
+              // propio cliente de Supabase reintenta en la siguiente consulta.
+              const inyeccion = supabase.auth.setSession({
+                access_token: session.access_token,
+                refresh_token: session.refresh_token
+              }).catch(e => console.warn("Error injecting session to Supabase client", e));
+
+              await Promise.race([
+                inyeccion,
+                new Promise(r => setTimeout(r, 1500))
+              ]);
               console.log("✅ Sesión cargada desde caché local (sin internet).");
             }
           } catch (parseErr) {
@@ -757,6 +768,11 @@ function App() {
           
           clearTimeout(safetyTimer);
           setLoading(false); // ← EL USUARIO YA ESTÁ DENTRO 🚀
+
+          // startTime estaba declarado y sin usar. Ahora sirve para medir: con
+          // chrome://inspect conectado al móvil puedes ver el tiempo real hasta
+          // que la app es utilizable, en frío y tras horas cerrada.
+          console.log(`⏱️ Arranque hasta UI utilizable: ${Date.now() - startTime} ms`);
 
           // Telemetría: se marca aquí, cuando la app es realmente utilizable,
           // no al empezar a cargar. Así "app_abierta" mide sesiones de verdad

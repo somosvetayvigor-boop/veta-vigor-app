@@ -4,7 +4,16 @@ import DatabaseService from './DatabaseService';
 // Cada cuánto se vuelven a bajar los catálogos (sistemas, retos, rutinas, ejercicios).
 // Son datos que cambian rara vez, así que no tiene sentido traerlos en cada arranque.
 // Los datos del usuario (perfil, checkins, historial, hábitos) se sincronizan siempre.
-const HORAS_FRESCURA_CATALOGOS = 6;
+// Con 6 horas, cualquiera que abriera la app a la mañana siguiente disparaba la
+// descarga completa de catálogos —sistemas, retos, días, rutinas, biblioteca—
+// justo mientras el arranque intentaba renovar el token. Dos cosas compitiendo
+// por la misma red recién despertada.
+//
+// 24 h es más acorde a lo que son estos datos: contenido que se edita desde el
+// panel de administración de vez en cuando, no algo que cambie cada rato. Y
+// cuando cambia, el botón de recarga de la cabecera llama a invalidarCatalogos()
+// y los baja al momento, así que nadie se queda esperando un día.
+const HORAS_FRESCURA_CATALOGOS = 24;
 const CLAVE_CATALOGOS = 'catalogos';
 
 class SyncService {
