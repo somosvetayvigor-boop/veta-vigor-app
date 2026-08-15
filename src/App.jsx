@@ -681,6 +681,13 @@ function App() {
       }, 60000);
 
       const startTime = Date.now();
+      // Marcas de tiempo del arranque. Se envían con app_abierta para poder
+      // medirlo en los móviles reales, sin depender de conectar por USB.
+      let msSesion = null;   // cuánto costó inyectar/renovar la sesión
+      let msSqlite = null;   // cuánto tardó SQLite en estar listo (en paralelo)
+      // Cuánto llevaba el documento cargándose antes de que React arrancara:
+      // separa el coste del WebView y del bundle del coste de nuestro código.
+      const msAntesDeReact = Math.round(performance.now());
 
       try {
         // ===================================================================
@@ -696,7 +703,10 @@ function App() {
         // rompe por consultar antes de tiempo.
         // ===================================================================
         DatabaseService.setupDatabase()
-          .then(ok => console.log(ok ? "✅ SQLite listo (en segundo plano)." : "⚠️ SQLite no disponible."))
+          .then(ok => {
+            msSqlite = Date.now() - startTime;
+            console.log(ok ? `✅ SQLite listo en ${msSqlite} ms (en segundo plano).` : "⚠️ SQLite no disponible.");
+          })
           .catch(dbInitErr => console.error("❌ Falló inicialización de SQLite:", dbInitErr));
 
         // ===================================================================
@@ -735,11 +745,13 @@ function App() {
                 refresh_token: session.refresh_token
               }).catch(e => console.warn("Error injecting session to Supabase client", e));
 
+              const t0Sesion = Date.now();
               await Promise.race([
                 inyeccion,
                 new Promise(r => setTimeout(r, 1500))
               ]);
-              console.log("✅ Sesión cargada desde caché local (sin internet).");
+              msSesion = Date.now() - t0Sesion;
+              console.log(`✅ Sesión cargada desde caché local en ${msSesion} ms.`);
             }
           } catch (parseErr) {
             console.warn("Error parsing cached session:", parseErr);
@@ -788,6 +800,13 @@ function App() {
           );
           evento(EVENTOS.APP_ABIERTA, {
             plataforma: Capacitor.isNativePlatform() ? 'nativo' : 'web',
+            // Desglose del arranque. Sin esto solo se puede medir conectando el
+            // móvil por USB, y el caso que importa —abrir tras muchas horas—
+            // es justo el que no se reproduce a demanda.
+            ms_hasta_usable: Date.now() - startTime,
+            ms_antes_de_react: msAntesDeReact,
+            ms_sesion: msSesion,
+            ms_sqlite: msSqlite,   // null si aún no había terminado
           });
 
           // =================================================================
