@@ -48,7 +48,18 @@ export default function LegalModals({ type, onClose }) {
               <p>Usted tiene derecho en todo momento a conocer qué datos tenemos (Acceso), a corregirlos (Rectificación), a solicitar que eliminemos sus fotografías, medidas o cuenta completa de nuestra base de datos (Cancelación), o a oponerse a su uso para finalidades secundarias, incluyendo la baja de comunicaciones de WhatsApp (Oposición).</p>
               <p>Para ejercer cualquiera de estos derechos, envíe un correo electrónico a: <strong>somos.vetayvigor@gmail.com</strong></p>
               
-              <h4 style={{ color: 'var(--accent-gold)', marginTop: '15px' }}>6. Cambios al Aviso de Privacidad</h4>
+              <h4 style={{ color: 'var(--accent-gold)', marginTop: '15px' }}>6. Datos de Uso y Diagnóstico de Errores</h4>
+              <p>Para detectar fallos y entender qué partes de la aplicación resultan útiles, empleamos dos servicios de terceros que actúan como encargados del tratamiento: <strong>Sentry</strong> (diagnóstico de errores) y <strong>PostHog</strong> (analítica de uso).</p>
+              <ul style={{ paddingLeft: '20px', marginBottom: '10px' }}>
+                <li><strong>Qué se envía:</strong> un identificador interno de su cuenta, el tipo de dispositivo, y un registro de acciones concretas dentro de la aplicación —abrir la app, completar un día del reto, finalizar una rutina, ver o cerrar la pantalla de membresías, e iniciar o completar una compra—. En caso de fallo, se envía además el detalle técnico del error.</li>
+                <li><strong>Qué NO se envía:</strong> sus fotografías de progreso, sus medidas corporales, su peso, su nombre, su correo electrónico ni su número de teléfono. Ninguno de estos datos sale hacia dichos servicios.</li>
+              </ul>
+              <div style={{ background: 'rgba(255,255,255,0.05)', padding: '10px', borderRadius: '8px', borderLeft: '3px solid var(--accent-gold)', marginBottom: '10px' }}>
+                <strong>Sin grabación de pantalla:</strong> hemos desactivado de forma deliberada la grabación de sesiones y la captura automática de la actividad en pantalla, funciones que estos servicios ofrecen por defecto. Únicamente se registran las acciones enumeradas arriba, y solo esas.
+              </div>
+              <p>Estos datos se utilizan exclusivamente para mejorar la Plataforma; no se venden, no se comparten con anunciantes ni se emplean para elaborar perfiles publicitarios. Puede oponerse a este tratamiento en cualquier momento escribiendo a <strong>somos.vetayvigor@gmail.com</strong>, conforme al apartado 5.</p>
+
+              <h4 style={{ color: 'var(--accent-gold)', marginTop: '15px' }}>7. Cambios al Aviso de Privacidad</h4>
               <p>Cualquier modificación a este Aviso de Privacidad será notificada a través de una alerta dentro de la propia aplicación o mediante el correo electrónico registrado en su cuenta.</p>
             </>
           ) : (
