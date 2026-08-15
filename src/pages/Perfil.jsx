@@ -63,7 +63,7 @@ export default function Perfil({ session }) {
       if (error) throw error;
       
       await supabase.from('perfiles').update({
-        nombre_completo: newName,
+        full_name: newName,
         username: newUsername
       }).eq('id', session?.user.id);
       

@@ -4,6 +4,7 @@ import { ArrowLeft, Users, CheckCircle, Crown } from 'lucide-react';
 import { Purchases } from '@revenuecat/purchases-capacitor';
 import { Capacitor } from '@capacitor/core';
 import { supabase } from '../supabaseClient';
+import { registrarError } from '../utils/telemetry';
 
 export default function PaywallCoach({ forced = false, onDismiss = null }) {
   const navigate = useNavigate();
@@ -25,24 +26,44 @@ export default function PaywallCoach({ forced = false, onDismiss = null }) {
       }
     });
 
+    // Mismo motivo que en Paywall.jsx: Purchases.configure() corre después del
+    // primer render, así que hay que reintentar unos segundos en vez de
+    // rendirse al primer intento. Y si tras los reintentos sigue sin haber
+    // paquetes, eso significa que el usuario no puede comprar — va a Sentry.
     const fetchOfferings = async () => {
-      try {
-        if (Capacitor.isNativePlatform()) {
+      if (!Capacitor.isNativePlatform()) return;
+
+      const MAX_INTENTOS = 6;
+      let ultimoError = null;
+
+      for (let intento = 1; intento <= MAX_INTENTOS; intento++) {
+        try {
           const offerings = await Purchases.getOfferings();
-          if (offerings.current !== null && offerings.current.availablePackages.length !== 0) {
+          if (offerings.current && offerings.current.availablePackages.length > 0) {
             const pkgs = offerings.current.availablePackages;
             const pro = pkgs.find(p => p.product.identifier.toLowerCase().includes('pro'));
             const elite = pkgs.find(p => p.product.identifier.toLowerCase().includes('elite') || p.product.identifier.toLowerCase().includes('élite'));
-            
+
             if (pro) setProPackage(pro);
             if (elite) setElitePackage(elite);
+            if (pro || elite) return;
+            ultimoError = new Error('Oferta sin paquetes de entrenador (pro/elite)');
+          } else {
+            ultimoError = new Error('RevenueCat devolvió una oferta vacía');
           }
+        } catch (e) {
+          ultimoError = e;
         }
-      } catch (e) {
-        console.error("Error fetching coach offerings", e);
+        await new Promise(r => setTimeout(r, intento * 400));
       }
+
+      registrarError(ultimoError || new Error('No se pudieron cargar las ofertas de entrenador'), {
+        donde: 'PaywallCoach.fetchOfferings',
+        intentos: MAX_INTENTOS,
+        plataforma: Capacitor.getPlatform(),
+      });
     };
-    
+
     fetchOfferings();
   }, []);
 

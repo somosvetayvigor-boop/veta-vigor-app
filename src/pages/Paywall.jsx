@@ -4,7 +4,7 @@ import { CheckCircle2, XCircle, ArrowLeft, Crown, Shield, Activity, Users, Star,
 import { Purchases } from '@revenuecat/purchases-capacitor';
 import { Capacitor } from '@capacitor/core';
 import { supabase } from '../supabaseClient';
-import { evento, EVENTOS } from '../utils/telemetry';
+import { evento, EVENTOS, registrarError } from '../utils/telemetry';
 
 export default function Paywall({ forced = false, onDismiss = null }) {
   const navigate = useNavigate();
@@ -35,24 +35,50 @@ export default function Paywall({ forced = false, onDismiss = null }) {
       }
     });
 
+    // Pide las ofertas a RevenueCat, reintentando unos segundos.
+    //
+    // POR QUÉ REINTENTAR: Purchases.configure() corre en App.jsx dentro de un
+    // bloque posterior al primer render. Si el paywall se monta antes de que
+    // termine, getOfferings() falla o vuelve vacío — y entonces la pantalla cae
+    // a hardcodedPlans, que son los precios de Stripe. El usuario ve una lista
+    // de planes que no puede comprar por Google.
+    //
+    // Al no encontrar paquetes no se rompía nada visiblemente, así que el fallo
+    // pasaba desapercibido. Ahora se reporta a Sentry con el motivo real.
     const fetchOfferings = async () => {
-      try {
-        if (Capacitor.isNativePlatform()) {
+      if (!Capacitor.isNativePlatform()) return;
+
+      const MAX_INTENTOS = 6;   // ~9 s en total
+      let ultimoError = null;
+
+      for (let intento = 1; intento <= MAX_INTENTOS; intento++) {
+        try {
           const offerings = await Purchases.getOfferings();
-          if (offerings.current !== null && offerings.current.availablePackages.length !== 0) {
+          if (offerings.current && offerings.current.availablePackages.length > 0) {
             const athletePackages = offerings.current.availablePackages.filter(pkg => {
               const id = pkg.product.identifier.toLowerCase();
               return !id.includes('pro') && !id.includes('elite') && !id.includes('élite');
             });
-            console.log("Athlete Offerings loaded:", athletePackages);
+            console.log(`Athlete Offerings cargadas al intento ${intento}:`, athletePackages);
             setPackages(athletePackages);
+            return;
           }
+          ultimoError = new Error('RevenueCat devolvió una oferta vacía');
+        } catch (e) {
+          ultimoError = e;
         }
-      } catch (e) {
-        console.error("Error fetching offerings", e);
+        await new Promise(r => setTimeout(r, intento * 400));
       }
+
+      // Agotados los reintentos: esto importa de verdad, porque significa que
+      // el usuario no puede comprar. Que llegue a Sentry con el motivo.
+      registrarError(ultimoError || new Error('No se pudieron cargar las ofertas'), {
+        donde: 'Paywall.fetchOfferings',
+        intentos: MAX_INTENTOS,
+        plataforma: Capacitor.getPlatform(),
+      });
     };
-    
+
     fetchOfferings();
   }, []);
 

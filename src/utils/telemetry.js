@@ -43,6 +43,9 @@ export function iniciarTelemetria() {
           'ResizeObserver loop limit exceeded',
           'Failed to fetch dynamically imported module',
           'Can only be used on:', // OneSignal quejándose del dominio en local
+          'Failed to update a ServiceWorker',
+          'The object is in an invalid state',
+          'InvalidStateError',
         ],
       });
       sentryListo = true;

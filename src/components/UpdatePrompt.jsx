@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 
-const UpdatePrompt = () => {
+const PWAUpdatePromptInner = () => {
   const {
     needRefresh: [needRefresh, setNeedRefresh],
     updateServiceWorker,
@@ -9,12 +10,14 @@ const UpdatePrompt = () => {
     onRegistered(r) {
       if (r) {
         setInterval(() => {
-          r.update();
+          try {
+            r.update().catch(() => {});
+          } catch (_) {}
         }, 60 * 60 * 1000);
       }
     },
     onRegisterError(error) {
-      console.log('SW registration error', error);
+      console.warn('SW registration info:', error);
     },
   });
 
@@ -103,6 +106,15 @@ const UpdatePrompt = () => {
       </div>
     </div>
   );
+};
+
+const UpdatePrompt = () => {
+  // En apps móviles nativas (Capacitor), los recursos ya están en el APK.
+  // No se debe registrar un ServiceWorker de PWA para evitar InvalidStateError en WebView.
+  if (Capacitor.isNativePlatform()) {
+    return null;
+  }
+  return <PWAUpdatePromptInner />;
 };
 
 export default UpdatePrompt;

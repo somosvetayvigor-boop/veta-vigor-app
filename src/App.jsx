@@ -1524,7 +1524,6 @@ function App() {
           }}
         />
       )}
-      <UpdatePrompt />
     </Router>
   );
 }
