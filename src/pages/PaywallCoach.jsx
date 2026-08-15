@@ -85,8 +85,14 @@ export default function PaywallCoach({ forced = false, onDismiss = null }) {
         } else {
            navigate('/panel-entrenador');
         }
+      } else if (Capacitor.isNativePlatform()) {
+        // Mismo motivo que en Paywall.jsx: desde la app de Play Store no se
+        // puede desviar a un pago externo. Se llega aquí si RevenueCat no
+        // entregó el paquete del plan de entrenador.
+        alert("No pudimos cargar los planes en este momento. Revisa tu conexión e inténtalo de nuevo en un minuto.");
+        setLoading(false);
       } else {
-        const landingPageUrl = "https://vetayvigor.com/#entrenadores"; 
+        const landingPageUrl = "https://vetayvigor.com/#entrenadores";
         if (window.confirm("Serás redirigido a nuestra página web para realizar tu pago de forma segura. ¿Continuar?")) {
            window.open(landingPageUrl, '_blank');
         }

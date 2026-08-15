@@ -223,11 +223,25 @@ export default function Paywall({ forced = false, onDismiss = null }) {
         } else {
            navigate(-1);
         }
+      } else if (Capacitor.isNativePlatform()) {
+        // NO SE PUEDE MANDAR A STRIPE DESDE LA APP DE PLAY STORE.
+        //
+        // Google exige que el contenido digital de una app distribuida en Play
+        // se cobre con Google Play Billing, y prohíbe desviar al usuario a un
+        // pago externo. Hacerlo es motivo de suspensión de la ficha.
+        //
+        // Aquí llegamos solo si RevenueCat no pudo entregar sus paquetes (sin
+        // red en ese momento, producto aún sin aprobar, configuración a medias).
+        // Antes este caso caía en el mismo `else` que la web y abría la landing
+        // de Stripe — dentro de la app. Ahora se avisa y no se ofrece salida.
+        alert("No pudimos cargar los planes en este momento. Revisa tu conexión e inténtalo de nuevo en un minuto.");
+        setLoading(false);
+        return;
       } else {
-        // Compra en PWA (Web) -> Redirigir a Landing Page de Stripe
-        // Aquí puedes cambiar el URL a tu dominio real de la landing page
-        const landingPageUrl = "https://vetayvigor.com/#membresias"; // <-- REEMPLAZAR CON TU URL REAL
-        
+        // Compra en PWA (Web) -> Redirigir a Landing Page de Stripe.
+        // Legítimo: fuera de Play Store no aplica su política de facturación.
+        const landingPageUrl = "https://vetayvigor.com/#membresias";
+
         if (window.confirm("Serás redirigido a nuestra página oficial para realizar tu pago de forma segura. ¿Continuar?")) {
            window.open(landingPageUrl, '_blank');
         }
