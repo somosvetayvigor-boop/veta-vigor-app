@@ -6,6 +6,7 @@ import DatabaseService from '../services/DatabaseService';
 import { ChevronLeft, PlayCircle, Timer, CheckCircle, ChevronRight, X, Loader, Play, Pause, RotateCcw } from 'lucide-react';
 import { warmupsData } from '../data/warmupsData';
 import { cancelTrainingReminder } from '../utils/ScheduledNotifications';
+import { registrarDiaEntrenado } from '../utils/registrarDiaEntrenado';
 import confetti from 'canvas-confetti';
 
 export default function RutinaDetail({ session }) {
@@ -30,6 +31,7 @@ export default function RutinaDetail({ session }) {
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const wakeLockRef = useRef(null);
   const targetTimeRef = useRef(null);
+  const finalizandoRef = useRef(false);
 
   // Form Inputs State { [ejId]: { 1: {kg, reps}, 2: {kg, reps} } }
   const [formInputs, setFormInputs] = useState({});
@@ -397,6 +399,28 @@ export default function RutinaDetail({ session }) {
   };
 
   const procesarFinDeRutina = async () => {
+    // Guarda contra doble toque. Sin esto, dos pulsaciones seguidas creaban dos
+    // recompensas con UUID distintos y ambas se cobraban: pasó de verdad el
+    // 14/08, dos misiones de entrenamiento con 0,2 s de diferencia y 20 XP por
+    // una sola rutina. La idempotencia del servidor va por clave, y ahi eran
+    // claves distintas, asi que no podia detectarlo.
+    if (finalizandoRef.current) return;
+    finalizandoRef.current = true;
+
+    try {
+      await procesarFinDeRutinaInterno();
+    } finally {
+      // Se libera con retardo: el doble toque humano ocurre en milisegundos.
+      setTimeout(() => { finalizandoRef.current = false; }, 3000);
+    }
+  };
+
+  const procesarFinDeRutinaInterno = async () => {
+    // Deja constancia del día entrenado. De esta fila dependen el Progreso
+    // Semanal, la sesión histórica y el "último entrenamiento" del panel de
+    // admin — hasta ahora ninguno se movía al completar una rutina.
+    await registrarDiaEntrenado(session?.user?.id);
+
     const currentMetadata = session?.user.user_metadata || {};
     let newLevel = (currentMetadata.nivel || 'Semilla').toLowerCase();
     let leveledUp = false;

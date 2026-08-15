@@ -4,6 +4,7 @@ import { Play, CheckCircle, X, Trophy, PlayCircle, Music, Zap, Timer, RotateCcw,
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { Capacitor } from '@capacitor/core';
 import { evento, EVENTOS } from '../utils/telemetry';
+import { registrarDiaEntrenado } from '../utils/registrarDiaEntrenado';
 import { Share } from '@capacitor/share';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import confetti from 'canvas-confetti';
@@ -269,6 +270,10 @@ export default function RutinaRetoPlayer({ diaInfo, perfil, onClose, onComplete 
       } catch (e) {
         console.warn("No se pudieron actualizar los puntos:", e);
       }
+
+      // Un día del reto también es un día entrenado: crea la fila de checkins
+      // de la que dependen el Progreso Semanal y el panel de admin.
+      await registrarDiaEntrenado(perfil?.id);
 
       // Telemetría: con el número de día, que es lo que permite ver la curva de
       // abandono del reto. Si la caída está en el día 4, eso es una decisión de
