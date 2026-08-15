@@ -263,13 +263,7 @@ export default function RutinaRetoPlayer({ diaInfo, perfil, onClose, onComplete 
       const { error } = await supabase.from('perfiles').update(updates).eq('id', perfil.id);
       if (error) throw error;
 
-      // 5. Update Points separately in case the column doesn't exist yet
-      try {
-        const currentPoints = perfil.puntos_totales || 0;
-        await supabase.from('perfiles').update({ puntos_totales: currentPoints + puntos }).eq('id', perfil.id);
-      } catch (e) {
-        console.warn("No se pudieron actualizar los puntos:", e);
-      }
+
 
       // Un día del reto también es un día entrenado: crea la fila de checkins
       // de la que dependen el Progreso Semanal y el panel de admin.

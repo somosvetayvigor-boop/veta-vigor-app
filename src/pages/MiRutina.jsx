@@ -176,8 +176,14 @@ export default function MiRutina({ session }) {
       let perfilResult = await DatabaseService.query(`SELECT racha_actual FROM perfiles WHERE id = ?`, [session?.user.id]);
       let bienestarTodayResult = await DatabaseService.query(`SELECT fecha, habitos FROM checkins_bienestar WHERE user_id = ? AND fecha = ?`, [session?.user.id, todayStr]);
 
-      // FALLBACK: Si SQLite está vacío, leer de Supabase
-      if ((!checkinResult || checkinResult.length === 0) && (!perfilResult || perfilResult.length === 0) && navigator.onLine) {
+      // FALLBACK: si no aparece el check-in de hoy, preguntarle a Supabase.
+      //
+      // Antes esta condición exigía que faltaran el check-in Y el perfil. Como el
+      // perfil está siempre en local, el respaldo no se activaba nunca: si el
+      // check-in no había llegado a SQLite, la app no tenía forma de enterarse de
+      // que en el servidor sí existía, y volvía a preguntar la disposición aunque
+      // el usuario ya la hubiera contestado.
+      if ((!checkinResult || checkinResult.length === 0) && navigator.onLine) {
         console.log("⚠️ checkTodayStatus: SQLite vacío, leyendo de Supabase...");
         try {
           const [checkinRes, perfilRes, bienestarRes] = await Promise.all([
@@ -188,6 +194,16 @@ export default function MiRutina({ session }) {
           checkinResult = checkinRes.data || [];
           perfilResult = perfilRes.data ? [perfilRes.data] : [];
           bienestarTodayResult = bienestarRes.data || [];
+
+          // Devolver a SQLite lo que se encontró, para que la próxima vez no
+          // haga falta la red. Si no, cada arranque repetiría el viaje.
+          if (checkinResult.length > 0) {
+            const c = checkinResult[0];
+            await DatabaseService.execute(
+              `INSERT OR REPLACE INTO checkins (id, user_id, fecha, nivel, is_dirty) VALUES (?, ?, ?, ?, 0)`,
+              [c.id, session?.user.id, todayStr, c.nivel]
+            );
+          }
         } catch (sbErr) {
           console.warn("Supabase fallback failed in checkTodayStatus:", sbErr);
         }
@@ -594,7 +610,26 @@ export default function MiRutina({ session }) {
       
       const checkinId = crypto.randomUUID();
       await DatabaseService.execute(`INSERT INTO checkins (id, user_id, fecha, nivel, is_dirty) VALUES (?, ?, ?, ?, 1) ON CONFLICT(id) DO UPDATE SET nivel=excluded.nivel, is_dirty=1`, [checkinId, session?.user.id, todayStr, disposicion]);
-      
+
+      // El arranque comprueba PRIMERO en IndexedDB (PASO 1, DatabaseManager),
+      // que hasta ahora nadie rellenaba desde aquí: se escribía solo en SQLite.
+      // Ese desajuste entre capas es la razón de que la tabla de disposición
+      // reapareciera al refrescar aunque ya se hubiera contestado.
+      await DatabaseManager.saveCheckin(session?.user.id, todayStr, disposicion);
+
+      // Y subirlo ya, sin esperar al siguiente ciclo de sincronización. Si el
+      // usuario recarga en los segundos siguientes, el respaldo contra Supabase
+      // necesita encontrarlo allí.
+      if (navigator.onLine) {
+        supabase.from('checkins')
+          .upsert({ id: checkinId, user_id: session?.user.id, fecha: todayStr, nivel: disposicion })
+          .then(({ error }) => {
+            if (!error) {
+              DatabaseService.execute(`UPDATE checkins SET is_dirty = 0 WHERE id = ?`, [checkinId]);
+            }
+          });
+      }
+
       setHasCheckedInToday(true);
       setEntrenoHoy(true);
     } catch (error) {
@@ -658,11 +693,9 @@ export default function MiRutina({ session }) {
           ]);
 
           // === SYNC DIRECTO A SUPABASE (cuando hay internet) ===
-          // Solo nivel: xp_actual y puntos_forja los escribe el RPC.
           if (navigator.onLine) {
-            supabase.from('perfiles').update({
-              nivel_rpg: newLevelRPG
-            }).eq('id', session?.user.id).then().catch(e => console.warn('Sync RPG bienestar error:', e));
+            // El RPC completar_mision_rpg ahora calculará el nivel en el servidor,
+            // ya no es necesario empujar nivel_rpg desde el cliente.
           }
           
           // Alerta silenciosa y motivadora

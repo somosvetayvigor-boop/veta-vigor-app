@@ -297,23 +297,20 @@ class SyncService {
           reto_dia_actual: p.reto_dia_actual,
           reto_ultimo_completado: p.reto_ultimo_completado,
           reto_completado: p.reto_completado === 1,
-          reto_fecha_inicio: p.reto_fecha_inicio,
+          reto_fecha_inicio: p.reto_fecha_inicio
           // plan_membresia y force_platinum_trial NO se envían, por la misma razón
           // que xp_actual y puntos_forja (ver comentario abajo): son autoritativos
           // del servidor. Desde el blindaje de perfiles el rol `authenticated` ya
           // no tiene privilegio de UPDATE sobre esas columnas, así que incluirlas
           // haría fallar el push entero y dejaría is_dirty encendido para siempre.
           // Se escriben vía activar_plan_por_compra / otorgar_trial_por_reto.
-          puntos_totales: p.puntos_totales,
+          
           // xp_actual, puntos_forja y racha_actual NO se envían acá a propósito.
           // Son autoritativos del servidor: los escribe completar_mision_rpg dentro
           // de una transacción con idempotencia. Si los empujáramos desde el cliente
           // pisaríamos el saldo del ledger con un valor calculado localmente, que es
           // exactamente el doble cobro que el RPC existe para evitar.
-          stat_fuerza: p.stat_fuerza,
-          stat_agilidad: p.stat_agilidad,
-          stat_resistencia: p.stat_resistencia,
-          nivel_rpg: p.nivel_rpg
+          // Igual con puntos_totales, nivel_rpg, y las stats.
         }).eq('id', userId);
 
         if (!error) {

@@ -947,8 +947,15 @@ function App() {
              
              // Si no hay pagos activos en RevenueCat, y no es el administrador:
              if (activeEntitlements.length === 0 && session?.user.email !== 'somos.vetayvigor@gmail.com') {
-                const currentPlan = session?.user.user_metadata?.suscripcion || session?.user.user_metadata?.plan_membresia;
-                const isPaidPlan = ['Socio Argentum', 'Socio Aurum', 'Plan Platinum', 'Socio Fundador Vitalicio'].includes(currentPlan);
+                // Consultamos directamente la BD en lugar de user_metadata para estar 100% seguros
+                const { data: perfilInfo } = await supabase
+                   .from('perfiles')
+                   .select('plan_membresia')
+                   .eq('id', session.user.id)
+                   .single();
+                   
+                const currentPlan = perfilInfo?.plan_membresia || 'Atleta Base (Gratis)';
+                const isPaidPlan = ['Socio Argentum', 'Socio Aurum', 'Plan Platinum', 'Socio Fundador Vitalicio', 'Entrenador Pro', 'Entrenador Élite'].includes(currentPlan);
                 
                 // Si la BD piensa que es VIP, pero RevenueCat dice que no, lo regresamos a Gratis
                 if (isPaidPlan) {

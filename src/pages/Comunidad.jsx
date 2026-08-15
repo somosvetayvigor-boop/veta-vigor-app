@@ -50,6 +50,7 @@ export default function Comunidad({ session }) {
       const fetchLeaderboard = async () => {
         setLoadingLeaderboard(true);
         const { data, error } = await supabase.rpc('get_leaderboard');
+        console.log("LEADERBOARD DEBUG:", { data, error });
         if (!error && data) {
           setLeaderboard(data || []);
         }

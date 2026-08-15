@@ -42,7 +42,7 @@ export default function LegalModals({ type, onClose }) {
               </div>
 
               <h4 style={{ color: 'var(--accent-gold)', marginTop: '15px' }}>4. Almacenamiento, Seguridad y Retención de Datos</h4>
-              <p>Sus datos personales y fotografías se almacenan en servidores en la nube de alta seguridad con encriptación de extremo a extremo. Los datos sensibles y fotografías se conservarán únicamente mientras su cuenta permanezca activa. Si usted decide eliminar su cuenta, todas sus fotografías, medidas y registros físicos serán destruidos y purgados de nuestros servidores de forma permanente e irrecuperable.</p>
+              <p>Sus datos personales y fotografías se almacenan en servidores en la nube de alta seguridad con encriptación de datos en reposo y en tránsito. Los datos sensibles y fotografías se conservarán únicamente mientras su cuenta permanezca activa. Si usted decide eliminar su cuenta, todas sus fotografías, medidas y registros físicos serán destruidos y purgados de nuestros servidores de forma permanente e irrecuperable.</p>
               
               <h4 style={{ color: 'var(--accent-gold)', marginTop: '15px' }}>5. Derechos ARCO</h4>
               <p>Usted tiene derecho en todo momento a conocer qué datos tenemos (Acceso), a corregirlos (Rectificación), a solicitar que eliminemos sus fotografías, medidas o cuenta completa de nuestra base de datos (Cancelación), o a oponerse a su uso para finalidades secundarias, incluyendo la baja de comunicaciones de WhatsApp (Oposición).</p>
