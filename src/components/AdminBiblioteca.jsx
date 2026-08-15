@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
+import { compressImage } from '../utils/imageUtils';
 import { ImagePlus, Search, Edit2, Loader2, Save, Check, Link } from 'lucide-react';
 
 export default function AdminBiblioteca() {
@@ -51,13 +52,16 @@ export default function AdminBiblioteca() {
     setUploadingId(id);
     const tableName = activeTab === 'ejercicios' ? 'ejercicios_biblioteca' : 'sistemas_entrenamiento';
     const folder = activeTab === 'ejercicios' ? 'ejercicios' : 'sistemas';
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${folder}/${id}_${Date.now()}.${fileExt}`;
+    const fileName = `${folder}/${id}_${Date.now()}.jpg`;
 
     try {
+      // Comprimir antes de subir: ver el comentario en ExpedienteModal. Estas
+      // imágenes las ve toda la base de usuarios, así que además de ocupar menos
+      // se sirven más rápido.
+      const compressedFile = await compressImage(file);
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('imagenes')
-        .upload(fileName, file, { cacheControl: '3600', upsert: true });
+        .upload(fileName, compressedFile, { cacheControl: '3600', upsert: true });
 
       if (uploadError) throw uploadError;
 

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from '../supabaseClient';
+import { compressImage } from '../utils/imageUtils';
 import { Camera, CheckCircle, Loader, LogOut } from 'lucide-react';
 
 export default function OnboardingModal({ session, onComplete }) {
@@ -55,13 +56,13 @@ export default function OnboardingModal({ session, onComplete }) {
 
       // 1. Upload Avatar if selected
       if (avatarFile) {
-        const fileExt = avatarFile.name.split('.').pop();
-        const fileName = `${session?.user.id}-${Math.random()}.${fileExt}`;
-        const filePath = `${fileName}`;
+        // Comprimir antes de subir: ver el comentario en ExpedienteModal.
+        const compressedAvatar = await compressImage(avatarFile);
+        const filePath = `${session?.user.id}-${Math.random()}.jpg`;
 
         const { error: uploadError } = await supabase.storage
           .from('fotos_progreso')
-          .upload(filePath, avatarFile);
+          .upload(filePath, compressedAvatar);
 
         if (uploadError) throw uploadError;
 

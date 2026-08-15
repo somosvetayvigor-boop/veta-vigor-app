@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from '../supabaseClient';
+import { compressImage } from '../utils/imageUtils';
 import { Camera, Upload, ChevronRight } from 'lucide-react';
 
 export default function Onboarding({ session, onComplete }) {
@@ -25,12 +26,13 @@ export default function Onboarding({ session, onComplete }) {
     setIsUploading(true);
     
     try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${session?.user.id}_antes_${Date.now()}.${fileExt}`;
-      
+      // Comprimir antes de subir: ver el comentario en ExpedienteModal.
+      const compressedFile = await compressImage(file);
+      const fileName = `${session?.user.id}_antes_${Date.now()}.jpg`;
+
       const { error: uploadError } = await supabase.storage
         .from('fotos_progreso')
-        .upload(fileName, file);
+        .upload(fileName, compressedFile);
 
       if (uploadError) throw uploadError;
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../supabaseClient';
+import { compressImage } from '../utils/imageUtils';
 import { useNavigate } from 'react-router-dom';
 import LegalModals from '../components/LegalModals';
 import { addToOfflineQueue } from '../utils/OfflineManager';
@@ -310,14 +311,15 @@ export default function Perfil({ session }) {
     setIsUploading(type);
     
     try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${session?.user.id}_${type}_${Date.now()}.${fileExt}`;
-      
+      // Comprimir antes de subir: ver el comentario en ExpedienteModal.
+      const compressedFile = await compressImage(file);
+      const fileName = `${session?.user.id}_${type}_${Date.now()}.jpg`;
+
       const bucketName = type === 'avatar' || type === 'logo' ? 'avatars' : 'fotos_progreso';
-      
+
       const { error: uploadError } = await supabase.storage
         .from(bucketName)
-        .upload(fileName, file);
+        .upload(fileName, compressedFile);
 
       if (uploadError) throw uploadError;
 

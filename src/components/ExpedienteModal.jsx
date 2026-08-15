@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from '../supabaseClient';
+import { compressImage } from '../utils/imageUtils';
 import { Camera, Upload, ChevronRight, LogOut } from 'lucide-react';
 
 export default function ExpedienteModal({ session, onComplete, onSkip }) {
@@ -20,12 +21,15 @@ export default function ExpedienteModal({ session, onComplete, onSkip }) {
     setIsUploading(true);
     
     try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${session?.user.id}_antes_${Date.now()}.${fileExt}`;
-      
+      // Se comprime antes de subir: una foto de galería sin tocar son 3-8 MB,
+      // y comprimida ronda los 250 KB. Con 1080px y calidad 80 la comparación
+      // antes/después se sigue viendo igual de bien.
+      const compressedFile = await compressImage(file);
+      const fileName = `${session?.user.id}_antes_${Date.now()}.jpg`;
+
       const { error: uploadError } = await supabase.storage
         .from('fotos_progreso')
-        .upload(fileName, file);
+        .upload(fileName, compressedFile);
 
       if (uploadError) throw uploadError;
 
