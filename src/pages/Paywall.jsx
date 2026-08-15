@@ -4,9 +4,20 @@ import { CheckCircle2, XCircle, ArrowLeft, Crown, Shield, Activity, Users, Star,
 import { Purchases } from '@revenuecat/purchases-capacitor';
 import { Capacitor } from '@capacitor/core';
 import { supabase } from '../supabaseClient';
+import { evento, EVENTOS } from '../utils/telemetry';
 
 export default function Paywall({ forced = false, onDismiss = null }) {
   const navigate = useNavigate();
+
+  // Se registra al montar, no cuando App.jsx enciende la bandera: así se cuenta
+  // el paywall que el usuario vio de verdad. Es el primer escalón del embudo
+  // visto → iniciada → completada.
+  useEffect(() => {
+    evento(EVENTOS.PAYWALL_VISTO, {
+      forzado: forced,
+      plataforma: Capacitor.isNativePlatform() ? 'nativo' : 'web',
+    });
+  }, [forced]);
   const [loading, setLoading] = useState(false);
   const [packages, setPackages] = useState([]);
   const [session, setSession] = useState(null);
@@ -173,6 +184,10 @@ export default function Paywall({ forced = false, onDismiss = null }) {
 
   const handlePurchase = async (plan) => {
     setLoading(true);
+    evento(EVENTOS.COMPRA_INICIADA, {
+      plan: plan?.nombre || plan?.pkgData?.product?.identifier || 'desconocido',
+      via: plan?.pkgData ? 'revenuecat' : 'stripe',
+    });
     try {
       if (plan.pkgData) {
         // Compra real vía RevenueCat (Google Play / App Store)
@@ -202,6 +217,7 @@ export default function Paywall({ forced = false, onDismiss = null }) {
            }
 
            await supabase.auth.updateUser({ data: { suscripcion: data.plan } });
+           evento(EVENTOS.COMPRA_COMPLETADA, { plan: data.plan, via: 'revenuecat' });
            alert(`¡Pago exitoso! Bienvenido a Veta & Vigor ${data.plan}`);
            window.location.reload();
         } else {
@@ -235,6 +251,7 @@ export default function Paywall({ forced = false, onDismiss = null }) {
       // el botón del panel de admin. La RPC solo sabe apagar, nunca encender.
       await supabase.rpc('descartar_paywall');
     }
+    evento(EVENTOS.PAYWALL_DESCARTADO, { forzado: isForced });
     if (onDismiss) {
       onDismiss();
     } else {

@@ -3,6 +3,7 @@ import { supabase } from '../supabaseClient';
 import { Play, CheckCircle, X, Trophy, PlayCircle, Music, Zap, Timer, RotateCcw, ChevronRight, Droplet, Moon, Apple, Camera as CameraIcon, Upload, Share2 } from 'lucide-react';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { Capacitor } from '@capacitor/core';
+import { evento, EVENTOS } from '../utils/telemetry';
 import { Share } from '@capacitor/share';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import confetti from 'canvas-confetti';
@@ -268,6 +269,14 @@ export default function RutinaRetoPlayer({ diaInfo, perfil, onClose, onComplete 
       } catch (e) {
         console.warn("No se pudieron actualizar los puntos:", e);
       }
+
+      // Telemetría: con el número de día, que es lo que permite ver la curva de
+      // abandono del reto. Si la caída está en el día 4, eso es una decisión de
+      // producto que hoy no tienes forma de tomar.
+      evento(EVENTOS.RETO_DIA_COMPLETADO, {
+        dia: parseInt(diaInfo.dia_numero),
+        es_final: parseInt(diaInfo.dia_numero) >= 21,
+      });
 
       // 6. RPG y Economía (Atómico)
       try {

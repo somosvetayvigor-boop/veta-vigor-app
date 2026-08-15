@@ -444,6 +444,7 @@ import DescansoActivoModal from './components/DescansoActivoModal';
 
 import UpdatePrompt from './components/UpdatePrompt';
 import { App as CapacitorApp } from '@capacitor/app';
+import { identificarUsuario, evento, EVENTOS } from './utils/telemetry';
 
 function BackButtonHandler() {
   useEffect(() => {
@@ -756,6 +757,17 @@ function App() {
           
           clearTimeout(safetyTimer);
           setLoading(false); // ← EL USUARIO YA ESTÁ DENTRO 🚀
+
+          // Telemetría: se marca aquí, cuando la app es realmente utilizable,
+          // no al empezar a cargar. Así "app_abierta" mide sesiones de verdad
+          // y no intentos fallidos de arranque.
+          identificarUsuario(session.user.id, {
+            plataforma: Capacitor.isNativePlatform() ? 'nativo' : 'web',
+            rol: rolCacheado || 'desconocido',
+          });
+          evento(EVENTOS.APP_ABIERTA, {
+            plataforma: Capacitor.isNativePlatform() ? 'nativo' : 'web',
+          });
 
           // =================================================================
           // PASO 2-BIS: HIDRATAR DESDE SQLite, YA CON LA UI PINTADA

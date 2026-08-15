@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { compressImage } from '../utils/imageUtils';
+import { evento, EVENTOS } from '../utils/telemetry';
 import { Camera, CheckCircle, Loader, LogOut } from 'lucide-react';
 
 export default function OnboardingModal({ session, onComplete }) {
@@ -125,6 +126,10 @@ export default function OnboardingModal({ session, onComplete }) {
       });
 
       if (updateError) throw updateError;
+
+      // Cierra el embudo de entrada: cuántos de los que se registran llegan
+      // realmente a usar la app.
+      evento(EVENTOS.ONBOARDING_COMPLETADO, { rol: role });
       
       // Llamamos a onComplete para que el componente padre cierre el modal o siga con el cuestionario
       if (onComplete) {

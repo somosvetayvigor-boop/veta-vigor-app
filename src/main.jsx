@@ -3,6 +3,11 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
+import { iniciarTelemetria } from './utils/telemetry'
+
+// Antes de montar React, para que capture también los fallos de arranque.
+// Si faltan las variables de entorno no hace nada y la app sigue igual.
+iniciarTelemetria()
 
 // Interceptar errores de Vite al cargar módulos dinámicos
 window.addEventListener('vite:preloadError', async (event) => {

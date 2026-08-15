@@ -1,6 +1,7 @@
 import React from 'react';
 import { supabase } from '../supabaseClient';
 import { ShieldAlert } from 'lucide-react';
+import { registrarError } from '../utils/telemetry';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -16,8 +17,10 @@ class ErrorBoundary extends React.Component {
   }
 
   async componentDidCatch(error, errorInfo) {
-    console.error("ErrorBoundary caught an error", error, errorInfo);
-    
+    // A Sentry va con la traza de componentes; la tabla frontend_errors se
+    // mantiene porque ya la consultas y funciona sin conexión a terceros.
+    registrarError(error, { componentStack: errorInfo?.componentStack });
+
     // Si es un error de Vite por caché (versión nueva), intentamos recargar 1 vez
     if (this.state.isViteChunkError) {
       if (!sessionStorage.getItem('vite-reload-error-boundary')) {
