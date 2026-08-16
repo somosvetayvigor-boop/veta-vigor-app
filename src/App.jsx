@@ -42,9 +42,6 @@ const TopHeader = ({ session }) => {
   const esPro = isAdmin || isAlumnoEntrenador ||
                 ['Plan Platinum', 'Socio Fundador Vitalicio', 'Prueba Gratis (7 Días)'].includes(suscripcion) ||
                 suscripcion?.includes('Pro') || suscripcion?.includes('Élite');
-                
-  const esVIP = isAdmin || esPro ||
-                ['Socio Argentum', 'Socio Aurum', 'Prueba Gratis (7 Días)'].includes(suscripcion);
 
   useEffect(() => {
     if (!esPro) return;

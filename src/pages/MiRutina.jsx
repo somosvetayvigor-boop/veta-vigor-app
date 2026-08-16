@@ -42,10 +42,18 @@ export default function MiRutina({ session }) {
   const [isFreeUser, setIsFreeUser] = useState(true);
   const [coachBrand, setCoachBrand] = useState(null);
   const [ultimoEntrenamiento, setUltimoEntrenamiento] = useState(null);
+  const [planFrescoServidor, setPlanFrescoServidor] = useState(null);
 
-  // VIP check (necesario antes de detectar día de descanso)
+  // VIP check (necesario antes de detectar día de descanso). suscripcion
+  // sale primero de user_metadata (rápido, puede estar cacheado) y luego se
+  // corrige sola con planFrescoServidor en cuanto responde la consulta
+  // directa de abajo -- igual que el chequeo de RevenueCat en App.jsx, para
+  // no depender del SQLite local (puede quedarse "sucio" y atrasado, como
+  // pasó hoy con reto_ultimo_completado). Solo sirve para SUBIR a VIP más
+  // rápido tras una compra reciente; la baja de plan la maneja por separado
+  // la reconciliación de RevenueCat.
   const isAdmin = session?.user?.email === 'somos.vetayvigor@gmail.com';
-  const suscripcion = session?.user?.user_metadata?.suscripcion || session?.user?.user_metadata?.plan_membresia;
+  const suscripcion = planFrescoServidor || session?.user?.user_metadata?.suscripcion || session?.user?.user_metadata?.plan_membresia;
   const esVIP = isAdmin ||
                 localStorage.getItem('user_role') === 'alumno_entrenador' ||
                 suscripcion?.includes('Entrenador Pro') ||
@@ -76,6 +84,20 @@ export default function MiRutina({ session }) {
 
   // Estado para forzar Expediente
   const [showExpediente, setShowExpediente] = useState(false);
+
+  // Consulta chica y directa a Supabase (sin SQLite de por medio) para que
+  // esVIP se corrija sola si el usuario acaba de comprar y user_metadata
+  // todavía no se refrescó. No bloquea nada más: si falla o tarda, la
+  // pantalla sigue mostrando lo que ya tenía en user_metadata mientras
+  // tanto.
+  useEffect(() => {
+    if (!session?.user?.id || !navigator.onLine) return;
+    supabase.from('perfiles').select('plan_membresia').eq('id', session.user.id).single()
+      .then(({ data }) => {
+        if (data?.plan_membresia) setPlanFrescoServidor(data.plan_membresia);
+      })
+      .catch(() => {});
+  }, [session?.user?.id]);
 
   useEffect(() => {
     let safetyTimer = null;
