@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 
@@ -21,14 +21,14 @@ const PWAUpdatePromptInner = () => {
     },
   });
 
-  const isUpdating = useRef(false);
+  const [isUpdating, setIsUpdating] = useState(false);
   const [updateText, setUpdateText] = useState('Actualizar');
 
   if (!needRefresh) return null;
 
   const handleUpdate = async () => {
-    if (isUpdating.current) return;
-    isUpdating.current = true;
+    if (isUpdating) return;
+    setIsUpdating(true);
     setUpdateText('Actualizando...');
 
     try {
@@ -99,7 +99,7 @@ const PWAUpdatePromptInner = () => {
         <button 
           style={{ backgroundColor: 'var(--accent-gold)', color: '#000', padding: '5px 15px', borderRadius: '15px', fontWeight: 'bold', cursor: 'pointer' }}
           onClick={handleUpdate}
-          disabled={isUpdating.current}
+          disabled={isUpdating}
         >
           {updateText}
         </button>
