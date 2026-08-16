@@ -1213,8 +1213,6 @@ export default function MiRutina({ session }) {
           onClose={() => setShowTuMusica(false)} 
           onSaved={(newLink) => {
             setCustomMusicLink(newLink);
-            // Actualizar la caché global
-            globalPerfilMeta = { ...(globalPerfilMeta || session?.user?.user_metadata), custom_music_link: newLink };
           }}
         />
       )}

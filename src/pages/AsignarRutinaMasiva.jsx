@@ -1,11 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Dumbbell, Plus, Save, ArrowLeft, CalendarDays, User, Loader2, Trash2 } from 'lucide-react';
 
 export default function AsignarRutinaMasiva({ session }) {
-  const { alumnoId } = useParams();
   const navigate = useNavigate();
+  // PanelEntrenador.jsx guarda los ids seleccionados aqui antes de navegar
+  // (no hay :alumnoId en la ruta -- son varios). Faltaba leerlos de vuelta:
+  // sin esto la pantalla truena al montar (alumnoIds nunca declarado).
+  const [alumnoIds] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('veta_masivo_ids') || '[]');
+    } catch {
+      return [];
+    }
+  });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [alumnos, setAlumnos] = useState([]);
