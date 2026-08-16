@@ -30,6 +30,9 @@
 
 DROP POLICY IF EXISTS "Cualquier usuario autenticado puede leer para checar si tiene i" ON public.invitaciones_entrenador;
 DROP POLICY IF EXISTS "Cualquier usuario puede borrar al consumir la invitación" ON public.invitaciones_entrenador;
+-- Reejecutable: si este script ya corrió antes, la política nueva también
+-- necesita su propio DROP, o CREATE POLICY falla con 42710 (ya existe).
+DROP POLICY IF EXISTS "Entrenadores ven sus propias invitaciones" ON public.invitaciones_entrenador;
 
 -- SELECT: el entrenador ve solo las invitaciones que él mismo mandó. Nada
 -- en la app lo usa hoy, pero si algún día se agrega un "ver invitaciones
