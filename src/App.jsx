@@ -715,10 +715,10 @@ function App() {
              // --- VERIFICACIÓN AUTOMÁTICA DE SUSCRIPCIÓN ACTIVA ---
              // Preguntamos a RevenueCat si el usuario tiene compras/suscripciones activas
              const customerInfo = await Purchases.getCustomerInfo();
-             const activeEntitlements = Object.keys(customerInfo.entitlements.active);
+             const entitlementsActivos = customerInfo.entitlements.active;
+             const activeEntitlements = Object.keys(entitlementsActivos);
 
-             // Si no hay pagos activos en RevenueCat, y no es el administrador:
-             if (activeEntitlements.length === 0 && sesionActual.user.email !== 'somos.vetayvigor@gmail.com') {
+             if (sesionActual.user.email !== 'somos.vetayvigor@gmail.com') {
                 // Consultamos directamente la BD en lugar de user_metadata para estar 100% seguros
                 const { data: perfilInfo } = await supabase
                    .from('perfiles')
@@ -729,14 +729,55 @@ function App() {
                 const currentPlan = perfilInfo?.plan_membresia || 'Atleta Base (Gratis)';
                 const isPaidPlan = ['Socio Argentum', 'Socio Aurum', 'Plan Platinum', 'Socio Fundador Vitalicio', 'Entrenador Pro', 'Entrenador Élite'].includes(currentPlan);
 
-                // Si la BD piensa que es VIP, pero RevenueCat dice que no, lo regresamos a Gratis
-                if (isPaidPlan) {
-                    console.log("Suscripción expirada en RevenueCat. Regresando a Gratis automáticamente.");
-                    // Solo degrada, nunca asciende, así que exponerla es inofensivo.
-                    await supabase.rpc('degradar_plan_sin_suscripcion');
-                    await supabase.auth.updateUser({ data: { suscripcion: 'Atleta Base (Gratis)' } });
-                    // Recargamos para que la app aplique el bloqueo inmediatamente
-                    window.location.reload();
+                if (activeEntitlements.length === 0) {
+                   // Sin pagos activos en RevenueCat: si la BD piensa que es VIP,
+                   // lo regresamos a Gratis.
+                   if (isPaidPlan) {
+                       console.log("Suscripción expirada en RevenueCat. Regresando a Gratis automáticamente.");
+                       // Solo degrada, nunca asciende, así que exponerla es inofensivo.
+                       await supabase.rpc('degradar_plan_sin_suscripcion');
+                       await supabase.auth.updateUser({ data: { suscripcion: 'Atleta Base (Gratis)' } });
+                       // Recargamos para que la app aplique el bloqueo inmediatamente
+                       window.location.reload();
+                   }
+                } else {
+                   // Sí hay pagos activos, pero puede que NO sea el mismo plan que
+                   // tiene la BD -- por ejemplo, alguien que bajó de Entrenador
+                   // Élite a Entrenador Pro desde los ajustes de suscripción de
+                   // Play Store, fuera de la app. RevenueCat ya no reporta "cero
+                   // entitlements" en ese caso (sigue pagando Pro), así que la
+                   // rama de arriba nunca se activa y el plan viejo se quedaba
+                   // pegado para siempre.
+                   //
+                   // Mismo criterio de patrón que activar_plan_por_compra en el
+                   // servidor (élite antes que pro, porque un identificador podría
+                   // contener ambas palabras) -- si no reconoce el producto, la
+                   // RPC simplemente no hace nada, es segura de llamar de más.
+                   const productIds = activeEntitlements.map(k => entitlementsActivos[k]?.productIdentifier).filter(Boolean);
+                   const mejorProductId =
+                       productIds.find(id => /elite|élite/i.test(id)) ||
+                       productIds.find(id => /pro/i.test(id)) ||
+                       productIds.find(id => /vitalicio/i.test(id)) ||
+                       productIds.find(id => /platinum/i.test(id)) ||
+                       productIds.find(id => /aurum/i.test(id)) ||
+                       productIds.find(id => /argentum/i.test(id));
+
+                   if (mejorProductId) {
+                       const idLower = mejorProductId.toLowerCase();
+                       const planEsperado =
+                           /elite|élite/.test(idLower) ? 'Entrenador Élite' :
+                           /pro/.test(idLower)         ? 'Entrenador Pro' :
+                           null; // los de atleta no hace falta reconciliarlos aquí
+
+                       if (planEsperado && planEsperado !== currentPlan) {
+                           console.log(`Plan de RevenueCat (${planEsperado}) no coincide con la BD (${currentPlan}). Reconciliando.`);
+                           const { data } = await supabase.rpc('activar_plan_por_compra', { p_product_id: mejorProductId });
+                           if (data?.ok) {
+                               await supabase.auth.updateUser({ data: { suscripcion: data.plan } });
+                               window.location.reload();
+                           }
+                       }
+                   }
                 }
              }
              // -----------------------------------------------------

@@ -459,11 +459,9 @@ export default function MiRutina({ session }) {
           // foranea que PostgREST pueda usar (blindaje de columnas 16/08).
           const { data: rel } = await supabase.from('relacion_entrenador_alumno').select('entrenador_id').eq('alumno_id', session?.user.id).eq('estado', 'activo').single();
           if (rel?.entrenador_id) {
-            // logo_entrenador: pendiente investigar, la columna no existe en
-            // la base real (ver VETA_VIGOR_BLINDAJE_COLUMNAS_PERFILES.sql).
-            const { data: coachPerfil } = await supabase.from('perfiles_publico').select('full_name').eq('id', rel.entrenador_id).single();
+            const { data: coachPerfil } = await supabase.from('perfiles_publico').select('full_name, logo_entrenador').eq('id', rel.entrenador_id).single();
             if (coachPerfil) {
-              setCoachBrand({ name: coachPerfil.full_name, logo: null });
+              setCoachBrand({ name: coachPerfil.full_name, logo: coachPerfil.logo_entrenador });
             }
           }
         }
