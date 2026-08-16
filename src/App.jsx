@@ -672,6 +672,84 @@ function App() {
       setShowPlatinumTrialModal(forcePlatinumModal);
     };
 
+    // OneSignal + RevenueCat. Extraída para poder llamarse desde los DOS
+    // caminos de checkSession (sesión en caché y sesión nueva) — antes vivía
+    // solo al final de la función y el camino de sesión en caché salía con un
+    // `return` antes de llegar aquí, así que Purchases.configure() no corría
+    // en casi ninguna apertura real. Ver la nota junto a la llamada.
+    const inicializarServiciosNativos = async (sesionActual) => {
+      // Inicializar OneSignal Nativo (Android/iOS)
+      if (Capacitor.isNativePlatform()) {
+        try {
+          OneSignal.initialize("f0e7f7a8-6da8-4592-92a7-542f731a91f0");
+          OneSignal.Notifications.requestPermission(true);
+
+          if (sesionActual?.user?.id) {
+            OneSignal.login(sesionActual.user.id);
+          }
+
+          // Prevenir que la notificación push brinque si el usuario está con la app abierta
+          OneSignal.Notifications.addEventListener('foregroundWillDisplay', (event) => {
+            event.preventDefault();
+          });
+        } catch (e) {
+          console.error("Error inicializando OneSignal nativo:", e);
+        }
+      }
+
+      // Programar notificaciones locales (8 AM frase del día, 6 PM recordatorio entrenamiento)
+      if (sesionActual?.user) {
+        setupScheduledNotifications(sesionActual, supabase);
+      }
+
+      // Inicializar RevenueCat con el ID del usuario si está logueado
+      if (sesionActual?.user) {
+        try {
+          await Purchases.setLogLevel({ level: LOG_LEVEL.DEBUG });
+
+          if (Capacitor.isNativePlatform()) {
+             // Solo inicializamos RevenueCat si estamos corriendo nativo (Android)
+             await Purchases.configure({
+               apiKey: 'goog_ksbcOecVHSqMAxOFCxsNKGmmRuU',
+               appUserID: sesionActual.user.id
+             });
+             console.log("RevenueCat configurado exitosamente");
+
+             // --- VERIFICACIÓN AUTOMÁTICA DE SUSCRIPCIÓN ACTIVA ---
+             // Preguntamos a RevenueCat si el usuario tiene compras/suscripciones activas
+             const customerInfo = await Purchases.getCustomerInfo();
+             const activeEntitlements = Object.keys(customerInfo.entitlements.active);
+
+             // Si no hay pagos activos en RevenueCat, y no es el administrador:
+             if (activeEntitlements.length === 0 && sesionActual.user.email !== 'somos.vetayvigor@gmail.com') {
+                // Consultamos directamente la BD en lugar de user_metadata para estar 100% seguros
+                const { data: perfilInfo } = await supabase
+                   .from('perfiles')
+                   .select('plan_membresia')
+                   .eq('id', sesionActual.user.id)
+                   .single();
+
+                const currentPlan = perfilInfo?.plan_membresia || 'Atleta Base (Gratis)';
+                const isPaidPlan = ['Socio Argentum', 'Socio Aurum', 'Plan Platinum', 'Socio Fundador Vitalicio', 'Entrenador Pro', 'Entrenador Élite'].includes(currentPlan);
+
+                // Si la BD piensa que es VIP, pero RevenueCat dice que no, lo regresamos a Gratis
+                if (isPaidPlan) {
+                    console.log("Suscripción expirada en RevenueCat. Regresando a Gratis automáticamente.");
+                    // Solo degrada, nunca asciende, así que exponerla es inofensivo.
+                    await supabase.rpc('degradar_plan_sin_suscripcion');
+                    await supabase.auth.updateUser({ data: { suscripcion: 'Atleta Base (Gratis)' } });
+                    // Recargamos para que la app aplique el bloqueo inmediatamente
+                    window.location.reload();
+                }
+             }
+             // -----------------------------------------------------
+          }
+        } catch (e) {
+          console.error("Error al configurar RevenueCat:", e);
+        }
+      }
+    };
+
     const checkSession = async () => {
       // SAFETY NET: Force-kill the splash screen after 60 seconds no matter what.
       // Native SQLite inserts can take up to 30-40 seconds on older devices
@@ -882,6 +960,11 @@ function App() {
             }
           })();
 
+          // Sin await: no debe retrasar el pintado de la pantalla. Se lanza
+          // aquí, no se omite — antes este camino salía sin haber llamado
+          // NUNCA a esto, y era el camino que se toma en casi cada apertura.
+          inicializarServiciosNativos(session);
+
           return; // ← Salir aquí, ya mostramos la UI
         }
 
@@ -928,76 +1011,17 @@ function App() {
         setLoading(false);
       }
       
-      // Inicializar OneSignal Nativo (Android/iOS)
-      if (Capacitor.isNativePlatform()) {
-        try {
-          OneSignal.initialize("f0e7f7a8-6da8-4592-92a7-542f731a91f0");
-          OneSignal.Notifications.requestPermission(true);
-          
-          if (session?.user?.id) {
-            OneSignal.login(session.user.id);
-          }
-          
-          // Prevenir que la notificación push brinque si el usuario está con la app abierta
-          OneSignal.Notifications.addEventListener('foregroundWillDisplay', (event) => {
-            event.preventDefault();
-          });
-        } catch (e) {
-          console.error("Error inicializando OneSignal nativo:", e);
-        }
-      }
-
-      // Programar notificaciones locales (8 AM frase del día, 6 PM recordatorio entrenamiento)
-      if (session?.user) {
-        setupScheduledNotifications(session, supabase);
-      }
-      
-      // Inicializar RevenueCat con el ID del usuario si está logueado
-      if (session?.user) {
-        try {
-          await Purchases.setLogLevel({ level: LOG_LEVEL.DEBUG });
-          
-          if (Capacitor.isNativePlatform()) {
-             // Solo inicializamos RevenueCat si estamos corriendo nativo (Android)
-             await Purchases.configure({ 
-               apiKey: 'goog_ksbcOecVHSqMAxOFCxsNKGmmRuU', 
-               appUserID: session?.user.id 
-             });
-             console.log("RevenueCat configurado exitosamente");
-             
-             // --- VERIFICACIÓN AUTOMÁTICA DE SUSCRIPCIÓN ACTIVA ---
-             // Preguntamos a RevenueCat si el usuario tiene compras/suscripciones activas
-             const customerInfo = await Purchases.getCustomerInfo();
-             const activeEntitlements = Object.keys(customerInfo.entitlements.active);
-             
-             // Si no hay pagos activos en RevenueCat, y no es el administrador:
-             if (activeEntitlements.length === 0 && session?.user.email !== 'somos.vetayvigor@gmail.com') {
-                // Consultamos directamente la BD en lugar de user_metadata para estar 100% seguros
-                const { data: perfilInfo } = await supabase
-                   .from('perfiles')
-                   .select('plan_membresia')
-                   .eq('id', session.user.id)
-                   .single();
-                   
-                const currentPlan = perfilInfo?.plan_membresia || 'Atleta Base (Gratis)';
-                const isPaidPlan = ['Socio Argentum', 'Socio Aurum', 'Plan Platinum', 'Socio Fundador Vitalicio', 'Entrenador Pro', 'Entrenador Élite'].includes(currentPlan);
-                
-                // Si la BD piensa que es VIP, pero RevenueCat dice que no, lo regresamos a Gratis
-                if (isPaidPlan) {
-                    console.log("Suscripción expirada en RevenueCat. Regresando a Gratis automáticamente.");
-                    // Solo degrada, nunca asciende, así que exponerla es inofensivo.
-                    await supabase.rpc('degradar_plan_sin_suscripcion');
-                    await supabase.auth.updateUser({ data: { suscripcion: 'Atleta Base (Gratis)' } });
-                    // Recargamos para que la app aplique el bloqueo inmediatamente
-                    window.location.reload();
-                }
-             }
-             // -----------------------------------------------------
-          }
-        } catch (e) {
-          console.error("Error al configurar RevenueCat:", e);
-        }
-      }
+      // Este bloque quedó fuera del try/catch/finally de arriba a propósito: la
+      // rama de sesión en caché (PASO 3, el camino normal en cada apertura)
+      // termina en un `return` para pintar la UI cuanto antes. Un `return`
+      // dentro de un try SÍ deja correr el finally, pero al terminar el finally
+      // la función sale — el código de aquí abajo nunca se alcanzaba en ese
+      // camino. Resultado: Purchases.configure() no corría en casi ninguna
+      // apertura real, solo en la primera vez que no hay sesión en caché. Por
+      // eso el paywall fallaba siempre con "Purchases must be configured
+      // before calling this function" — no era una carrera de tiempos, era
+      // código muerto. Se llama ahora desde los dos caminos.
+      await inicializarServiciosNativos(session);
 
       if (session) {
         checkPendingPurchases(session);
