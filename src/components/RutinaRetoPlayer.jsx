@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
+import DatabaseService from '../services/DatabaseService';
 import { Play, CheckCircle, X, Trophy, PlayCircle, Music, Zap, Timer, RotateCcw, ChevronRight, Droplet, Moon, Apple, Camera as CameraIcon, Upload, Share2 } from 'lucide-react';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { Capacitor } from '@capacitor/core';
