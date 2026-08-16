@@ -591,15 +591,16 @@ function App() {
       }
 
       // Check Invitaciones de Entrenador (Para usuarios nuevos)
-      // El servidor busca la invitación por el email de la sesión, crea la
-      // relación, asigna el rol y consume la invitación en una transacción.
-      // Antes el cliente insertaba la relación por su cuenta — que era la vía
-      // por la que cualquiera podía declararse entrenador de cualquiera.
+      // El servidor busca la invitación por el email de la sesión y crea la
+      // relación EN ESTADO 'pendiente' — ya no la deja 'activo' de inmediato.
+      // Que un entrenador conozca tu correo no significa que hayas aceptado
+      // ser su alumno. finalRole ya NO se pone en 'alumno_entrenador' aquí:
+      // el bloque de pendingVinculacion (más abajo) detecta la relación
+      // pendiente por su cuenta y muestra el modal de aceptar/rechazar con
+      // el nombre del entrenador. El rol solo se asigna dentro de
+      // aceptar_vinculacion(), si el alumno de verdad acepta.
       if (user.email) {
-        const { data: canje } = await supabase.rpc('canjear_invitacion_entrenador');
-        if (canje?.ok) {
-          finalRole = 'alumno_entrenador';
-        }
+        await supabase.rpc('canjear_invitacion_entrenador');
       }
 
       if (finalRole) {
