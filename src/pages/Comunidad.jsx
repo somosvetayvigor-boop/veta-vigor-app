@@ -10,6 +10,7 @@ export default function Comunidad({ session }) {
   const [nuevoMensaje, setNuevoMensaje] = useState('');
   const [loading, setLoading] = useState(true);
   const [isVip, setIsVip] = useState(false);
+  const [, setPlanReal] = useState('');
   const [isBanned, setIsBanned] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
   const [isUploading, setIsUploading] = useState(false);

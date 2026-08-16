@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from './supabaseClient';
 import { Purchases, LOG_LEVEL } from '@revenuecat/purchases-capacitor';
@@ -469,6 +469,13 @@ function App() {
   const [showCuestionario, setShowCuestionario] = useState(false);
   const [showExpediente, setShowExpediente] = useState(false);
   const [hasSkippedExpediente, setHasSkippedExpediente] = useState(false);
+  // El listener de onAuthStateChange (más abajo) se suscribe una sola vez y
+  // vive todo el ciclo de vida del componente -- su closure quedaría
+  // congelada en hasSkippedExpediente=false para siempre. Sin esta ref, un
+  // refresh de token en segundo plano (Supabase lo hace cada hora) volvería
+  // a mostrar el modal de Expediente aunque el usuario ya lo hubiera
+  // saltado.
+  const hasSkippedExpedienteRef = useRef(false);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [pendingNominacion, setPendingNominacion] = useState(null);
   const [pendingVinculacion, setPendingVinculacion] = useState(null);
@@ -1233,7 +1240,7 @@ function App() {
           setShowOnboarding(false);
           setShowCuestionario(true);
           setShowExpediente(false);
-        } else if (!metadata.expediente_completado && !hasSkippedExpediente) {
+        } else if (!metadata.expediente_completado && !hasSkippedExpedienteRef.current) {
           setShowOnboarding(false);
           setShowCuestionario(false);
           setShowExpediente(true);
@@ -1585,6 +1592,7 @@ function App() {
             window.location.href = '/';
           }}
           onSkip={() => {
+            hasSkippedExpedienteRef.current = true;
             setHasSkippedExpediente(true);
             setShowExpediente(false);
           }}

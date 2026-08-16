@@ -16,6 +16,7 @@ export default function AdminGestorSistemas() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
+  const [, setIsSearching] = useState(false);
 
   const [editingEjercicio, setEditingEjercicio] = useState(null);
   const [editForm, setEditForm] = useState({});

@@ -95,7 +95,7 @@ export default function Dashboard({ session }) {
       setLoading(false);
     }
     fetchData();
-  }, [session?.user.id, session?.user.email]);
+  }, [session?.user.id, session?.user.email, meta.plan_membresia, meta.suscripcion]);
 
   const displayName = meta.display_preference === 'username' && meta.username 
     ? `@${meta.username}` 
