@@ -1,20 +1,21 @@
 
-export default function AvatarConMarco({ src, alt, size = 50, marco = 'ninguno', style = {} }) {
+export default function AvatarConMarco({ src, alt, size = 50, marco = 'ninguno', style = {}, onError }) {
   const isBordeFuego = marco === 'borde_fuego';
 
   // Si no hay marco, renderizar avatar normal
   if (!isBordeFuego) {
     return (
-      <img 
-        src={src || '/assets/niveles/semilla.png'} 
-        alt={alt} 
+      <img
+        src={src || '/assets/niveles/semilla.png'}
+        alt={alt}
+        onError={onError}
         style={{
-          width: size, 
-          height: size, 
-          borderRadius: '50%', 
+          width: size,
+          height: size,
+          borderRadius: '50%',
           objectFit: 'cover',
           ...style
-        }} 
+        }}
       />
     );
   }
@@ -85,20 +86,21 @@ export default function AvatarConMarco({ src, alt, size = 50, marco = 'ninguno',
       </svg>
 
       {/* Imagen del Avatar en el centro */}
-      <img 
-        src={src || '/assets/niveles/semilla.png'} 
-        alt={alt} 
+      <img
+        src={src || '/assets/niveles/semilla.png'}
+        alt={alt}
+        onError={onError}
         style={{
-          width: size, 
-          height: size, 
-          borderRadius: '50%', 
+          width: size,
+          height: size,
+          borderRadius: '50%',
           objectFit: 'cover',
           position: 'absolute',
           top: offset,
           left: offset,
           border: '2px solid #2a0800',
           boxShadow: 'inset 0 0 10px #000'
-        }} 
+        }}
       />
     </div>
   );

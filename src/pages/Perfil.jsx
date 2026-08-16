@@ -310,6 +310,7 @@ export default function Perfil({ session }) {
 
       const { data: userData } = await supabase.auth.updateUser({ data: { [key]: data.publicUrl } });
       if (userData?.user) setMeta(userData.user.user_metadata);
+      if (type === 'avatar') setImgError(false);
 
       // Sincronizar también con la tabla de perfiles para el Panel de Creador
       await supabase.from('perfiles').update({ [key]: data.publicUrl }).eq('id', session?.user.id);
@@ -404,10 +405,11 @@ export default function Perfil({ session }) {
                 style={{ cursor: meta.avatar_url ? 'pointer' : 'default', position: 'relative' }}
               >
                 <AvatarConMarco 
-                  src={meta.avatar_url} 
-                  alt="Avatar" 
-                  size={90} 
-                  marco={meta.marco_activo || (inventario.includes('borde_fuego') ? 'borde_fuego' : 'ninguno')} 
+                  src={meta.avatar_url}
+                  alt="Avatar"
+                  size={90}
+                  marco={meta.marco_activo || (inventario.includes('borde_fuego') ? 'borde_fuego' : 'ninguno')}
+                  onError={() => setImgError(true)}
                 />
               </div>
               

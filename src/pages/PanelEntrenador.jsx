@@ -8,9 +8,7 @@ export default function PanelEntrenador({ session }) {
   const [loading, setLoading] = useState(true);
   const [nuevoCorreo, setNuevoCorreo] = useState('');
   const [agregando, setAgregando] = useState(false);
-  const [precioMensual, setPrecioMensual] = useState(session?.user?.user_metadata?.precio_por_alumno || '');
   const [alumnosInfo, setAlumnosInfo] = useState(session?.user?.user_metadata?.alumnos_info || {});
-  const [guardandoPrecio, setGuardandoPrecio] = useState(false);
   const [activeTabAlumno, setActiveTabAlumno] = useState({});
 
   const navigate = useNavigate();
@@ -122,13 +120,6 @@ export default function PanelEntrenador({ session }) {
       console.error("Error general fetchAlumnos:", err);
     }
     setLoading(false);
-  };
-
-  const guardarPrecio = async () => {
-    setGuardandoPrecio(true);
-    await supabase.auth.updateUser({ data: { precio_por_alumno: precioMensual } });
-    setGuardandoPrecio(false);
-    alert('Precio mensual actualizado.');
   };
 
   const updateAlumnoInfo = async (alumnoId, field, value) => {
