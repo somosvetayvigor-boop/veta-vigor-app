@@ -263,7 +263,32 @@ export default function RutinaRetoPlayer({ diaInfo, perfil, onClose, onComplete 
       const { error } = await supabase.from('perfiles').update(updates).eq('id', perfil.id);
       if (error) throw error;
 
-
+      // Espejo inmediato en el SQLite local, marcado como ya sincronizado.
+      //
+      // Esta escritura va DIRECTA a Supabase y nunca toca el SQLite local. El
+      // problema: SyncService.pushData también empuja reto_dia_actual, tomando
+      // el valor que haya en SQLite en ese momento, cada vez que CUALQUIER OTRA
+      // cosa marca el perfil local como sucio (completar una rutina normal,
+      // por ejemplo). Sin este espejo, la próxima sincronización de fondo sube
+      // el valor VIEJO que sigue en el SQLite local y pisa el avance que el
+      // servidor acaba de aceptar — pasó de verdad el 14/08: dos cuentas
+      // completaron días del reto, las recompensas se acreditaron
+      // (rpg_transacciones lo demuestra), pero reto_dia_actual quedó
+      // revertido al día anterior en Supabase.
+      try {
+        await DatabaseService.execute(
+          `UPDATE perfiles SET reto_dia_actual = ?, reto_ultimo_completado = ?, reto_completado = ?, retos_completados_count = ?, is_dirty = 0 WHERE id = ?`,
+          [
+            updates.reto_dia_actual,
+            updates.reto_ultimo_completado,
+            updates.reto_completado ? 1 : 0,
+            updates.retos_completados_count ?? perfil.retos_completados_count ?? 0,
+            perfil.id
+          ]
+        );
+      } catch (e) {
+        console.warn('No se pudo espejar el avance del reto en SQLite local:', e);
+      }
 
       // Un día del reto también es un día entrenado: crea la fila de checkins
       // de la que dependen el Progreso Semanal y el panel de admin.
