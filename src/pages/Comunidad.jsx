@@ -66,87 +66,87 @@ export default function Comunidad({ session }) {
     }
   }, [activeTab]);
 
+  // Columnas seguras de OTROS usuarios: perfiles_publico, no perfiles. La
+  // tabla base ya no deja leer filas ajenas completas (blindaje 16/08), asi
+  // que estos joins por FK (perfiles!alianzas_sender_id_fkey) dejaron de
+  // traer datos -- una vista no tiene llave foranea que PostgREST pueda
+  // usar para el embed. Se reemplaza por un segundo fetch en dos pasos,
+  // igual que ya se hacia aqui mismo con golem_progreso/checkins.
+  const PERFIL_PUBLICO_COLS = 'id, full_name, username, avatar_url, nivel, nivel_rpg, racha_actual, marco_activo';
+
   const fetchAlianzas = async () => {
     setLoadingAlianzas(true);
     try {
       // Fetch pendientes donde soy el receptor
-      const { data: pendingData } = await supabase
+      const { data: pendingRaw } = await supabase
         .from('alianzas')
-        .select(`
-          id,
-          created_at,
-          sender_id,
-          sender:perfiles!alianzas_sender_id_fkey(full_name, username, avatar_url, nivel, nivel_rpg, racha_actual, marco_activo)
-        `)
+        .select('id, created_at, sender_id')
         .eq('receiver_id', session?.user.id)
         .eq('status', 'pending');
-      
-      if (pendingData && pendingData.length > 0) {
+
+      let pendingData = pendingRaw || [];
+      if (pendingData.length > 0) {
         const pendingIds = pendingData.map(p => p.sender_id);
-        const { data: pGolems } = await supabase.from('golem_progreso').select('user_id, golem_nivel').in('user_id', pendingIds);
-        if (pGolems) {
-          pendingData.forEach(p => {
-            const mg = pGolems.find(g => g.user_id === p.sender_id);
-            if (mg) p.sender.golem_nivel = mg.golem_nivel;
-          });
-        }
+        const [{ data: pPerfiles }, { data: pGolems }] = await Promise.all([
+          supabase.from('perfiles_publico').select(PERFIL_PUBLICO_COLS).in('id', pendingIds),
+          supabase.from('golem_progreso').select('user_id, golem_nivel').in('user_id', pendingIds)
+        ]);
+        pendingData = pendingData.map(p => {
+          const sender = (pPerfiles || []).find(pf => pf.id === p.sender_id) || {};
+          const mg = (pGolems || []).find(g => g.user_id === p.sender_id);
+          return { ...p, sender: { ...sender, golem_nivel: mg?.golem_nivel } };
+        });
       }
-      setAlianzasPendientes(pendingData || []);
+      setAlianzasPendientes(pendingData);
 
       // Fetch alianzas activas donde soy sender o receiver
-      const { data: activeData } = await supabase
+      const { data: activeRaw } = await supabase
         .from('alianzas')
-        .select(`
-          id,
-          sender_id,
-          receiver_id,
-          sender:perfiles!alianzas_sender_id_fkey(id, full_name, username, avatar_url, nivel, nivel_rpg, racha_actual, marco_activo),
-          receiver:perfiles!alianzas_receiver_id_fkey(id, full_name, username, avatar_url, nivel, nivel_rpg, racha_actual, marco_activo)
-        `)
+        .select('id, sender_id, receiver_id')
         .eq('status', 'accepted')
         .or(`sender_id.eq.${session?.user.id},receiver_id.eq.${session?.user.id}`);
-      
-      // Filtrar para quedarnos solo con el perfil del "otro" usuario
-      if (activeData) {
-        let amigosFormateados = activeData.map(a => {
-          const amIOther = a.sender_id === session?.user.id;
-          return {
-            alianza_id: a.id,
-            amigo: amIOther ? a.receiver : a.sender
-          };
-        });
 
-        const amigosIds = amigosFormateados.map(a => a.amigo.id);
+      if (activeRaw) {
+        // Filtrar para quedarnos solo con el id del "otro" usuario
+        let amigosFormateados = activeRaw.map(a => ({
+          alianza_id: a.id,
+          amigoId: a.sender_id === session?.user.id ? a.receiver_id : a.sender_id
+        }));
+
+        const amigosIds = amigosFormateados.map(a => a.amigoId);
         if (amigosIds.length > 0) {
           const todayStr = new Date().getFullYear() + '-' + String(new Date().getMonth() + 1).padStart(2, '0') + '-' + String(new Date().getDate()).padStart(2, '0');
-          
-          const [golemsResult, checksResult, bienesResult] = await Promise.all([
+
+          const [perfilesResult, golemsResult, checksResult, bienesResult] = await Promise.all([
+            supabase.from('perfiles_publico').select(PERFIL_PUBLICO_COLS).in('id', amigosIds),
             supabase.from('golem_progreso').select('user_id, golem_nivel').in('user_id', amigosIds),
             supabase.from('checkins').select('user_id').in('user_id', amigosIds).eq('fecha', todayStr),
             supabase.from('checkins_bienestar').select('user_id, habitos').in('user_id', amigosIds).eq('fecha', todayStr)
           ]);
-          
+
+          const perfilesAmigos = perfilesResult.data || [];
           const golems = golemsResult.data || [];
           const checks = checksResult.data || [];
           const bienes = bienesResult.data || [];
 
           amigosFormateados = amigosFormateados.map(a => {
-            const miGolem = golems.find(g => g.user_id === a.amigo.id);
-            if (miGolem) {
-              a.amigo.golem_nivel = miGolem.golem_nivel;
-            }
-            
-            // Check if they trained today
-            a.amigo.entrenoHoy = false;
-            if (checks.some(c => c.user_id === a.amigo.id)) {
-              a.amigo.entrenoHoy = true;
+            const perfil = perfilesAmigos.find(p => p.id === a.amigoId) || {};
+            const miGolem = golems.find(g => g.user_id === a.amigoId);
+
+            let entrenoHoy = false;
+            if (checks.some(c => c.user_id === a.amigoId)) {
+              entrenoHoy = true;
             } else {
-              const b = bienes.find(c => c.user_id === a.amigo.id);
+              const b = bienes.find(c => c.user_id === a.amigoId);
               if (b && b.habitos && b.habitos.length >= 2) {
-                a.amigo.entrenoHoy = true;
+                entrenoHoy = true;
               }
             }
-            return a;
+
+            return {
+              alianza_id: a.alianza_id,
+              amigo: { ...perfil, golem_nivel: miGolem?.golem_nivel, entrenoHoy }
+            };
           });
         }
         setAlianzas(amigosFormateados);
@@ -161,18 +161,18 @@ export default function Comunidad({ session }) {
     e.preventDefault();
     if (!alianzaEmail) return;
     
-    // Buscar al usuario por correo
-    const { data: amigoData, error: searchError } = await supabase
-      .from('perfiles')
-      .select('id, email')
-      .eq('email', alianzaEmail.trim())
-      .single();
-      
+    // Buscar al usuario por correo (RPC: perfiles ya no deja filtrar por
+    // email en una consulta directa desde el 16/08, ver
+    // VETA_VIGOR_BLINDAJE_COLUMNAS_PERFILES.sql).
+    const { data: amigoRows, error: searchError } = await supabase
+      .rpc('buscar_usuario_por_email', { p_email: alianzaEmail.trim() });
+    const amigoData = amigoRows && amigoRows[0];
+
     if (searchError || !amigoData) {
       alert("No se encontró a ningún atleta con ese correo en el Gremio.");
       return;
     }
-    
+
     if (amigoData.id === session?.user.id) {
       alert("No puedes hacer una alianza contigo mismo, guerrero solitario.");
       return;
@@ -464,15 +464,23 @@ export default function Comunidad({ session }) {
   // Cargar Muro de la Fama para todos
   useEffect(() => {
     const fetchMuro = async () => {
-      const { data: muroData } = await supabase
+      const { data: muroRaw } = await supabase
         .from('muro_fama')
-        .select('*, perfiles(full_name, username, avatar_url, plan_membresia, marco_activo)')
+        .select('*')
         .eq('estado', 'publicado')
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
-      
+
+      let muroData = muroRaw;
       if (muroData) {
+        const { data: perfilNominado } = await supabase
+          .from('perfiles_publico')
+          .select('full_name, username, avatar_url, plan_membresia, marco_activo')
+          .eq('id', muroData.user_id)
+          .maybeSingle();
+        muroData = { ...muroData, perfiles: perfilNominado };
+
         const plan = muroData.perfiles?.plan_membresia || '';
         const isPaidUser = ['Socio Fundador Vitalicio', 'Plan Platinum', 'Prueba Gratis (7 Días)', 'Socio Aurum', 'Socio Argentum'].includes(plan) || plan.toLowerCase().includes('administrador');
         if (isPaidUser) {

@@ -29,9 +29,12 @@ export default function AsignarRutina({ session }) {
   const fetchData = async () => {
     setLoading(true);
     
-    // 1. Obtener datos del alumno y su calendario actual
+    // 1. Obtener datos del alumno y su calendario actual. perfiles_publico,
+    // no perfiles: la tabla base ya no deja leer filas ajenas completas
+    // (blindaje 16/08); la vista da email/calendario aqui porque quien
+    // llama es el entrenador de este alumno.
     const { data: perfilData, error: perfilError } = await supabase
-      .from('perfiles')
+      .from('perfiles_publico')
       .select('full_name, email, avatar_url, calendario_personalizado')
       .eq('id', alumnoId)
       .single();
@@ -75,7 +78,7 @@ export default function AsignarRutina({ session }) {
     try {
       // Traer el calendario completo para no sobreescribir otros sistemas si los tuviera
       const { data: perfil } = await supabase
-        .from('perfiles')
+        .from('perfiles_publico')
         .select('calendario_personalizado')
         .eq('id', alumnoId)
         .single();

@@ -34,9 +34,12 @@ export default function AsignarRutinaMasiva({ session }) {
   const fetchData = async () => {
     setLoading(true);
     
-    // 1. Obtener datos de los alumnos
+    // 1. Obtener datos de los alumnos. perfiles_publico, no perfiles: la
+    // tabla base ya no deja leer filas ajenas completas (blindaje 16/08);
+    // la vista da email/calendario aqui porque quien llama es el
+    // entrenador de estos alumnos.
     const { data: perfilesData, error: perfilError } = await supabase
-      .from('perfiles')
+      .from('perfiles_publico')
       .select('id, full_name, email, avatar_url, calendario_personalizado')
       .in('id', alumnoIds);
 
@@ -75,7 +78,7 @@ export default function AsignarRutinaMasiva({ session }) {
       // Loop over all selected students to update their calendars
       for (const id of alumnoIds) {
         const { data: perfil } = await supabase
-          .from('perfiles')
+          .from('perfiles_publico')
           .select('calendario_personalizado')
           .eq('id', id)
           .single();

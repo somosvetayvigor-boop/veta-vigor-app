@@ -1037,8 +1037,11 @@ function App() {
               .maybeSingle();
             
             if (pending) {
+              // perfiles_publico, no perfiles: la tabla base ya no deja leer
+              // filas ajenas completas (blindaje 16/08); la vista da email
+              // aqui porque existe esta relacion pendiente con el entrenador.
               const { data: trainerProfile } = await supabase
-                .from('perfiles')
+                .from('perfiles_publico')
                 .select('full_name, email')
                 .eq('id', pending.entrenador_id)
                 .single();

@@ -53,8 +53,11 @@ export default function PanelEntrenador({ session }) {
       let perfilesMap = {};
       
       if (alumnoIds.length > 0) {
+        // perfiles_publico, no perfiles: la tabla base ya no deja leer filas
+        // ajenas completas (blindaje 16/08). La vista muestra email aqui
+        // porque existe la relacion entrenador_id=yo en relacion_entrenador_alumno.
         const { data: perfilesData } = await supabase
-          .from('perfiles')
+          .from('perfiles_publico')
           .select('id, full_name, email, avatar_url, nivel')
           .in('id', alumnoIds);
         
@@ -182,13 +185,13 @@ export default function PanelEntrenador({ session }) {
     
     setAgregando(true);
 
-    // 1. Buscar si existe el perfil con ese correo
+    // 1. Buscar si existe el perfil con ese correo (RPC: perfiles ya no
+    // deja filtrar por email en una consulta directa desde el 16/08, ver
+    // VETA_VIGOR_BLINDAJE_COLUMNAS_PERFILES.sql).
     const targetEmail = nuevoCorreo.trim().toLowerCase();
-    const { data: perfilData, error: perfilError } = await supabase
-      .from('perfiles')
-      .select('id, rol_usuario')
-      .eq('email', targetEmail)
-      .maybeSingle();
+    const { data: perfilRows } = await supabase
+      .rpc('buscar_usuario_por_email', { p_email: targetEmail });
+    const perfilData = perfilRows && perfilRows[0];
 
     if (!perfilData) {
       const { error: inviteError } = await supabase.from('invitaciones_entrenador').insert({
