@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
-import { ChevronRight, Target, Loader, Activity, ShieldCheck, Dumbbell, Calendar } from 'lucide-react';
+import { ChevronRight, Target, Activity, ShieldCheck, Calendar } from 'lucide-react';
 
 const QUESTIONS = [
   {
@@ -63,7 +63,7 @@ export default function CuestionarioModal({ session, onComplete }) {
           fecha_screening: new Date().toISOString() 
         }
       });
-    } catch(e) {}
+    } catch {}
     setLoading(false);
     onComplete();
   };

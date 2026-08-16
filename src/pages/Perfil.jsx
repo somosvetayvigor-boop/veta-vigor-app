@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../supabaseClient';
 import { compressImage } from '../utils/imageUtils';
@@ -112,7 +112,7 @@ export default function Perfil({ session }) {
         if (cachedMeta) setMeta(cachedMeta);
 
         if (navigator.onLine) {
-          const { data, error } = await supabase.auth.getUser();
+          const { data } = await supabase.auth.getUser();
           const user = data?.user;
           if (user) {
             // Obtener los datos más recientes desde la tabla perfiles
@@ -182,9 +182,6 @@ export default function Perfil({ session }) {
   });
   const nivel = meta.nivel || 'Desconocido';
   const nombreReal = meta.nombre_completo || meta.nombre || session?.user?.email || 'Usuario';
-  const displayName = meta.display_preference === 'username' && meta.username 
-    ? `@${meta.username}` 
-    : nombreReal;
 
   const handleDejarEntrenador = () => {
     if (window.confirm("¿Estás seguro de que quieres dejar de ser Entrenador? Volverás a tu plan anterior y perderás el acceso al panel de atletas.")) {
@@ -282,26 +279,6 @@ export default function Perfil({ session }) {
     } catch (e) {
       console.error(e);
       alert("Error al guardar métricas");
-    }
-  };
-
-  const handleSelfReset = async () => {
-    setShowResetConfirm(false);
-    try {
-      // 1. Borrar metadata local de auth para forzar el cuestionario
-      await supabase.auth.updateUser({ data: { cuestionario_complete: false, screening_resultado: null } });
-      
-      // 2. Borrar datos de nivel en la base de datos (conservando el expediente físico)
-      await supabase.from('perfiles').update({ 
-        nivel: 'Semilla', 
-        fuerza_tren_superior: null, 
-        fuerza_tren_inferior: null 
-      }).eq('id', session?.user.id);
-      
-      window.location.reload();
-    } catch (e) {
-      console.error(e);
-      alert("Hubo un error al intentar reiniciar tu perfil.");
     }
   };
 
@@ -1217,7 +1194,7 @@ export default function Perfil({ session }) {
                       fuerza_tren_inferior: null 
                     }).eq('id', session?.user.id);
                     window.location.reload();
-                  } catch(e) {
+                  } catch {
                     alert("Error al intentar reiniciar.");
                   }
                 }}

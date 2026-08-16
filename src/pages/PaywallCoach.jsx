@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Users, CheckCircle, Crown } from 'lucide-react';
 import { Purchases } from '@revenuecat/purchases-capacitor';

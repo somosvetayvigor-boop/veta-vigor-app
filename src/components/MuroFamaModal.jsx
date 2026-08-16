@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../supabaseClient';
-import { Trophy, Gift, X, Check, ArrowRight } from 'lucide-react';
+import { Trophy, Gift, Check } from 'lucide-react';
 
 export default function MuroFamaModal({ nominacion, onClose, onAccept }) {
   const [frase, setFrase] = useState('');

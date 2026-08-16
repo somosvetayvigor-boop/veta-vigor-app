@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 
@@ -12,7 +12,7 @@ const PWAUpdatePromptInner = () => {
         setInterval(() => {
           try {
             r.update().catch(() => {});
-          } catch (_) {}
+          } catch {}
         }, 60 * 60 * 1000);
       }
     },
@@ -62,7 +62,7 @@ const PWAUpdatePromptInner = () => {
         await Promise.all(registrations.map(r => r.unregister()));
         const cacheNames = await caches.keys();
         await Promise.all(cacheNames.map(name => caches.delete(name)));
-      } catch (_) {}
+      } catch {}
       window.location.href = window.location.origin + window.location.pathname + '?_sw_update=' + Date.now();
     }
   };

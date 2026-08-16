@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import { compressImage } from '../utils/imageUtils';
-import { ImagePlus, Search, Edit2, Loader2, Save, Check, Link } from 'lucide-react';
+import { ImagePlus, Search, Edit2, Loader2, Check, Link } from 'lucide-react';
 
 export default function AdminBiblioteca() {
   const [activeTab, setActiveTab] = useState('ejercicios'); // 'ejercicios', 'sistemas', 'pendientes'
@@ -59,7 +59,7 @@ export default function AdminBiblioteca() {
       // imágenes las ve toda la base de usuarios, así que además de ocupar menos
       // se sirven más rápido.
       const compressedFile = await compressImage(file);
-      const { data: uploadData, error: uploadError } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from('imagenes')
         .upload(fileName, compressedFile, { cacheControl: '3600', upsert: true });
 

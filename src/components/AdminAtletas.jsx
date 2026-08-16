@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../supabaseClient';
 import { User, Clock, Calendar, X, MessageCircle, FolderOpen, Award, CheckCircle, Crown, Activity } from 'lucide-react';
@@ -53,7 +53,6 @@ export default function AdminAtletas({ session }) {
 
       setAtletas(mergedAtletas);
       // Calcular prospectos (los que tienen más entrenamientos registrados en checkins, pero para simplificar tomamos los que han ingresado recientemente y no están en el muro este mes)
-      const mesActual = new Date().toLocaleString('es-ES', { month: 'long', year: 'numeric' });
       const potenciales = mergedAtletas.filter(a => a.nivel !== 'RESET' && a.avatar_url).slice(0, 5); // Simplificación: top 5 activos con foto
       setProspectos(potenciales);
     }

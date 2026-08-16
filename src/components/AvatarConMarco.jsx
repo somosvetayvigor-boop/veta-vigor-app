@@ -1,4 +1,3 @@
-import React from 'react';
 
 export default function AvatarConMarco({ src, alt, size = 50, marco = 'ninguno', style = {} }) {
   const isBordeFuego = marco === 'borde_fuego';

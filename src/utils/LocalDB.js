@@ -46,7 +46,7 @@ export const guardarMisRutinasLocal = async (userId, misRutinas) => {
   try {
     await localforage.setItem(`mis_rutinas_${userId}`, misRutinas);
     return true;
-  } catch (error) {
+  } catch {
     return false;
   }
 };
@@ -57,7 +57,7 @@ export const guardarMisRutinasLocal = async (userId, misRutinas) => {
 export const obtenerMisRutinasLocal = async (userId) => {
   try {
     return await localforage.getItem(`mis_rutinas_${userId}`);
-  } catch (error) {
+  } catch {
     return null;
   }
 };

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { Trophy, CheckCircle, Clock, Search, Medal, Eye, ChevronLeft, Activity } from 'lucide-react';
 import GaleriaReto from './GaleriaReto';
@@ -73,15 +73,6 @@ export default function AdminRetos() {
     setLoading(false);
   };
 
-  const calculateDaysTaken = (start, end) => {
-    if (!start || !end) return 'N/A';
-    const startDate = new Date(start);
-    const endDate = new Date(end);
-    const diffTime = Math.abs(endDate - startDate);
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays;
-  };
-
   const filtered = participantes.filter(p => 
     (p.full_name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
     (p.email || '').toLowerCase().includes(searchTerm.toLowerCase())
@@ -129,9 +120,7 @@ export default function AdminRetos() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
           {filtered.map((p, index) => {
             const isWinner = p.reto_completado;
-            const daysTaken = isWinner ? calculateDaysTaken(p.reto_fecha_inicio, p.reto_ultimo_completado) : null;
-            const perfectRun = isWinner && daysTaken <= 22; // Permitting 1 day of timezone variance
-            
+
             // Determine ranking colors
             let rankColor = 'var(--text-muted)';
             let rankIcon = null;

@@ -1,4 +1,3 @@
-import React from 'react';
 
 export default function ArbolForja({ nivel, size = 120 }) {
   // Configuración de colores

@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle2, XCircle, ArrowLeft, Crown, Shield, Activity, Users, Star, Award, Zap } from 'lucide-react';
+import { CheckCircle2, XCircle, ArrowLeft, Crown, Shield, Star, Award } from 'lucide-react';
 import { Purchases } from '@revenuecat/purchases-capacitor';
 import { Capacitor } from '@capacitor/core';
 import { supabase } from '../supabaseClient';
@@ -217,7 +217,7 @@ export default function Paywall({ forced = false, onDismiss = null }) {
     try {
       if (plan.pkgData) {
         // Compra real vía RevenueCat (Google Play / App Store)
-        const { customerInfo } = await Purchases.purchasePackage({ aPackage: plan.pkgData });
+        await Purchases.purchasePackage({ aPackage: plan.pkgData });
         
         let newPlanName = null;
         const productId = plan.pkgData.product.identifier;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import { createPortal } from 'react-dom';
 import { X, Send, Lock, ImagePlus } from 'lucide-react';
@@ -125,7 +125,7 @@ export default function UserChatModal({ onClose, session, chatId }) {
           .getPublicUrl(fileName);
           
         imageUrl = publicUrl;
-      } catch (err) {
+      } catch {
         alert("Hubo un error subiendo la foto.");
         setIsUploading(false);
         return;

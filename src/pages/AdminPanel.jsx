@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { supabase } from '../supabaseClient';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, Plus, Edit, Trash2, Users, Database, Dumbbell, CalendarDays, ShieldAlert, AlertTriangle } from 'lucide-react';
+import { ChevronLeft, Users, Database, CalendarDays, ShieldAlert, AlertTriangle } from 'lucide-react';
 import AdminGestorSistemas from '../components/AdminGestorSistemas';
 import AdminAtletas from '../components/AdminAtletas';
 import AdminReportes from '../components/AdminReportes';

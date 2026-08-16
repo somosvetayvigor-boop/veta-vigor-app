@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { compressImage } from '../utils/imageUtils';
 import { Camera, Upload, ChevronRight } from 'lucide-react';

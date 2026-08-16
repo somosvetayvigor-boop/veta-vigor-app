@@ -23,7 +23,7 @@ window.addEventListener('vite:preloadError', async (event) => {
         for (let registration of registrations) {
           await registration.unregister();
         }
-      } catch(e) {}
+      } catch {}
     }
     
     window.location.reload(true);

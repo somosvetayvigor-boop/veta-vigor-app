@@ -44,7 +44,7 @@ class ErrorBoundary extends React.Component {
         user_id: userId
       };
       
-      const { data, error: sbError } = await supabase
+      const { data } = await supabase
         .from('frontend_errors')
         .insert([errorData])
         .select()

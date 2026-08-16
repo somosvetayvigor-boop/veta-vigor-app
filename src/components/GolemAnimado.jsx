@@ -1,4 +1,3 @@
-import React from 'react';
 
 export default function GolemAnimado({ nivel, isHit, isDead, size = 150 }) {
   const isLevel2 = nivel >= 2;

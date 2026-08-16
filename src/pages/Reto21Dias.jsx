@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import DatabaseService from '../services/DatabaseService';
@@ -149,7 +149,7 @@ export default function Reto21Dias({ session }) {
                 if (n.includes('hierro')) querySistema = 'Hierro';
                 else if (n.includes('híbrido') || n.includes('hibrido')) querySistema = 'Híbrido';
               }
-            } catch (e) {}
+            } catch {}
           }
           
           // Determinar nivel del usuario
@@ -276,7 +276,7 @@ export default function Reto21Dias({ session }) {
           method: 'POST', 
           headers: { 'Authorization': 'Bearer secret-vigor-21' } 
         }).catch(() => {});
-      } catch (e) {}
+      } catch {}
 
       // Meta CAPI: Disparar CompleteRegistration (Resiliente, sin bloquear UI)
       try {
@@ -299,7 +299,7 @@ export default function Reto21Dias({ session }) {
           const timeoutPromise = new Promise(resolve => setTimeout(resolve, 1500));
           await Promise.race([capiFetch, timeoutPromise]).catch(() => {});
         }
-      } catch (e) {
+      } catch {
         // Fallo silencioso de Meta, el Atleta SIGUE INSCRITO
       }
 
@@ -508,7 +508,6 @@ export default function Reto21Dias({ session }) {
         {dias.map((dia) => {
           const isCompleted = dia.dia_numero < currentDayNum;
           const isCurrent = dia.dia_numero === currentDayNum;
-          const isLocked = dia.dia_numero > currentDayNum || (isCurrent && todayLocked);
 
           let bg = 'rgba(255,255,255,0.05)';
           let border = '1px solid rgba(255,255,255,0.1)';

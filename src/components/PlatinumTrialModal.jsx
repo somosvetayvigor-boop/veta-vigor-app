@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { supabase } from '../supabaseClient';
-import { Crown, CheckCircle, Smartphone } from 'lucide-react';
+import { Crown, CheckCircle } from 'lucide-react';
 
-export default function PlatinumTrialModal({ session, onComplete }) {
+export default function PlatinumTrialModal({ onComplete }) {
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async () => {

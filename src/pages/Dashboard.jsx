@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import DatabaseService from '../services/DatabaseService';
-import { Dumbbell, Scale, FlaskConical, Lock, Gift } from 'lucide-react';
+import { Lock, Gift } from 'lucide-react';
 
 export default function Dashboard({ session }) {
   const [sistemas, setSistemas] = useState([]);
@@ -75,7 +75,6 @@ export default function Dashboard({ session }) {
         
       const suscripcionReal = perfilData?.plan_membresia || meta.suscripcion || meta.plan_membresia;
       const isAdmin = session?.user.email === 'somos.vetayvigor@gmail.com';
-      const isEntrenador = localStorage.getItem('user_role') === 'entrenador';
       const isPaidPlan = suscripcionReal?.includes('Pro') || suscripcionReal?.includes('Élite') || ['Socio Argentum', 'Socio Aurum', 'Plan Platinum', 'Socio Fundador Vitalicio', 'Prueba Gratis (7 Días)'].includes(suscripcionReal);
       const freeStatus = !isAdmin && !isPaidPlan;
       setIsFreeUser(freeStatus);

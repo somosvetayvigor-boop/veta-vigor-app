@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { useNavigate } from 'react-router-dom';
-import { Share2, ArrowLeft, Gem, Users, CircleDollarSign, Info, Target, ChevronRight } from 'lucide-react';
+import { Share2, ArrowLeft, Gem, Users, CircleDollarSign, Info, Target } from 'lucide-react';
 
 export default function MisGanancias({ session }) {
   const navigate = useNavigate();

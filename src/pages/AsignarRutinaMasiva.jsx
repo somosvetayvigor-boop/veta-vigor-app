@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { useNavigate } from 'react-router-dom';
-import { Dumbbell, Plus, Save, ArrowLeft, CalendarDays, User, Loader2, Trash2 } from 'lucide-react';
+import { Dumbbell, Plus, Save, ArrowLeft, CalendarDays, Loader2, Trash2 } from 'lucide-react';
 
 export default function AsignarRutinaMasiva({ session }) {
   const navigate = useNavigate();
@@ -47,7 +47,7 @@ export default function AsignarRutinaMasiva({ session }) {
     // tabla base ya no deja leer filas ajenas completas (blindaje 16/08);
     // la vista da email/calendario aqui porque quien llama es el
     // entrenador de estos alumnos.
-    const { data: perfilesData, error: perfilError } = await supabase
+    const { data: perfilesData } = await supabase
       .from('perfiles_publico')
       .select('id, full_name, email, avatar_url, calendario_personalizado')
       .in('id', alumnoIds);

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { X, Save, Music } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 
@@ -12,7 +12,7 @@ export default function TuMusicaModal({ session, onClose, onSaved }) {
     setSaving(true);
     setError(null);
     try {
-      const { data, error: updateError } = await supabase.auth.updateUser({
+      const { error: updateError } = await supabase.auth.updateUser({
         data: { custom_music_link: link }
       });
       if (updateError) throw updateError;

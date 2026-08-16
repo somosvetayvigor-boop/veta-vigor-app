@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Dumbbell, Plus, Search, X, Loader2, Save, ArrowLeft, AlertCircle } from 'lucide-react';
@@ -7,7 +7,6 @@ export default function CreadorMisións({ session }) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const alumnoId = searchParams.get('alumno_id');
-  const targetUserId = alumnoId || session?.user.id;
 
   const [loading, setLoading] = useState(false);
   const [nombre, setNombre] = useState('');
@@ -18,7 +17,6 @@ export default function CreadorMisións({ session }) {
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [biblioteca, setBiblioteca] = useState([]);
-  const [searching, setSearching] = useState(false);
 
   // Modal de creación de ejercicio personalizado
   const [showCreateModal, setShowCreateModal] = useState(false);

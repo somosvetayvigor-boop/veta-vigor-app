@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocat
 import { supabase } from './supabaseClient';
 import { Purchases, LOG_LEVEL } from '@revenuecat/purchases-capacitor';
 import { Capacitor } from '@capacitor/core';
-import { Home, Dumbbell, MessageCircle, User, CalendarCheck, Users, Menu, X, Bot, Scale, FlaskConical, Activity, WifiOff, Calculator, RefreshCw, Loader } from 'lucide-react';
+import { Dumbbell, MessageCircle, User, Users, Menu, X, Bot, Scale, FlaskConical, Activity, WifiOff, Calculator, RefreshCw, Loader } from 'lucide-react';
 import { processOfflineQueue } from './utils/OfflineManager';
 import { DatabaseManager } from './utils/DatabaseManager';
 import DatabaseService from './services/DatabaseService';
@@ -335,7 +335,7 @@ const BottomNav = () => {
         schema: 'public', 
         table: 'chat_mensajes',
         filter: 'room_id=eq.vip_comunidad'
-      }, (payload) => {
+      }, () => {
         if (window.location.pathname !== '/comunidad') {
           setHasUnread(true);
           localStorage.setItem('badge_comm', 'true');
@@ -1201,7 +1201,7 @@ function App() {
         try {
           await Purchases.logOut();
           OneSignal.logout();
-        } catch (e) {}
+        } catch {}
       }
 
       if (session) {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import { createPortal } from 'react-dom';
 import { X, Send, Lock, ImagePlus } from 'lucide-react';
@@ -144,7 +144,7 @@ export default function AdminChatModal({ onClose, atleta, adminSession }) {
           .getPublicUrl(fileName);
           
         imageUrl = publicUrl;
-      } catch (err) {
+      } catch {
         alert("Error subiendo foto: Asegúrate de que la cubeta 'chat_images' es pública.");
         setIsUploading(false);
         return;

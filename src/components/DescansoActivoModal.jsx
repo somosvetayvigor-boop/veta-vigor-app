@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Play, Square, Share, Droplets, Wind, HeartPulse, Activity, Pause } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { ArrowLeft, Play, Square, Share, Droplets, Wind, Activity, Pause } from 'lucide-react';
 
 const BreathingAudioWidget = () => {
   const [phase, setPhase] = useState('RESPIRA');

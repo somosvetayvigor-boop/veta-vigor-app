@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
-import { Plus, Trash2, Edit2, Link as LinkIcon, Image as ImageIcon, Check, Upload } from 'lucide-react';
+import { Plus, Trash2, Edit2, Link as LinkIcon, Image as ImageIcon, Check } from 'lucide-react';
 
-export default function AdminArticulos({ session }) {
+export default function AdminArticulos() {
   const [articulos, setArticulos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);

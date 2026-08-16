@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import DatabaseService from '../services/DatabaseService';
@@ -23,7 +23,6 @@ export default function SistemaDetail({ session }) {
         
       const suscripcionReal = perfilData?.plan_membresia || session?.user?.user_metadata?.suscripcion || session?.user?.user_metadata?.plan_membresia;
       const isAdmin = session?.user?.email === 'somos.vetayvigor@gmail.com';
-      const isEntrenador = localStorage.getItem('user_role') === 'entrenador';
       const hasPaidPlan = suscripcionReal?.includes('Pro') || suscripcionReal?.includes('Élite') || ['Socio Argentum', 'Socio Aurum', 'Plan Platinum', 'Socio Fundador Vitalicio', 'Prueba Gratis (7 Días)'].includes(suscripcionReal);
       const freeStatus = !isAdmin && !hasPaidPlan;
       setIsFreeUser(freeStatus);

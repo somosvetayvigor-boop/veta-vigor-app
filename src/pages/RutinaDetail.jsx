@@ -1,9 +1,9 @@
-import React, { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import DatabaseService from '../services/DatabaseService';
-import { ChevronLeft, PlayCircle, Timer, CheckCircle, ChevronRight, X, Loader, Play, Pause, RotateCcw } from 'lucide-react';
+import { ChevronLeft, PlayCircle, CheckCircle, ChevronRight, X, Loader, Play, Pause } from 'lucide-react';
 import { warmupsData } from '../data/warmupsData';
 import { cancelTrainingReminder } from '../utils/ScheduledNotifications';
 import { registrarDiaEntrenado } from '../utils/registrarDiaEntrenado';
@@ -373,7 +373,6 @@ export default function RutinaDetail({ session }) {
     const isInferior = inferiorKeywords.some(k => musculos.includes(k));
 
     let newRecord = false;
-    let leveledUp = false;
 
     if (isSuperior || isInferior) {
       const key = isSuperior ? 'fuerza_tren_superior' : 'fuerza_tren_inferior';
@@ -703,9 +702,7 @@ export default function RutinaDetail({ session }) {
     const logs = seriesLog[ejId] || [];
     
     // Validación de campos llenos
-    const equipo = (ej.equipo_necesario || '').toLowerCase();
     const nombreEj = (ej.nombre || '').toLowerCase();
-    const isCali = equipo.includes('peso corporal') || equipo.includes('dominadas') || equipo.includes('anillas') || nombreEj.includes('dominada') || nombreEj.includes('pull') || nombreEj.includes('fondo') || nombreEj.includes('dip') || nombreEj.includes('muscle up');
     const isCardio = nombreEj.includes('caminata') || nombreEj.includes('bici') || nombreEj.includes('correr') || nombreEj.includes('cardio');
 
     if (!isCardio) {

@@ -195,8 +195,7 @@ export default function Historial({ session }) {
           ) : (
             bienestarHistory.map((item, idx) => {
               const dateObj = new Date(item.created_at || item.fecha);
-              const dateStr = dateObj.toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric', month: 'short' });
-              
+
               return (
                 <div key={idx} style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '12px', padding: '15px', border: '1px solid rgba(255,255,255,0.05)', display: 'flex', gap: '15px', alignItems: 'center' }}>
                   <div style={{ background: 'rgba(212, 175, 55, 0.1)', padding: '10px', borderRadius: '10px', textAlign: 'center', minWidth: '60px' }}>

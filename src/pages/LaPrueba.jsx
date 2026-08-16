@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
-import { ChevronLeft, Key, FileText, Gift, Loader, Shield, Flame, Activity } from 'lucide-react';
+import { ChevronLeft, Loader, Shield, Flame, Activity } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { getGolpesTotales, getGolpesDisponibles, getGolemData } from '../utils/ProgressionEngine';
+import { getGolpesDisponibles, getGolemData } from '../utils/ProgressionEngine';
 import GolemAnimado from '../components/GolemAnimado';
 
 export default function LaPrueba({ session }) {

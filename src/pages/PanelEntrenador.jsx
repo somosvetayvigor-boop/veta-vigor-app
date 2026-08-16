@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
-import { Users, Plus, ChevronRight, CheckCircle, XCircle, TrendingUp, Calendar, FileText, Activity } from 'lucide-react';
+import { Users, Plus, CheckCircle, XCircle, TrendingUp, Calendar, FileText, Activity } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export default function PanelEntrenador({ session }) {

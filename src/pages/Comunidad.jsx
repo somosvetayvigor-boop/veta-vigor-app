@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
-import { MessageCircle, Send, ShieldAlert, Lock, ArrowRight, User, X, ImagePlus, Heart, Award, Trophy, Loader, Users, Check, Flame, Share2 } from 'lucide-react';
+import { MessageCircle, Send, ShieldAlert, Lock, User, X, ImagePlus, Heart, Award, Trophy, Loader, Users, Check, Flame, Share2 } from 'lucide-react';
 import { Share } from '@capacitor/share';
 import AvatarConMarco from '../components/AvatarConMarco';
 import { compressImage } from '../utils/imageUtils';
@@ -10,7 +10,6 @@ export default function Comunidad({ session }) {
   const [nuevoMensaje, setNuevoMensaje] = useState('');
   const [loading, setLoading] = useState(true);
   const [isVip, setIsVip] = useState(false);
-  const [planReal, setPlanReal] = useState('');
   const [isBanned, setIsBanned] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -209,7 +208,7 @@ export default function Comunidad({ session }) {
     }
   };
 
-  const enviarZumbido = async (aliadoId, aliadoName) => {
+  const enviarZumbido = async (aliadoId) => {
     try {
       setZumbidosEnviados(prev => ({ ...prev, [aliadoId]: 'loading' }));
       
@@ -636,7 +635,7 @@ export default function Comunidad({ session }) {
           .getPublicUrl(filePath);
           
         imageUrl = publicUrl;
-      } catch (err) {
+      } catch {
         alert("Hubo un error subiendo la foto. Asegúrate de que el bucket 'chat_images' existe y es público.");
         setIsUploading(false);
         return;
@@ -712,7 +711,7 @@ export default function Comunidad({ session }) {
     if (!isAdmin && !isMine) return;
 
     if (window.confirm('¿Borrar mensaje para todos? Esta acción es irreversible.')) {
-      const { data, error } = await supabase.from('chat_mensajes').delete().eq('id', selectedMsg.id).select();
+      const { error } = await supabase.from('chat_mensajes').delete().eq('id', selectedMsg.id).select();
       if (error) {
         alert("Error de Supabase: " + error.message);
       } else {

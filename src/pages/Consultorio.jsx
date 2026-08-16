@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
-import { Send, Lock, Clock, ShieldAlert } from 'lucide-react';
+import { Send, Lock, Clock } from 'lucide-react';
 
 export default function Consultorio({ session }) {
   const [messages, setMessages] = useState([]);

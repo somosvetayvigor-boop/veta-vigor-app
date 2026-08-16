@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
-import { Plus, Edit, Trash2, ChevronRight, ChevronLeft, Save, X, Settings, Search } from 'lucide-react';
+import { Plus, Trash2, ChevronRight, ChevronLeft, Save, Search } from 'lucide-react';
 
 export default function AdminGestorSistemas() {
   const [sistemas, setSistemas] = useState([]);
@@ -16,7 +16,6 @@ export default function AdminGestorSistemas() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
-  const [isSearching, setIsSearching] = useState(false);
 
   const [editingEjercicio, setEditingEjercicio] = useState(null);
   const [editForm, setEditForm] = useState({});

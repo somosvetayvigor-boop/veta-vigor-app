@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, ChevronDown, Leaf, TreePine, Mountain, ShieldCheck, Dumbbell, Clock, Flame, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronDown, Leaf, TreePine, Mountain, ShieldCheck, ChevronRight } from 'lucide-react';
 
 const Filosofia = () => {
   const navigate = useNavigate();

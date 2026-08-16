@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import LegalModals from '../components/LegalModals';
 import { Eye, EyeOff, Smartphone, Share, PlusSquare, Mail } from 'lucide-react';
@@ -100,7 +100,7 @@ export default function Login() {
             // Automatically logged in, no alert needed
           }
         } else {
-          const { data, error } = await supabase.auth.signInWithPassword({
+          const { error } = await supabase.auth.signInWithPassword({
             email,
             password,
           });

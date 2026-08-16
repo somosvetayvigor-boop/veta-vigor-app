@@ -1,11 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
-import { Loader, PlayCircle, CalendarDays, Coffee, Edit3, X, ChevronRight, Music, Zap, Lock, Headphones, BatteryCharging } from 'lucide-react';
+import { Loader, PlayCircle, CalendarDays, Edit3, X, ChevronRight, Music, Zap, Lock, Headphones, BatteryCharging } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import ExpedienteModal from '../components/ExpedienteModal';
-import DescansoActivoModal from '../components/DescansoActivoModal';
 import TuMusicaModal from '../components/TuMusicaModal';
-import { requestNotificationPermissions, scheduleTrainingReminder, cancelTrainingReminder, scheduleDailyMotivation } from '../utils/notifications';
 import { DatabaseManager } from '../utils/DatabaseManager';
 import DatabaseService from '../services/DatabaseService';
 import SyncService from '../services/SyncService';
@@ -39,7 +37,6 @@ export default function MiRutina({ session }) {
   const [diasEntrenadosSemana, setDiasEntrenadosSemana] = useState(0);
   const [totalEntrenamientos, setTotalEntrenamientos] = useState(0);
   const [racha, setRacha] = useState(0);
-  const [isFreeUser, setIsFreeUser] = useState(true);
   const [coachBrand, setCoachBrand] = useState(null);
   const [ultimoEntrenamiento, setUltimoEntrenamiento] = useState(null);
   const [planFrescoServidor, setPlanFrescoServidor] = useState(null);
@@ -80,7 +77,6 @@ export default function MiRutina({ session }) {
   
   const [diaToChange, setDiaToChange] = useState(null);
   const [rutinasCompatibles, setRutinasCompatibles] = useState([]);
-  const [showDescanso, setShowDescanso] = useState(false);
 
   // Estado para forzar Expediente
   const [showExpediente, setShowExpediente] = useState(false);
@@ -158,7 +154,7 @@ export default function MiRutina({ session }) {
           if (syncCount && syncCount > 0) {
             console.log(`Se sincronizaron ${syncCount} elementos pendientes.`);
           }
-        } catch(e) { /* ignorar errores de sync */ }
+        } catch { /* ignorar errores de sync */ }
 
         // PASO 4: Sincronizar con la red (con timeout de 5s)
         await checkTodayStatus();
@@ -261,7 +257,7 @@ export default function MiRutina({ session }) {
   };
 
   // Recálculo profundo de la Llama Viva — se ejecuta SIN bloquear la pantalla
-  const recalcularRachaEnFondo = async (todayStr, todayCheckinData) => {
+  const recalcularRachaEnFondo = async (todayStr) => {
     try {
       const checkinsResult = await DatabaseService.query(`SELECT fecha FROM checkins WHERE user_id = ? ORDER BY fecha DESC LIMIT 30`, [session?.user.id]);
       const bienestarResult = await DatabaseService.query(`SELECT fecha, habitos FROM checkins_bienestar WHERE user_id = ? ORDER BY fecha DESC LIMIT 30`, [session?.user.id]);
@@ -374,7 +370,6 @@ export default function MiRutina({ session }) {
         
       const suscripcionReal = perfilData?.plan_membresia || metadata?.suscripcion || metadata?.plan_membresia;
       const isAdmin = session?.user?.email === 'somos.vetayvigor@gmail.com';
-      const isEntrenador = localStorage.getItem('user_role') === 'entrenador';
       const hasPaidPlan = suscripcionReal?.includes('Pro') || suscripcionReal?.includes('Élite') || ['Socio Argentum', 'Socio Aurum', 'Plan Platinum', 'Socio Fundador Vitalicio', 'Prueba Gratis (7 Días)'].includes(suscripcionReal);
       const isFreeUser = !isAdmin && !hasPaidPlan;
 
@@ -791,7 +786,7 @@ export default function MiRutina({ session }) {
              try {
                await supabase.auth.updateUser({ data: { cuestionario_complete: false, screening_resultado: null } });
                window.location.reload();
-             } catch(e) {}
+             } catch {}
            }}
            style={{ 
              background: 'linear-gradient(135deg, var(--accent-gold) 0%, #b8860b 100%)', 
@@ -1274,9 +1269,8 @@ export default function MiRutina({ session }) {
                   onClick={() => {
                     const isAdmin = session?.user?.email === 'somos.vetayvigor@gmail.com';
                     const suscripcion = session?.user?.user_metadata?.suscripcion || session?.user?.user_metadata?.plan_membresia;
-                    const userRole = localStorage.getItem('user_role') || 'atleta_normal';
                     const esPro = isAdmin || suscripcion?.includes('Pro') || suscripcion?.includes('Élite') || ['Socio Argentum', 'Socio Aurum', 'Plan Platinum', 'Socio Fundador Vitalicio', 'Prueba Gratis (7 Días)'].includes(suscripcion);
-                    
+
                     const misPersonalizadas = todasRutinas.filter(r => r.user_id === session?.user?.id);
                     if (!esPro && misPersonalizadas.length >= 1) {
                       alert('Con el plan gratuito solo puedes crear 1 misión personalizada. Adquiere una suscripción para crear misiones ilimitadas.');
@@ -1532,7 +1526,6 @@ export default function MiRutina({ session }) {
             onClick={() => {
               const isAdmin = session?.user?.email === 'somos.vetayvigor@gmail.com';
               const suscripcion = session?.user?.user_metadata?.suscripcion || session?.user?.user_metadata?.plan_membresia;
-              const userRole = localStorage.getItem('user_role') || 'atleta_normal';
               const esPro = isAdmin || suscripcion?.includes('Pro') || suscripcion?.includes('Élite') || ['Socio Argentum', 'Socio Aurum', 'Plan Platinum', 'Socio Fundador Vitalicio', 'Prueba Gratis (7 Días)'].includes(suscripcion);
               
               const misPersonalizadas = todasRutinas.filter(r => r.user_id === session?.user?.id);

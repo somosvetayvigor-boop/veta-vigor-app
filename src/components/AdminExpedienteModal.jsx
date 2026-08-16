@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { createPortal } from 'react-dom';
 import { X, MessageCircle, TrendingUp, Scale, Zap, Activity, Calendar, Trophy, Image as ImageIcon, User } from 'lucide-react';
