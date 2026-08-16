@@ -292,25 +292,31 @@ class SyncService {
         const p = perfilesSucios[0];
         const { error } = await supabase.from('perfiles').update({
           nivel: p.nivel,
-          sistema_activo: p.sistema_activo,
-          reto_activo_id: p.reto_activo_id,
-          reto_dia_actual: p.reto_dia_actual,
-          reto_ultimo_completado: p.reto_ultimo_completado,
-          reto_completado: p.reto_completado === 1,
-          reto_fecha_inicio: p.reto_fecha_inicio
+          sistema_activo: p.sistema_activo
           // plan_membresia y force_platinum_trial NO se envían, por la misma razón
           // que xp_actual y puntos_forja (ver comentario abajo): son autoritativos
           // del servidor. Desde el blindaje de perfiles el rol `authenticated` ya
           // no tiene privilegio de UPDATE sobre esas columnas, así que incluirlas
           // haría fallar el push entero y dejaría is_dirty encendido para siempre.
           // Se escriben vía activar_plan_por_compra / otorgar_trial_por_reto.
-          
+
           // xp_actual, puntos_forja y racha_actual NO se envían acá a propósito.
           // Son autoritativos del servidor: los escribe completar_mision_rpg dentro
           // de una transacción con idempotencia. Si los empujáramos desde el cliente
           // pisaríamos el saldo del ledger con un valor calculado localmente, que es
           // exactamente el doble cobro que el RPC existe para evitar.
           // Igual con puntos_totales, nivel_rpg, y las stats.
+
+          // reto_activo_id, reto_dia_actual, reto_ultimo_completado, reto_completado
+          // y reto_fecha_inicio NO se envían aquí (16/08). RutinaRetoPlayer.jsx y
+          // Reto21Dias.jsx (handleEnroll) ya escriben estos campos directo a
+          // Supabase en el momento en que cambian, con su propio espejo local.
+          // Incluirlos también acá era peligroso: si is_dirty se enciende por CUALQUIER
+          // otro motivo (por ejemplo, terminar una rutina normal en MiRutina.jsx, que
+          // marca is_dirty=1 en toda la fila), este push subía lo que hubiera cacheado
+          // en el SQLite local en ese momento — que podía ser viejo si nunca se
+          // sincronizó — y pisaba el avance real del reto ya confirmado en el servidor.
+          // Pasó de verdad el 16/08 con la cuenta de sofiita.
         }).eq('id', userId);
 
         if (!error) {
