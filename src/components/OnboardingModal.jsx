@@ -95,6 +95,26 @@ export default function OnboardingModal({ session, onComplete }) {
         throw profileError;
       }
 
+      // 2.5. Canjear código de referido si quedó pendiente del registro
+      // (Login.jsx lo guarda en localStorage porque signUp() no siempre
+      // deja sesión activa de inmediato). Este es el punto que corre
+      // exactamente una vez para todo usuario genuinamente nuevo, sin
+      // importar por cuál camino de auth llegó. Un fallo acá (código
+      // inválido, ya tenía referente, etc.) no debe bloquear el
+      // onboarding -- se loguea y sigue.
+      const codigoPendiente = localStorage.getItem('pending_codigo_referido');
+      if (codigoPendiente) {
+        localStorage.removeItem('pending_codigo_referido');
+        try {
+          const { data: canje } = await supabase.rpc('canjear_codigo_referido', { p_codigo: codigoPendiente });
+          if (!canje?.success) {
+            console.warn('No se pudo canjear el código de referido:', canje?.error);
+          }
+        } catch (refErr) {
+          console.warn('Error canjeando código de referido:', refErr);
+        }
+      }
+
       // 3. Instead of completing onboarding, move to step 2
       setStep(2);
     } catch (error) {

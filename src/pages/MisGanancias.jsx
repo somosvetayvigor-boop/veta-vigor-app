@@ -25,9 +25,22 @@ export default function MisGanancias({ session }) {
         .select('codigo_referido, referidos_count, ganancias, comision_personalizada')
         .eq('id', session?.user.id)
         .single();
-      
+
       if (!error && data) {
-        setDbData(data);
+        if (data.codigo_referido) {
+          setDbData(data);
+        } else {
+          // Nadie generó su código todavía -- se pide al servidor que lo
+          // cree y se guarde de verdad, en vez de mostrar uno inventado al
+          // vuelo que nunca queda persistido (así era antes).
+          const { data: nuevoCodigo, error: genError } = await supabase.rpc('generar_mi_codigo_referido');
+          if (!genError && nuevoCodigo) {
+            setDbData({ ...data, codigo_referido: nuevoCodigo });
+          } else {
+            console.warn('No se pudo generar el código de referido:', genError);
+            setDbData(data);
+          }
+        }
       }
       setMeta(session?.user?.user_metadata || {});
     } catch (err) {

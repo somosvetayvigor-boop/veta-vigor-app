@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, Users, Database, CalendarDays, ShieldAlert, AlertTriangle } from 'lucide-react';
+import { ChevronLeft, Users, Database, CalendarDays, ShieldAlert, AlertTriangle, Gem } from 'lucide-react';
 import AdminGestorSistemas from '../components/AdminGestorSistemas';
 import AdminAtletas from '../components/AdminAtletas';
 import AdminReportes from '../components/AdminReportes';
+import AdminComisiones from '../components/AdminComisiones';
 import AdminArticulos from '../components/AdminArticulos';
 import AdminBiblioteca from '../components/AdminBiblioteca';
 import AdminEntrenadores from '../components/AdminEntrenadores';
@@ -13,7 +14,7 @@ import { Newspaper, Flame, Send } from 'lucide-react';
 export default function AdminPanel({ session }) {
   const navigate = useNavigate();
   const isAdmin = session?.user?.email === 'somos.vetayvigor@gmail.com';
-  const [activeTab, setActiveTab] = useState('retos'); // entrenadores, atletas, sistemas, reportes, biblioteca, articulos, retos
+  const [activeTab, setActiveTab] = useState('retos'); // entrenadores, atletas, sistemas, reportes, comisiones, biblioteca, articulos, retos
 
   if (!isAdmin) {
     return (
@@ -91,8 +92,17 @@ export default function AdminPanel({ session }) {
           }}>
           <AlertTriangle size={18} /> Reportes
         </button>
-        <button 
-          onClick={() => setActiveTab('biblioteca')} 
+        <button
+          onClick={() => setActiveTab('comisiones')}
+          style={{
+            background: activeTab === 'comisiones' ? 'var(--accent-gold)' : 'rgba(255,255,255,0.1)',
+            color: activeTab === 'comisiones' ? 'black' : 'white',
+            padding: '10px 15px', borderRadius: '8px', border: 'none', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap'
+          }}>
+          <Gem size={18} /> Comisiones
+        </button>
+        <button
+          onClick={() => setActiveTab('biblioteca')}
           style={{ 
             background: activeTab === 'biblioteca' ? 'var(--accent-gold)' : 'rgba(255,255,255,0.1)', 
             color: activeTab === 'biblioteca' ? 'black' : 'white',
@@ -152,6 +162,8 @@ export default function AdminPanel({ session }) {
       {activeTab === 'sistemas' && <AdminGestorSistemas />}
 
       {activeTab === 'reportes' && <AdminReportes />}
+
+      {activeTab === 'comisiones' && <AdminComisiones />}
 
       {activeTab === 'biblioteca' && <AdminBiblioteca />}
 

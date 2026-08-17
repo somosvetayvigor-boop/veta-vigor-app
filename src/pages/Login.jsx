@@ -15,6 +15,7 @@ export default function Login() {
   const [otpCode, setOtpCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [name, setName] = useState('');
+  const [codigoReferido, setCodigoReferido] = useState('');
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [legalModal, setLegalModal] = useState(null);
   const [deferredPrompt, setDeferredPrompt] = useState(null);
@@ -80,6 +81,19 @@ export default function Login() {
             alert('Los correos electrónicos no coinciden. Por favor, verifícalos.');
             setLoading(false);
             return;
+          }
+
+          // Se guarda ANTES de signUp() porque signUp() no siempre deja
+          // sesión activa de inmediato (si el proyecto exige confirmación
+          // por correo, data.session viene null hasta que el usuario
+          // confirme y vuelva) -- localStorage sobrevive ese hueco.
+          // Lo consume OnboardingModal.jsx justo después de crear el perfil.
+          if (codigoReferido.trim()) {
+            localStorage.setItem('pending_codigo_referido', codigoReferido.trim());
+          } else {
+            // Por si un intento anterior (que falló) dejó un código viejo
+            // guardado y el usuario borró el campo antes de reintentar.
+            localStorage.removeItem('pending_codigo_referido');
           }
 
           const { data, error } = await supabase.auth.signUp({
@@ -235,6 +249,16 @@ export default function Login() {
                 {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
               </button>
             </div>
+          )}
+
+          {!isEnteringOtp && !isResetting && isSignUp && (
+            <input
+              type="text"
+              placeholder="¿Tienes un código de referido? (opcional)"
+              className="input-field"
+              value={codigoReferido}
+              onChange={(e) => setCodigoReferido(e.target.value.toUpperCase())}
+            />
           )}
 
           {!isResetting && (
