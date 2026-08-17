@@ -5,6 +5,7 @@ import { Purchases } from '@revenuecat/purchases-capacitor';
 import { Capacitor } from '@capacitor/core';
 import { supabase } from '../supabaseClient';
 import { registrarError } from '../utils/telemetry';
+import { actualizarAuthMetaConReintento } from '../utils/OfflineManager';
 
 export default function PaywallCoach({ forced = false, onDismiss = null }) {
   const navigate = useNavigate();
@@ -100,7 +101,7 @@ export default function PaywallCoach({ forced = false, onDismiss = null }) {
              return;
            }
 
-           await supabase.auth.updateUser({ data: { suscripcion: data.plan, plan_membresia: data.plan } });
+           await actualizarAuthMetaConReintento({ suscripcion: data.plan, plan_membresia: data.plan });
            alert(`¡Pago exitoso! Ahora eres ${data.plan}`);
            window.location.reload();
         } else {

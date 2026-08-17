@@ -6,10 +6,34 @@ import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { Capacitor } from '@capacitor/core';
 import { evento, EVENTOS } from '../utils/telemetry';
 import { registrarDiaEntrenado } from '../utils/registrarDiaEntrenado';
+import { bonosAReclamar } from '../utils/rachaBonos';
 import { Share } from '@capacitor/share';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import confetti from 'canvas-confetti';
 import html2canvas from 'html2canvas';
+
+/**
+ * Encola localmente el avance de un día del Reto 21 cuando no se pudo
+ * escribir directo a Supabase (sin conexión, o falló el intento online).
+ * Dos filas hermanas: una en rpg_historial_recompensas (el XP/monedas del
+ * día -- mismos valores fijos que completar_mision_rpg decide del lado del
+ * servidor para el origen 'reto_vigor21_dia_%', duplicados acá a propósito
+ * para no depender de la RPC mientras no hay red) y otra en
+ * reto_progreso_pendiente (el avance del reto en sí, que no pasa por RPC).
+ * SyncService.pushData() reproduce ambas cuando vuelve la conexión, con su
+ * propio guard de "solo avanzar" para reto_progreso_pendiente.
+ */
+async function queueRetoOffline({ perfil, diaInfo, updates, now }) {
+  const rewardId = crypto.randomUUID();
+  await DatabaseService.execute(
+    `INSERT INTO rpg_historial_recompensas (id, user_id, xp_ganada, monedas_ganadas, fuente, descripcion, fecha_reclamo, is_dirty) VALUES (?, ?, ?, ?, ?, ?, ?, 1)`,
+    [rewardId, perfil.id, 10, 5, `reto_vigor21_dia_${diaInfo.dia_numero}`, `Día ${diaInfo.dia_numero} del Reto 21 (offline)`, now]
+  );
+  await DatabaseService.execute(
+    `INSERT INTO reto_progreso_pendiente (id, user_id, dia_numero, reto_dia_actual, reto_ultimo_completado, reto_completado, reward_row_id, created_at, is_dirty) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+    [crypto.randomUUID(), perfil.id, diaInfo.dia_numero, updates.reto_dia_actual, updates.reto_ultimo_completado, updates.reto_completado ? 1 : 0, rewardId, now]
+  );
+}
 
 const getMensajeVigor = (dia) => {
   const d = parseInt(dia);
@@ -235,19 +259,36 @@ export default function RutinaRetoPlayer({ diaInfo, perfil, onClose, onComplete 
         }
       }
 
-      // 3. Save Habits log
-      try {
-        await supabase.from('habitos_diarios').insert([{
-          user_id: perfil.id,
-          dia_reto: diaInfo.dia_numero,
-          agua,
-          sueno,
-          comida_sana: comidaSana,
-          foto_url: uploadedUrl,
-          puntos_ganados: puntos
-        }]);
-      } catch (e) {
-        console.warn("No se pudo guardar el hábito (quizás no existe la tabla):", e);
+      // 3. Save Habits log.
+      //
+      // Sin conexión se encola local en vez de intentar Supabase directo
+      // (hasta el 16/08 este insert fallaba en silencio offline, sin dejar
+      // ningún rastro). Va sin foto_url a propósito: subir una foto ya
+      // requiere red, así que offline nunca hay una que preservar -- el
+      // camino online de abajo sigue mandándola igual que siempre.
+      if (navigator.onLine) {
+        try {
+          await supabase.from('habitos_diarios').insert([{
+            user_id: perfil.id,
+            dia_reto: diaInfo.dia_numero,
+            agua,
+            sueno,
+            comida_sana: comidaSana,
+            foto_url: uploadedUrl,
+            puntos_ganados: puntos
+          }]);
+        } catch (e) {
+          console.warn("No se pudo guardar el hábito (quizás no existe la tabla):", e);
+        }
+      } else {
+        try {
+          await DatabaseService.execute(
+            `INSERT INTO habitos_diarios (id, user_id, dia_reto, agua, sueno, comida_sana, puntos_ganados, created_at, is_dirty) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+            [crypto.randomUUID(), perfil.id, diaInfo.dia_numero, agua, sueno, comidaSana ? 1 : 0, puntos, now]
+          );
+        } catch (e) {
+          console.warn("No se pudo encolar el hábito localmente:", e);
+        }
       }
 
       // 4. Update Perfil (Base Challenge Logic)
@@ -261,8 +302,21 @@ export default function RutinaRetoPlayer({ diaInfo, perfil, onClose, onComplete 
         updates.retos_completados_count = (perfil.retos_completados_count || 0) + 1;
       }
 
-      const { error } = await supabase.from('perfiles').update(updates).eq('id', perfil.id);
-      if (error) throw error;
+      // Sin conexión, o si el intento online falla, se encola en vez de
+      // perder el intento completo (ver queueRetoOffline arriba).
+      // SyncService.pushData() lo reproduce con su propio guard de "solo
+      // avanzar" cuando vuelve la conexión.
+      let quedoEncolado = !navigator.onLine;
+      if (!quedoEncolado) {
+        const { error } = await supabase.from('perfiles').update(updates).eq('id', perfil.id);
+        if (error) {
+          console.warn('No se pudo guardar el avance del reto online, se encola para reintentar:', error);
+          quedoEncolado = true;
+        }
+      }
+      if (quedoEncolado) {
+        await queueRetoOffline({ perfil, diaInfo, updates, now });
+      }
 
       // Espejo inmediato en el SQLite local, marcado como ya sincronizado.
       //
@@ -303,39 +357,40 @@ export default function RutinaRetoPlayer({ diaInfo, perfil, onClose, onComplete 
         es_final: parseInt(diaInfo.dia_numero) >= 21,
       });
 
-      // 6. RPG y Economía (Atómico)
-      try {
-        const idempotencyMision = `reto_vigor21_dia_${diaInfo.dia_numero}_${perfil.id}`;
-        const { data: rpgData, error: rpgError } = await supabase.rpc('completar_mision_rpg', {
-          p_user_id: perfil.id,
-          p_origen: `reto_vigor21_dia_${diaInfo.dia_numero}`,
-          p_idempotency_key: idempotencyMision
-        });
+      // 6. RPG y Economía (Atómico).
+      //
+      // Si quedó encolado offline, queueRetoOffline ya insertó la fila
+      // hermana en rpg_historial_recompensas -- llamar al RPC acá de nuevo
+      // sería redundante (y fallaría sin red de todos modos). SyncService la
+      // reproduce cuando vuelve la conexión, bonos de racha incluidos.
+      if (!quedoEncolado) {
+        try {
+          const idempotencyMision = `reto_vigor21_dia_${diaInfo.dia_numero}_${perfil.id}`;
+          const { data: rpgData, error: rpgError } = await supabase.rpc('completar_mision_rpg', {
+            p_user_id: perfil.id,
+            p_origen: `reto_vigor21_dia_${diaInfo.dia_numero}`,
+            p_idempotency_key: idempotencyMision
+          });
 
-        if (rpgError) console.error("Error RPC Misión:", rpgError);
+          if (rpgError) console.error("Error RPC Misión:", rpgError);
 
-        if (rpgData && rpgData.success) {
-          const rachaActual = rpgData.racha;
-          
-          // Bonos de racha
-          if (rachaActual === 7) {
-            await supabase.rpc('reclamar_bono_reto', { p_user_id: perfil.id, p_bono_tipo: '7_dias', p_idempotency_key: `bono_7_${perfil.id}` });
-          } else if (rachaActual === 14) {
-            await supabase.rpc('reclamar_bono_reto', { p_user_id: perfil.id, p_bono_tipo: '14_dias', p_idempotency_key: `bono_14_${perfil.id}` });
-          }
+          if (rpgData && rpgData.success) {
+            const rachaActual = rpgData.racha;
 
-          if (isFinished) {
-            // Bono por terminar reto (50 XP, 50 Monedas)
-            await supabase.rpc('reclamar_bono_reto', { p_user_id: perfil.id, p_bono_tipo: '21_dias', p_idempotency_key: `bono_21_${perfil.id}` });
-            
-            // Bono perfecto
-            if (rachaActual >= 21) {
-              await supabase.rpc('reclamar_bono_reto', { p_user_id: perfil.id, p_bono_tipo: 'perfecto_21', p_idempotency_key: `bono_perf_21_${perfil.id}` });
+            // Bonos de racha. reclamar_bono_reto ya es idempotente por su cuenta
+            // (clave fija por usuario y tipo de bono), así que reintentar uno ya
+            // reclamado es un no-op seguro -- por eso se evalúan los cuatro con
+            // >= en vez de === y de forma independiente (no en cascada): si la
+            // racha saltó de 5 a 15 de un salto (ej. veniá de un entrenamiento
+            // normal, no de completar exactamente el día 7 u 14 del reto), hay
+            // que reclamar el de 7 Y el de 14 en la misma pasada, no solo uno.
+            for (const { tipo, key } of bonosAReclamar(rachaActual, isFinished, perfil.id)) {
+              await supabase.rpc('reclamar_bono_reto', { p_user_id: perfil.id, p_bono_tipo: tipo, p_idempotency_key: key });
             }
           }
+        } catch (e) {
+          console.error("Error en transacciones RPG:", e);
         }
-      } catch (e) {
-        console.error("Error en transacciones RPG:", e);
       }
 
       confetti({

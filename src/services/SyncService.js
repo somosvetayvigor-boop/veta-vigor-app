@@ -1,5 +1,7 @@
 import { supabase } from '../supabaseClient';
 import DatabaseService from './DatabaseService';
+import { bonosAReclamar } from '../utils/rachaBonos';
+import { debeAplicarProgresoPendiente, calcularRetosCompletadosCount } from '../utils/retoProgresoGuard';
 
 // Cada cuánto se vuelven a bajar los catálogos (sistemas, retos, rutinas, ejercicios).
 // Son datos que cambian rara vez, así que no tiene sentido traerlos en cada arranque.
@@ -87,6 +89,8 @@ class SyncService {
       ['historial_entrenamientos', 'user_id'],
       ['rpg_inventario', 'user_id'],
       ['relacion_entrenador_alumno', 'alumno_id'],
+      ['rpg_historial_recompensas', 'user_id'],
+      ['reto_progreso_pendiente', 'user_id'],
     ];
   }
 
@@ -453,6 +457,79 @@ class SyncService {
             `UPDATE perfiles SET xp_actual = ?, puntos_forja = ?, racha_actual = ? WHERE id = ?`,
             [data.xp_total, data.monedas_total, data.racha, userId]
           );
+
+          // Revisar bonos de racha (7/14 días) también acá: hasta el 16/08 solo
+          // RutinaRetoPlayer.jsx los revisaba, justo después de SU propia llamada
+          // a completar_mision_rpg. Pero racha_actual es un contador único
+          // compartido por TODOS los orígenes de misión -- si un entrenamiento
+          // normal completado offline (esta fila viene de RutinaDetail.jsx o
+          // MiRutina.jsx) es el que empuja la racha a 7 u 14 al reproducirse
+          // acá, nadie más lo revisaba nunca. No hay bono de 21 días/perfecto acá
+          // a propósito: ese depende de haber terminado el Reto 21
+          // (reto_completado), algo que este outbox de recompensas normales no
+          // sabe ni le corresponde decidir.
+          for (const { tipo, key } of bonosAReclamar(data.racha, false, userId)) {
+            await supabase.rpc('reclamar_bono_reto', { p_user_id: userId, p_bono_tipo: tipo, p_idempotency_key: key });
+          }
+        }
+      }
+
+      // 8. Push de progreso pendiente del Reto 21 (outbox hermano del bloque 7).
+      //
+      // reto_dia_actual/reto_ultimo_completado/reto_completado no pasan por una
+      // RPC atómica -- se escriben directo a perfiles desde RutinaRetoPlayer.jsx.
+      // Si esa escritura falló por falta de red, quedó encolada acá con
+      // is_dirty=1 (ver queueRetoOffline en RutinaRetoPlayer.jsx). Antes de
+      // aplicar cada fila se relee el estado real del servidor: si ya alcanzó o
+      // superó lo encolado (otro dispositivo, o el usuario reintentó online
+      // mientras tanto), se descarta en vez de pisarlo.
+      const retoSucio = await DatabaseService.query(
+        `SELECT * FROM reto_progreso_pendiente WHERE is_dirty = 1 AND user_id = ?`, [userId]
+      );
+      for (const pend of retoSucio || []) {
+        const { data: srv, error: selError } = await supabase
+          .from('perfiles')
+          .select('reto_dia_actual, reto_completado, retos_completados_count, racha_actual')
+          .eq('id', userId)
+          .single();
+
+        if (selError || !srv) {
+          console.warn('No se pudo leer el perfil para aplicar progreso de reto pendiente, se reintenta luego:', selError?.message);
+          continue; // sigue sucia
+        }
+
+        if (!debeAplicarProgresoPendiente(pend, srv)) {
+          // El servidor ya está igual o adelante: no hay nada que aplicar,
+          // pero la fila SÍ se da por resuelta -- no es un error, es un no-op
+          // correcto (evita reintentar para siempre algo que ya no aplica).
+          await DatabaseService.execute(`UPDATE reto_progreso_pendiente SET is_dirty = 0 WHERE id = ?`, [pend.id]);
+          continue;
+        }
+
+        const updates = {
+          reto_dia_actual: pend.reto_dia_actual,
+          reto_ultimo_completado: pend.reto_ultimo_completado,
+          reto_completado: !!pend.reto_completado,
+        };
+        const nuevoCount = calcularRetosCompletadosCount(srv, updates.reto_completado);
+        if (nuevoCount !== (srv.retos_completados_count || 0)) {
+          updates.retos_completados_count = nuevoCount;
+        }
+
+        const { error: updError } = await supabase.from('perfiles').update(updates).eq('id', userId);
+        if (updError) {
+          console.warn('No se pudo aplicar el progreso de reto pendiente, se reintenta luego:', updError.message);
+          continue; // sigue sucia
+        }
+
+        await DatabaseService.execute(`UPDATE reto_progreso_pendiente SET is_dirty = 0 WHERE id = ?`, [pend.id]);
+
+        // Igual que el bloque 7, pero con el estado real de ESTE reto -- acá sí
+        // puede corresponder el bono de 21 días/perfecto si este día lo cierra.
+        // bonosAReclamar ya decide internamente qué corresponde según la racha
+        // fresca y si este día termina el reto.
+        for (const { tipo, key } of bonosAReclamar(srv.racha_actual || 0, updates.reto_completado, userId)) {
+          await supabase.rpc('reclamar_bono_reto', { p_user_id: userId, p_bono_tipo: tipo, p_idempotency_key: key });
         }
       }
 

@@ -9,6 +9,23 @@ export const addToOfflineQueue = (actionType, payload) => {
   localStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
 };
 
+/**
+ * Actualiza user_metadata y, si falla (offline o error de red), la encola
+ * para reintentar en el próximo processOfflineQueue() en vez de perderse en
+ * silencio. Nunca lanza -- user_metadata es siempre una copia rápida/caché,
+ * nunca la fuente de verdad (esa es la tabla `perfiles`), así que un fallo
+ * acá no debe abortar el flujo que la llama.
+ */
+export const actualizarAuthMetaConReintento = async (data) => {
+  try {
+    const { error } = await supabase.auth.updateUser({ data });
+    if (error) throw error;
+  } catch (e) {
+    console.warn('No se pudo actualizar user_metadata, se reintentará offline:', e);
+    addToOfflineQueue('UPDATE_AUTH_META', data);
+  }
+};
+
 // Función para procesar la cola cuando haya internet
 export const processOfflineQueue = async () => {
   if (!navigator.onLine) return;

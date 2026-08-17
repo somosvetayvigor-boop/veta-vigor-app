@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
+import { actualizarAuthMetaConReintento } from '../utils/OfflineManager';
 import { ChevronRight, Target, Activity, ShieldCheck, Calendar } from 'lucide-react';
 
 const QUESTIONS = [
@@ -119,23 +120,26 @@ export default function CuestionarioModal({ session, onComplete }) {
         .from('perfiles')
         .update({ nivel, sistema_activo: sistema_id, dias_entrenamiento: dias })
         .eq('id', session?.user.id);
-        
+
       if (profileError) throw profileError;
 
       // 2. Update Auth Metadata
-      const { error: authError } = await supabase.auth.updateUser({
-        data: { 
-          nivel: nivel,
-          sistema_activo: sistema_id,
-          dias_entrenamiento: dias,
-          origen: origen,
-          cuestionario_complete: true,
-          screening_resultado: isRestricted ? 'CON_RESTRICCIONES' : 'APTO',
-          fecha_screening: new Date().toISOString()
-        }
+      //
+      // perfiles ya se guardó bien arriba -- un fallo acá no debe abortar el
+      // diagnóstico. Pero sin reintento, cuestionario_complete nunca llega a
+      // user_metadata y MiRutina.jsx (que lo lee de ahí, no de perfiles)
+      // puede volver a mostrar el onboarding a alguien que ya está
+      // configurado -- por eso usa el helper con reintento en vez de un
+      // updateUser directo.
+      await actualizarAuthMetaConReintento({
+        nivel: nivel,
+        sistema_activo: sistema_id,
+        dias_entrenamiento: dias,
+        origen: origen,
+        cuestionario_complete: true,
+        screening_resultado: isRestricted ? 'CON_RESTRICCIONES' : 'APTO',
+        fecha_screening: new Date().toISOString()
       });
-
-      if (authError) throw authError;
 
     } catch (err) {
       console.error("Error guardando el diagnóstico:", err);

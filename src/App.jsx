@@ -4,7 +4,7 @@ import { supabase } from './supabaseClient';
 import { Purchases, LOG_LEVEL } from '@revenuecat/purchases-capacitor';
 import { Capacitor } from '@capacitor/core';
 import { Dumbbell, MessageCircle, User, Users, Menu, X, Bot, Scale, FlaskConical, Activity, WifiOff, Calculator, RefreshCw, Loader } from 'lucide-react';
-import { processOfflineQueue } from './utils/OfflineManager';
+import { processOfflineQueue, actualizarAuthMetaConReintento } from './utils/OfflineManager';
 import { DatabaseManager } from './utils/DatabaseManager';
 import DatabaseService from './services/DatabaseService';
 import SyncService from './services/SyncService';
@@ -743,7 +743,7 @@ function App() {
                        console.log("Suscripción expirada en RevenueCat. Regresando a Gratis automáticamente.");
                        // Solo degrada, nunca asciende, así que exponerla es inofensivo.
                        await supabase.rpc('degradar_plan_sin_suscripcion');
-                       await supabase.auth.updateUser({ data: { suscripcion: 'Atleta Base (Gratis)' } });
+                       await actualizarAuthMetaConReintento({ suscripcion: 'Atleta Base (Gratis)' });
                        // Recargamos para que la app aplique el bloqueo inmediatamente
                        window.location.reload();
                    }
@@ -780,7 +780,7 @@ function App() {
                            console.log(`Plan de RevenueCat (${planEsperado}) no coincide con la BD (${currentPlan}). Reconciliando.`);
                            const { data } = await supabase.rpc('activar_plan_por_compra', { p_product_id: mejorProductId });
                            if (data?.ok) {
-                               await supabase.auth.updateUser({ data: { suscripcion: data.plan } });
+                               await actualizarAuthMetaConReintento({ suscripcion: data.plan });
                                window.location.reload();
                            }
                        }

@@ -5,6 +5,7 @@ import { Purchases } from '@revenuecat/purchases-capacitor';
 import { Capacitor } from '@capacitor/core';
 import { supabase } from '../supabaseClient';
 import { evento, EVENTOS, registrarError } from '../utils/telemetry';
+import { actualizarAuthMetaConReintento } from '../utils/OfflineManager';
 
 export default function Paywall({ forced = false, onDismiss = null }) {
   const navigate = useNavigate();
@@ -242,7 +243,7 @@ export default function Paywall({ forced = false, onDismiss = null }) {
              return;
            }
 
-           await supabase.auth.updateUser({ data: { suscripcion: data.plan } });
+           await actualizarAuthMetaConReintento({ suscripcion: data.plan });
            evento(EVENTOS.COMPRA_COMPLETADA, { plan: data.plan, via: 'revenuecat' });
            alert(`¡Pago exitoso! Bienvenido a Veta & Vigor ${data.plan}`);
            window.location.reload();

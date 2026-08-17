@@ -308,6 +308,24 @@ class DatabaseService {
         is_dirty INTEGER DEFAULT 0
       );
 
+      -- Outbox para completar un día del Reto 21 sin conexión (2026-08-16).
+      -- Hermana de rpg_historial_recompensas (esa maneja el XP/monedas del
+      -- día vía completar_mision_rpg; esta maneja el avance del reto en sí
+      -- -- reto_dia_actual/reto_ultimo_completado/reto_completado -- que NO
+      -- pasa por una RPC, así que necesita su propio outbox con su propio
+      -- guard de "solo avanzar" en SyncService.pushData().
+      CREATE TABLE IF NOT EXISTS reto_progreso_pendiente (
+        id TEXT PRIMARY KEY,
+        user_id TEXT,
+        dia_numero INTEGER,
+        reto_dia_actual INTEGER,
+        reto_ultimo_completado TEXT,
+        reto_completado INTEGER,
+        reward_row_id TEXT,
+        created_at TEXT,
+        is_dirty INTEGER DEFAULT 1
+      );
+
       CREATE TABLE IF NOT EXISTS relacion_entrenador_alumno (
         id TEXT PRIMARY KEY,
         entrenador_id TEXT,
@@ -332,6 +350,7 @@ class DatabaseService {
       CREATE INDEX IF NOT EXISTS idx_habitos_user ON habitos_diarios(user_id);
       CREATE INDEX IF NOT EXISTS idx_inventario_user_item ON rpg_inventario(user_id, item_id);
       CREATE INDEX IF NOT EXISTS idx_recompensas_user ON rpg_historial_recompensas(user_id);
+      CREATE INDEX IF NOT EXISTS idx_reto_progreso_user ON reto_progreso_pendiente(user_id);
       CREATE INDEX IF NOT EXISTS idx_entrenador_alumno ON relacion_entrenador_alumno(alumno_id);
 
       CREATE INDEX IF NOT EXISTS idx_reto_dias_reto ON reto_dias(reto_id, dia_numero);
@@ -348,6 +367,7 @@ class DatabaseService {
       CREATE INDEX IF NOT EXISTS idx_bienestar_dirty ON checkins_bienestar(user_id) WHERE is_dirty = 1;
       CREATE INDEX IF NOT EXISTS idx_habitos_dirty ON habitos_diarios(user_id) WHERE is_dirty = 1;
       CREATE INDEX IF NOT EXISTS idx_inventario_dirty ON rpg_inventario(user_id) WHERE is_dirty = 1;
+      CREATE INDEX IF NOT EXISTS idx_reto_progreso_dirty ON reto_progreso_pendiente(user_id) WHERE is_dirty = 1;
     `;
 
     try {

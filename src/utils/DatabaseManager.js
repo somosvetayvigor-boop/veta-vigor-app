@@ -1,5 +1,14 @@
 import localforage from 'localforage';
 
+// REGLA DE PRECEDENCIA (auditoría de persistencia, 2026-08-16):
+// esto es una caché de SOLO LECTURA para pintar la UI al instante mientras
+// SQLite/Supabase todavía están respondiendo -- nunca la fuente de verdad.
+// El patrón correcto en cada pantalla que la usa es: leer de acá primero
+// (síncrono a ojos del usuario), y en cuanto llegue el dato fresco de
+// SQLite/Supabase, ese manda y se vuelve a guardar acá con saveX(). Nunca al
+// revés: si un dato difiere entre esta caché y SQLite/Supabase, SQLite/
+// Supabase gana siempre. Ver docs/FUENTES_DE_VERDAD_PERSISTENCIA.md.
+
 // Inicializar la base de datos IndexedDB
 const store = localforage.createInstance({
   name: 'VetaVigorDB',
