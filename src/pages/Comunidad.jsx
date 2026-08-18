@@ -73,7 +73,7 @@ export default function Comunidad({ session }) {
   // traer datos -- una vista no tiene llave foranea que PostgREST pueda
   // usar para el embed. Se reemplaza por un segundo fetch en dos pasos,
   // igual que ya se hacia aqui mismo con golem_progreso/checkins.
-  const PERFIL_PUBLICO_COLS = 'id, full_name, username, avatar_url, nivel, nivel_rpg, racha_actual, marco_activo';
+  const PERFIL_PUBLICO_COLS = 'id, full_name, username, avatar_url, nivel, nivel_rpg, racha_actual, marco_activo, aura_activa';
 
   const fetchAlianzas = async () => {
     setLoadingAlianzas(true);
@@ -303,7 +303,7 @@ export default function Comunidad({ session }) {
               {alianzasPendientes.map((sol) => (
                 <div key={sol.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '15px', background: 'rgba(255,255,255,0.03)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <AvatarConMarco src={sol.sender.avatar_url || '/assets/niveles/semilla.png'} size={40} marco={sol.sender.marco_activo || 'ninguno'} />
+                    <AvatarConMarco src={sol.sender.avatar_url || '/assets/niveles/semilla.png'} size={40} marco={sol.sender.marco_activo || 'ninguno'} aura={sol.sender.aura_activa || 'ninguna'} />
                     <div>
                       <h4 style={{ margin: 0, color: '#fff', fontSize: '0.95rem' }}>{sol.sender.full_name || sol.sender.username}</h4>
                       <p style={{ margin: 0, color: '#888', fontSize: '0.8rem' }}>{sol.sender.nivel} • Golem {sol.sender.golem_nivel || 1}</p>
@@ -342,7 +342,7 @@ export default function Comunidad({ session }) {
                     {/* Fila Superior: Info y Llama Viva */}
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                        <AvatarConMarco src={amigo.avatar_url || '/assets/niveles/semilla.png'} size={50} marco={amigo.marco_activo || 'ninguno'} />
+                        <AvatarConMarco src={amigo.avatar_url || '/assets/niveles/semilla.png'} size={50} marco={amigo.marco_activo || 'ninguno'} aura={amigo.aura_activa || 'ninguna'} />
                         <div>
                           <h4 style={{ margin: '0 0 3px 0', color: '#fff', fontSize: '1.05rem' }}>{amigo.full_name || amigo.username}</h4>
                           <span style={{ fontSize: '0.75rem', background: 'rgba(212, 175, 55, 0.2)', color: 'var(--accent-gold)', padding: '3px 8px', borderRadius: '12px', border: '1px solid rgba(212, 175, 55, 0.5)' }}>
@@ -477,7 +477,7 @@ export default function Comunidad({ session }) {
       if (muroData) {
         const { data: perfilNominado } = await supabase
           .from('perfiles_publico')
-          .select('full_name, username, avatar_url, plan_membresia, marco_activo')
+          .select('full_name, username, avatar_url, plan_membresia, marco_activo, aura_activa')
           .eq('id', muroData.user_id)
           .maybeSingle();
         muroData = { ...muroData, perfiles: perfilNominado };
@@ -1078,11 +1078,12 @@ export default function Comunidad({ session }) {
                 boxShadow: '0 5px 20px rgba(212, 175, 55, 0.15)'
               }}>
                 <div style={{ position: 'relative', width: '60px', height: '60px', flexShrink: 0 }}>
-                  <AvatarConMarco 
-                    src={muroFama.perfiles?.avatar_url || '/assets/niveles/semilla.png'} 
-                    alt="Atleta del mes" 
-                    size={60} 
-                    marco={muroFama.perfiles?.marco_activo || 'ninguno'} 
+                  <AvatarConMarco
+                    src={muroFama.perfiles?.avatar_url || '/assets/niveles/semilla.png'}
+                    alt="Atleta del mes"
+                    size={60}
+                    marco={muroFama.perfiles?.marco_activo || 'ninguno'}
+                    aura={muroFama.perfiles?.aura_activa || 'ninguna'}
                   />
                   <div style={{ position: 'absolute', bottom: '-5px', right: '-5px', background: 'var(--accent-gold)', borderRadius: '50%', padding: '4px', boxShadow: '0 2px 5px rgba(0,0,0,0.5)' }}>
                     <Award size={14} color="#000" />
@@ -1130,11 +1131,12 @@ export default function Comunidad({ session }) {
                       }}>
                         #{idx + 1}
                       </div>
-                      <AvatarConMarco 
-                        src={user.avatar_url || '/assets/niveles/semilla.png'} 
-                        alt="avatar" 
-                        size={45} 
-                        marco={user.marco_activo || 'ninguno'} 
+                      <AvatarConMarco
+                        src={user.avatar_url || '/assets/niveles/semilla.png'}
+                        alt="avatar"
+                        size={45}
+                        marco={user.marco_activo || 'ninguno'}
+                        aura={user.aura_activa || 'ninguna'}
                       />
                       <div>
                         <h4 style={{ margin: '0 0 2px 0', color: '#fff', fontSize: '1rem' }}>{user.nombre_completo || user.username}</h4>

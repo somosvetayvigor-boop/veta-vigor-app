@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
-import { ChevronLeft, Loader, Shield, Flame, Activity } from 'lucide-react';
+import { ChevronLeft, Loader, Shield, Flame, Activity, Sparkles, Crown, Wand2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getGolpesDisponibles, getGolemData } from '../utils/ProgressionEngine';
 import GolemAnimado from '../components/GolemAnimado';
@@ -12,7 +12,7 @@ export default function LaPrueba({ session }) {
   const [isHit, setIsHit] = useState(false);
   const [monedas, setMonedas] = useState(0);
   const [xp, setXp] = useState(0);
-  const [inventario, setInventario] = useState({ ficha_reposo: 0, anima_bosque: 0, borde_fuego: 0 });
+  const [inventario, setInventario] = useState({ ficha_reposo: 0, anima_bosque: 0, borde_fuego: 0, borde_plata: 0, borde_dorado: 0, aura_arcana: 0 });
   const [toast, setToast] = useState({ show: false, message: '' });
   const [confirmAction, setConfirmAction] = useState({ show: false, itemId: null, precio: 0, esPermanente: false });
   const [golem, setGolem] = useState({ golpes_utilizados: 0, golem_vencido: false, golem_nivel: 1 });
@@ -48,7 +48,7 @@ export default function LaPrueba({ session }) {
         .eq('user_id', session.user.id);
         
       if (inv) {
-        const invMap = { ficha_reposo: 0, anima_bosque: 0, borde_fuego: 0 };
+        const invMap = { ficha_reposo: 0, anima_bosque: 0, borde_fuego: 0, borde_plata: 0, borde_dorado: 0, aura_arcana: 0 };
         inv.forEach(i => invMap[i.item_id] = i.cantidad);
         setInventario(invMap);
       }
@@ -157,9 +157,15 @@ export default function LaPrueba({ session }) {
       } else {
         showToast("¡Adquisición exitosa!");
         
-        // Auto-equipar el borde de fuego al comprarlo
-        if (itemId === 'borde_fuego') {
-          await supabase.from('perfiles').update({ marco_activo: 'borde_fuego' }).eq('id', session.user.id);
+        // Auto-equipar el ítem cosmético al comprarlo, igual que ya
+        // pasaba con borde_fuego -- borde_plata y borde_dorado usan el
+        // mismo slot (marco_activo), aura_arcana usa el suyo propio
+        // (aura_activa), así que se puede tener un borde y un aura
+        // puestos al mismo tiempo.
+        if (['borde_fuego', 'borde_plata', 'borde_dorado'].includes(itemId)) {
+          await supabase.from('perfiles').update({ marco_activo: itemId }).eq('id', session.user.id);
+        } else if (itemId === 'aura_arcana') {
+          await supabase.from('perfiles').update({ aura_activa: itemId }).eq('id', session.user.id);
         }
 
         await loadDatos();
@@ -390,8 +396,74 @@ export default function LaPrueba({ session }) {
           {inventario.borde_fuego > 0 ? (
             <span style={{ color: 'var(--accent-gold)', fontSize: '0.85rem', fontWeight: 'bold' }}>ADQUIRIDO</span>
           ) : (
-            <button 
+            <button
               onClick={() => iniciarCompra('borde_fuego', 500, true)}
+              disabled={procesando}
+              style={{ background: 'transparent', color: 'var(--accent-gold)', border: '1px solid var(--accent-gold)', padding: '8px 12px', borderRadius: '20px', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer' }}
+            >
+              500 🪙
+            </button>
+          )}
+        </div>
+
+        {/* Borde de Plata */}
+        <div style={{ background: '#111', borderRadius: '12px', padding: '15px', marginBottom: '15px', display: 'flex', alignItems: 'center', border: '1px solid rgba(255,255,255,0.05)' }}>
+          <div style={{ background: 'rgba(255,255,255,0.05)', padding: '12px', borderRadius: '10px', marginRight: '15px' }}>
+            <Sparkles size={24} color="#dcdde1" />
+          </div>
+          <div style={{ flex: 1 }}>
+            <h4 style={{ margin: '0 0 3px 0', color: '#fff', fontSize: '1rem' }}>Borde de Plata</h4>
+            <p style={{ margin: '0', color: '#aaa', fontSize: '0.8rem', lineHeight: '1.3' }}>Aura plateada para tu foto de perfil (Permanente).</p>
+          </div>
+          {inventario.borde_plata > 0 ? (
+            <span style={{ color: 'var(--accent-gold)', fontSize: '0.85rem', fontWeight: 'bold' }}>ADQUIRIDO</span>
+          ) : (
+            <button
+              onClick={() => iniciarCompra('borde_plata', 500, true)}
+              disabled={procesando}
+              style={{ background: 'transparent', color: 'var(--accent-gold)', border: '1px solid var(--accent-gold)', padding: '8px 12px', borderRadius: '20px', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer' }}
+            >
+              500 🪙
+            </button>
+          )}
+        </div>
+
+        {/* Borde Dorado */}
+        <div style={{ background: '#111', borderRadius: '12px', padding: '15px', marginBottom: '15px', display: 'flex', alignItems: 'center', border: '1px solid rgba(255,255,255,0.05)' }}>
+          <div style={{ background: 'rgba(255,255,255,0.05)', padding: '12px', borderRadius: '10px', marginRight: '15px' }}>
+            <Crown size={24} color="#ffd700" />
+          </div>
+          <div style={{ flex: 1 }}>
+            <h4 style={{ margin: '0 0 3px 0', color: '#fff', fontSize: '1rem' }}>Borde Dorado</h4>
+            <p style={{ margin: '0', color: '#aaa', fontSize: '0.8rem', lineHeight: '1.3' }}>Aura dorada para tu foto de perfil (Permanente).</p>
+          </div>
+          {inventario.borde_dorado > 0 ? (
+            <span style={{ color: 'var(--accent-gold)', fontSize: '0.85rem', fontWeight: 'bold' }}>ADQUIRIDO</span>
+          ) : (
+            <button
+              onClick={() => iniciarCompra('borde_dorado', 500, true)}
+              disabled={procesando}
+              style={{ background: 'transparent', color: 'var(--accent-gold)', border: '1px solid var(--accent-gold)', padding: '8px 12px', borderRadius: '20px', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer' }}
+            >
+              500 🪙
+            </button>
+          )}
+        </div>
+
+        {/* Aura Arcana */}
+        <div style={{ background: '#111', borderRadius: '12px', padding: '15px', marginBottom: '15px', display: 'flex', alignItems: 'center', border: '1px solid rgba(255,255,255,0.05)' }}>
+          <div style={{ background: 'rgba(255,255,255,0.05)', padding: '12px', borderRadius: '10px', marginRight: '15px' }}>
+            <Wand2 size={24} color="#8e44ad" />
+          </div>
+          <div style={{ flex: 1 }}>
+            <h4 style={{ margin: '0 0 3px 0', color: '#fff', fontSize: '1rem' }}>Aura Arcana</h4>
+            <p style={{ margin: '0', color: '#aaa', fontSize: '0.8rem', lineHeight: '1.3' }}>Resplandor místico detrás de tu foto de perfil (Permanente). Se puede combinar con un borde.</p>
+          </div>
+          {inventario.aura_arcana > 0 ? (
+            <span style={{ color: 'var(--accent-gold)', fontSize: '0.85rem', fontWeight: 'bold' }}>ADQUIRIDO</span>
+          ) : (
+            <button
+              onClick={() => iniciarCompra('aura_arcana', 500, true)}
               disabled={procesando}
               style={{ background: 'transparent', color: 'var(--accent-gold)', border: '1px solid var(--accent-gold)', padding: '8px 12px', borderRadius: '20px', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer' }}
             >

@@ -5,11 +5,12 @@ import { compressImage } from '../utils/imageUtils';
 import { useNavigate } from 'react-router-dom';
 import LegalModals from '../components/LegalModals';
 import { addToOfflineQueue } from '../utils/OfflineManager';
-import { User, LogOut, Settings, X, Camera, Edit2, Upload, Activity, Flame, Bell, Calendar, Leaf } from 'lucide-react';
+import { User, LogOut, Settings, X, Camera, Edit2, Upload, Activity, Flame, Bell, Calendar, Leaf, Palette } from 'lucide-react';
 import { DatabaseManager } from '../utils/DatabaseManager';
 import { getLevelProgress, getRpgTitle } from '../utils/ProgressionEngine';
 import ArbolForja from '../components/ArbolForja';
 import AvatarConMarco from '../components/AvatarConMarco';
+import MiColeccionModal from '../components/MiColeccionModal';
 
 let globalPerfilMeta = null;
 let globalPerfilCheckin = null;
@@ -36,6 +37,7 @@ export default function Perfil({ session }) {
   const [adminPin, setAdminPin] = useState('');
   
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [showColeccion, setShowColeccion] = useState(false);
   
   const [metaState, setMetaState] = useState(globalPerfilMeta || session?.user?.user_metadata || {});
   const [checkinHoyState, setCheckinHoyState] = useState(globalPerfilCheckin || null);
@@ -404,15 +406,16 @@ export default function Perfil({ session }) {
                 onClick={() => (meta.avatar_url && !imgError) && setZoomedImage(meta.avatar_url)}
                 style={{ cursor: meta.avatar_url ? 'pointer' : 'default', position: 'relative' }}
               >
-                <AvatarConMarco 
+                <AvatarConMarco
                   src={meta.avatar_url}
                   alt="Avatar"
                   size={90}
                   marco={meta.marco_activo || (inventario.includes('borde_fuego') ? 'borde_fuego' : 'ninguno')}
+                  aura={meta.aura_activa || 'ninguna'}
                   onError={() => setImgError(true)}
                 />
               </div>
-              
+
               <label style={{
                 position: 'absolute', bottom: '-5px', right: '-5px', background: 'var(--bg-card)', color: '#fff',
                 width: '30px', height: '30px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -422,7 +425,21 @@ export default function Perfil({ session }) {
                 <input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => uploadPhoto(e, 'avatar')} disabled={isUploading} />
               </label>
             </div>
-            
+
+            {(inventario.includes('borde_fuego') || inventario.includes('borde_plata') || inventario.includes('borde_dorado') || inventario.includes('aura_arcana')) && (
+              <button
+                onClick={() => setShowColeccion(true)}
+                style={{
+                  marginTop: '12px', background: 'rgba(212, 175, 55, 0.1)', color: 'var(--accent-gold)',
+                  border: '1px solid rgba(212, 175, 55, 0.4)', borderRadius: '20px', padding: '6px 14px',
+                  fontSize: '0.8rem', fontWeight: 'bold', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: '6px'
+                }}
+              >
+                <Palette size={14} /> Mi Colección
+              </button>
+            )}
+
             {inventario.includes('anima_bosque') && (
               <div style={{ marginTop: '15px', background: 'linear-gradient(180deg, rgba(30,30,30,0.8), rgba(10,10,10,0.9))', padding: '10px 20px', borderRadius: '20px', border: '1px solid rgba(212,175,55,0.3)', display: 'flex', alignItems: 'center', gap: '15px', boxShadow: '0 4px 15px rgba(0,0,0,0.5)' }}>
                 <div style={{ filter: 'drop-shadow(0 0 10px rgba(120,224,143,0.3))' }}>
@@ -1227,6 +1244,18 @@ export default function Perfil({ session }) {
 
       {/* LEGAL MODAL */}
       <LegalModals type={legalModal} onClose={() => setLegalModal(null)} />
+
+      {showColeccion && (
+        <MiColeccionModal
+          session={session}
+          inventario={inventario}
+          marcoActivo={meta.marco_activo}
+          auraActiva={meta.aura_activa}
+          avatarUrl={meta.avatar_url}
+          onClose={() => setShowColeccion(false)}
+          onEquipar={(cambios) => setMeta({ ...meta, ...cambios })}
+        />
+      )}
 
     </div>
   );
