@@ -261,9 +261,31 @@ export default function MiRutina({ session }) {
   // Recálculo profundo de la Llama Viva — se ejecuta SIN bloquear la pantalla
   const recalcularRachaEnFondo = async (todayStr) => {
     try {
-      const checkinsResult = await DatabaseService.query(`SELECT fecha FROM checkins WHERE user_id = ? ORDER BY fecha DESC LIMIT 30`, [session?.user.id]);
-      const bienestarResult = await DatabaseService.query(`SELECT fecha, habitos FROM checkins_bienestar WHERE user_id = ? ORDER BY fecha DESC LIMIT 30`, [session?.user.id]);
-      
+      let checkinsResult = await DatabaseService.query(`SELECT fecha FROM checkins WHERE user_id = ? ORDER BY fecha DESC LIMIT 30`, [session?.user.id]);
+      let bienestarResult = await DatabaseService.query(`SELECT fecha, habitos FROM checkins_bienestar WHERE user_id = ? ORDER BY fecha DESC LIMIT 30`, [session?.user.id]);
+
+      // FALLBACK: si el SQLite local no tiene nada (dispositivo nuevo o que
+      // llevaba tiempo sin sincronizar), preguntarle a Supabase antes de
+      // asumir racha 0 -- a diferencia de checkTodayStatus/loadRutinas, este
+      // cálculo no tenía respaldo de red, y como el resultado se GUARDA
+      // (is_dirty=1, más abajo), un local vacío podía pisar con un 0 la
+      // racha real que sí existía en el servidor.
+      if ((!checkinsResult || checkinsResult.length === 0) && (!bienestarResult || bienestarResult.length === 0) && navigator.onLine) {
+        try {
+          const limitDate = new Date();
+          limitDate.setDate(limitDate.getDate() - 30);
+          const limitStr = limitDate.toISOString().split('T')[0];
+          const [{ data: checkinsRemoto }, { data: bienestarRemoto }] = await Promise.all([
+            supabase.from('checkins').select('fecha').eq('user_id', session?.user.id).gte('fecha', limitStr),
+            supabase.from('checkins_bienestar').select('fecha, habitos').eq('user_id', session?.user.id).gte('fecha', limitStr)
+          ]);
+          checkinsResult = checkinsRemoto || [];
+          bienestarResult = bienestarRemoto || [];
+        } catch (sbErr) {
+          console.warn("Supabase fallback failed in recalcularRachaEnFondo:", sbErr);
+        }
+      }
+
       const allCheckins = checkinsResult || [];
       const allBienestar = (bienestarResult || []).filter(b => {
         const h = JSON.parse(b.habitos || '[]');

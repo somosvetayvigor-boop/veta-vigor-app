@@ -722,11 +722,18 @@ export default function RutinaDetail({ session }) {
     if (logs.length > 0) {
       try {
         const historialId = crypto.randomUUID();
+        // fecha_completado se escribe acá mismo, no se deja para que la ponga
+        // el push -- si el push nunca corre (usuario offline, o cierra la app
+        // antes de que sincronice), esta fila se queda con fecha NULL para
+        // siempre en SQLite local, y MiRutina.jsx la descarta al calcular
+        // Progreso Semanal / Sesión histórica / Último Entrenamiento (17/08,
+        // reporte real: esos tres quedaron en blanco tras entrenar rutina
+        // normal, incluso ya con el fix del crash por fecha nula).
         await DatabaseService.execute(`
-          INSERT INTO historial_entrenamientos (id, user_id, rutina_id, ejercicio_id, series_log, completado, is_dirty)
-          VALUES (?, ?, ?, ?, ?, 1, 1)
-        `, [historialId, session?.user.id, id, ejId, JSON.stringify(logs)]);
-        
+          INSERT INTO historial_entrenamientos (id, user_id, rutina_id, ejercicio_id, series_log, completado, fecha_completado, is_dirty)
+          VALUES (?, ?, ?, ?, ?, 1, ?, 1)
+        `, [historialId, session?.user.id, id, ejId, JSON.stringify(logs), new Date().toISOString()]);
+
         cancelTrainingReminder();
       } catch (err) {
         console.error("Error guardando historial:", err);
