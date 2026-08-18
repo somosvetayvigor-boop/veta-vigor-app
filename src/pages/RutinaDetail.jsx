@@ -4,6 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import DatabaseService from '../services/DatabaseService';
 import { ChevronLeft, PlayCircle, CheckCircle, ChevronRight, X, Loader, Play, Pause } from 'lucide-react';
+import { getResponsiveExerciseImage } from '../utils/imageUtils';
 import { warmupsData } from '../data/warmupsData';
 import { cancelTrainingReminder } from '../utils/ScheduledNotifications';
 import { registrarDiaEntrenado } from '../utils/registrarDiaEntrenado';
@@ -11,7 +12,6 @@ import confetti from 'canvas-confetti';
 
 export default function RutinaDetail({ session }) {
   const { id } = useParams();
-  const isAdmin = session?.user?.email === 'somos.vetayvigor@gmail.com';
   const navigate = useNavigate();
   const [rutina, setRutina] = useState(null);
   const [ejercicios, setEjercicios] = useState([]);
@@ -465,18 +465,19 @@ export default function RutinaDetail({ session }) {
           }).eq('id', session?.user.id).then().catch(e => console.warn('Sync RPG error:', e));
         }
 
-        // Mostrar Animación de Victoria si es Admin
-        if (isAdmin) {
-          setRpgModal({ show: true, xp, forja: puntosForja, stats: statsBonus });
-          setTimeout(() => {
-            confetti({
-              particleCount: 150,
-              spread: 80,
-              origin: { y: 0.6 },
-              colors: ['#D4AF37', '#FFDF00', '#FFFFFF', '#000000']
-            });
-          }, 300);
-        }
+        // Mostrar animación de victoria con el XP/monedas ganados. Antes esto
+        // solo corría "si es Admin" -- el cálculo y guardado de arriba SÍ
+        // corre para cualquier usuario, pero sin este modal nadie más veía
+        // que había ganado algo (17/08, reporte real de un usuario).
+        setRpgModal({ show: true, xp, forja: puntosForja, stats: statsBonus });
+        setTimeout(() => {
+          confetti({
+            particleCount: 150,
+            spread: 80,
+            origin: { y: 0.6 },
+            colors: ['#D4AF37', '#FFDF00', '#FFFFFF', '#000000']
+          });
+        }, 300);
       }
     } catch(e) {
       console.error("Error RPG Engine Update:", e);
@@ -779,11 +780,14 @@ export default function RutinaDetail({ session }) {
           <div style={{ width: '28px' }}></div> {/* Spacer for centering */}
         </div>
 
-        {/* Imagen Banner */}
+        {/* Imagen Visualización Clara */}
         {ej.imagen_url && (
-          <div style={{ width: '100%', height: '220px', overflow: 'hidden', position: 'relative' }}>
-            <img src={ej.imagen_url} alt={ej.nombre} style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.7 }} />
-            <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '80px', background: 'linear-gradient(to top, #111, transparent)' }}></div>
+          <div style={{ width: '100%', display: 'flex', justifyContent: 'center', backgroundColor: '#000', padding: '10px 0', borderBottom: '1px solid rgba(212, 175, 55, 0.2)' }}>
+            <img 
+              src={getResponsiveExerciseImage(ej.imagen_url, 'detail')} 
+              alt={ej.nombre} 
+              style={{ width: '100%', maxWidth: '400px', maxHeight: '400px', objectFit: 'contain', borderRadius: '8px' }} 
+            />
           </div>
         )}
 
@@ -1178,7 +1182,7 @@ export default function RutinaDetail({ session }) {
                 position: 'relative'
               }}>
                 {ej.imagen_url ? (
-                  <img src={ej.imagen_url} style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: isCompleted ? 0.4 : 1 }} />
+                  <img src={getResponsiveExerciseImage(ej.imagen_url, 'thumb')} style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: isCompleted ? 0.4 : 1 }} />
                 ) : (
                   <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 'bold' }}>
                     {item.orden_ejercicio}
