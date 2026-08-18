@@ -415,13 +415,21 @@ export default function MiRutina({ session }) {
         }
       }
 
-      const trainedDays = historialRows ? new Set(historialRows.map(h => h.fecha_completado.split('T')[0])).size : 0;
+      // fecha_completado puede venir null en filas viejas -- sin filtrarlas
+      // acá, una sola fila así hacia que loadRutinas() reventara en este punto
+      // (.split() sobre null) y nunca llegara a recargar las rutinas ni el
+      // caché más abajo (17/08, reporte real: "último entrenamiento"/
+      // "progreso semanal" dejaron de actualizarse, y cambiar de sistema y
+      // volver tampoco lo arreglaba porque el crash pasaba antes de llegar a
+      // esa parte del código).
+      const historialConFecha = (historialTotal || []).filter(h => h.fecha_completado);
+      const trainedDays = historialRows ? new Set(historialRows.map(h => h.fecha_completado?.split('T')[0]).filter(Boolean)).size : 0;
       setDiasEntrenadosSemana(trainedDays);
 
-      if (historialTotal && historialTotal.length > 0) {
-        const uniqueDays = new Set(historialTotal.map(h => h.fecha_completado.split('T')[0]));
+      if (historialConFecha.length > 0) {
+        const uniqueDays = new Set(historialConFecha.map(h => h.fecha_completado.split('T')[0]));
         setTotalEntrenamientos(uniqueDays.size);
-        setUltimoEntrenamiento(historialTotal[0].fecha_completado);
+        setUltimoEntrenamiento(historialConFecha[0].fecha_completado);
       }
 
       // 2. Cargar preferencias guardadas (calendario personalizado)
@@ -496,8 +504,8 @@ export default function MiRutina({ session }) {
           allCalendarios: allCals,
           diasEntrenadosSemana: trainedDays,
           racha: perfilData?.racha_actual || 0,
-          totalEntrenamientos: historialTotal ? new Set(historialTotal.map(h => h.fecha_completado?.split('T')[0])).size : 0,
-          ultimoEntrenamiento: historialTotal?.[0]?.fecha_completado || null
+          totalEntrenamientos: new Set(historialConFecha.map(h => h.fecha_completado.split('T')[0])).size,
+          ultimoEntrenamiento: historialConFecha[0]?.fecha_completado || null
         });
         console.log("✅ Datos guardados en caché local para próximo inicio");
       } catch (cacheErr) {
