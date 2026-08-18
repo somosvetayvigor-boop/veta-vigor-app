@@ -7,6 +7,7 @@ import TuMusicaModal from '../components/TuMusicaModal';
 import { DatabaseManager } from '../utils/DatabaseManager';
 import DatabaseService from '../services/DatabaseService';
 import SyncService from '../services/SyncService';
+import { useWakeLock } from '../utils/useWakeLock';
 
 let globalRutinaSemana = [];
 let globalRutinaTodas = [];
@@ -14,6 +15,7 @@ let globalRutinaCustomCal = {};
 let globalRutinaArticulos = [];
 
 export default function MiRutina({ session }) {
+  useWakeLock();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(globalRutinaSemana.length === 0);
   const [isCheckingStatus, setIsCheckingStatus] = useState(true);

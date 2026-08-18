@@ -7,6 +7,7 @@ import { Capacitor } from '@capacitor/core';
 import { evento, EVENTOS } from '../utils/telemetry';
 import { registrarDiaEntrenado } from '../utils/registrarDiaEntrenado';
 import { bonosAReclamar } from '../utils/rachaBonos';
+import { useWakeLock } from '../utils/useWakeLock';
 import { Share } from '@capacitor/share';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import confetti from 'canvas-confetti';
@@ -51,6 +52,7 @@ const getMensajeVigor = (dia) => {
 };
 
 export default function RutinaRetoPlayer({ diaInfo, perfil, onClose, onComplete }) {
+  useWakeLock();
   const [loading, setLoading] = useState(false);
   const [completed, setCompleted] = useState(false);
   const shareCardRef = useRef(null);
@@ -88,6 +90,7 @@ export default function RutinaRetoPlayer({ diaInfo, perfil, onClose, onComplete 
   // Timer States
   const [timerRunning, setTimerRunning] = useState(false);
   const timerRef = useRef(null);
+  const timerStartRef = useRef(null);
 
   // Habits States
   const [agua, setAgua] = useState(null); // '0', '1', '2'
@@ -139,10 +142,18 @@ export default function RutinaRetoPlayer({ diaInfo, perfil, onClose, onComplete 
   const habitosLlenos = agua !== null && sueno !== null;
   const retoListoParaCompletar = rondasTerminadas && habitosLlenos;
 
+  // Contra un timestamp fijo, no sumando 1 por tick -- mismo patrón ya
+  // probado en RutinaDetail.jsx (targetTimeRef). Un setInterval que solo
+  // suma 1 se atrasa o se congela si el navegador pausa/frena el intervalo
+  // en segundo plano (pasa seguido en Android al salir a poner música);
+  // así, en cambio, cada tick recalcula contra la hora real y se
+  // autocorrige apenas vuelve a primer plano, sin importar cuánto se haya
+  // frenado mientras tanto.
   useEffect(() => {
     if (timerRunning) {
+      timerStartRef.current = Date.now() - time * 1000;
       timerRef.current = setInterval(() => {
-        setTime(prev => prev + 1);
+        setTime(Math.round((Date.now() - timerStartRef.current) / 1000));
       }, 1000);
     } else {
       clearInterval(timerRef.current);

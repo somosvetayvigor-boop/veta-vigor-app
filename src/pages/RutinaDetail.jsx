@@ -8,9 +8,11 @@ import { getResponsiveExerciseImage } from '../utils/imageUtils';
 import { warmupsData } from '../data/warmupsData';
 import { cancelTrainingReminder } from '../utils/ScheduledNotifications';
 import { registrarDiaEntrenado } from '../utils/registrarDiaEntrenado';
+import { useWakeLock } from '../utils/useWakeLock';
 import confetti from 'canvas-confetti';
 
 export default function RutinaDetail({ session }) {
+  useWakeLock();
   const { id } = useParams();
   const navigate = useNavigate();
   const [rutina, setRutina] = useState(null);
@@ -22,19 +24,43 @@ export default function RutinaDetail({ session }) {
   const [isDownloaded, setIsDownloaded] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
 
-  // Active Training States
-  const [activeIndex, setActiveIndex] = useState(null);
-  const [seriesLog, setSeriesLog] = useState({}); // { [ejercicio_id]: [ {serie, reps, peso} ] }
-  
+  // Clave con la fecha de hoy a propósito: si mañana repetís la misma
+  // rutina, no queremos que aparezcan precargadas las series de la vez
+  // pasada como si ya las hubieras hecho hoy.
+  const hoyStr = new Date().toISOString().split('T')[0];
+  const progresoStorageKey = `vigor_rutina_progreso_${session?.user?.id}_${id}_${hoyStr}`;
+
+  // Active Training States (con recuperación de localStorage -- si la app se
+  // cierra o se sale por error a mitad de entreno, no se pierde lo ya
+  // registrado. Reporte real, 17/08: perder las series ya anotadas obliga a
+  // rellenar todo el ejercicio de nuevo de memoria.)
+  const [activeIndex, setActiveIndex] = useState(() => {
+    const saved = localStorage.getItem(progresoStorageKey);
+    return saved ? JSON.parse(saved).activeIndex ?? null : null;
+  });
+  const [seriesLog, setSeriesLog] = useState(() => { // { [ejercicio_id]: [ {serie, reps, peso} ] }
+    const saved = localStorage.getItem(progresoStorageKey);
+    return saved ? JSON.parse(saved).seriesLog || {} : {};
+  });
+
   // Timer States
   const [timeLeft, setTimeLeft] = useState(90);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
-  const wakeLockRef = useRef(null);
   const targetTimeRef = useRef(null);
   const finalizandoRef = useRef(false);
 
   // Form Inputs State { [ejId]: { 1: {kg, reps}, 2: {kg, reps} } }
-  const [formInputs, setFormInputs] = useState({});
+  const [formInputs, setFormInputs] = useState(() => {
+    const saved = localStorage.getItem(progresoStorageKey);
+    return saved ? JSON.parse(saved).formInputs || {} : {};
+  });
+
+  // Guardar en cada cambio -- mismo patrón ya probado en RutinaRetoPlayer.jsx.
+  useEffect(() => {
+    const hayAlgoQueGuardar = Object.keys(seriesLog).length > 0 || Object.keys(formInputs).length > 0;
+    if (!hayAlgoQueGuardar) return;
+    localStorage.setItem(progresoStorageKey, JSON.stringify({ activeIndex, seriesLog, formInputs }));
+  }, [activeIndex, seriesLog, formInputs, progresoStorageKey]);
 
   const [rutinaCompletada, setRutinaCompletada] = useState(false);
   const [rmModal, setRmModal] = useState({ show: false, rmValue: 0, level: '', isTrenSuperior: false, isTrenInferior: false, exerciseName: '', isNewRecord: false });
@@ -166,36 +192,6 @@ export default function RutinaDetail({ session }) {
       setIsDownloading(false);
     }
   };
-
-  // Wake Lock Logic (Mantener pantalla encendida durante todo el entrenamiento)
-  useEffect(() => {
-    const requestWakeLock = async () => {
-      try {
-        if ('wakeLock' in navigator) {
-          wakeLockRef.current = await navigator.wakeLock.request('screen');
-        }
-      } catch (err) {
-        console.log("Wake Lock error:", err);
-      }
-    };
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        requestWakeLock();
-      }
-    };
-
-    requestWakeLock();
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      if (wakeLockRef.current !== null) {
-        wakeLockRef.current.release().catch(console.error);
-        wakeLockRef.current = null;
-      }
-    };
-  }, []);
 
   const playTimerSound = () => {
     try {
@@ -624,6 +620,10 @@ export default function RutinaDetail({ session }) {
         // --- FIN LÓGICA DE GAMIFICACIÓN ---
       }
     }
+
+    // Ya se guardó todo lo registrado (historialEjercicios, arriba) -- limpiar
+    // el respaldo de recuperación de esta sesión para no dejar basura.
+    localStorage.removeItem(progresoStorageKey);
 
     // Mostrar el modal final de felicitaciones (y posiblemente el de level up encima si aplica)
     setRutinaCompletada(true);
