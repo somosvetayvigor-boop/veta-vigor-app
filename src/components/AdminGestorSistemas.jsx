@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { Plus, Trash2, ChevronRight, ChevronLeft, Save, Search } from 'lucide-react';
+import { getResponsiveExerciseImage } from '../utils/imageUtils';
 
 export default function AdminGestorSistemas() {
   const [sistemas, setSistemas] = useState([]);
@@ -315,7 +316,7 @@ export default function AdminGestorSistemas() {
                     {i + 1}
                   </div>
                   <div style={{ width: '50px', height: '50px', borderRadius: '8px', overflow: 'hidden', background: '#333' }}>
-                    {re.ejercicios_biblioteca?.imagen_url && <img src={re.ejercicios_biblioteca.imagen_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                    {re.ejercicios_biblioteca?.imagen_url && <img src={getResponsiveExerciseImage(re.ejercicios_biblioteca.imagen_url, 'thumb')} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
                   </div>
                   <div style={{ flex: 1 }}>
                     <h4 style={{ margin: '0 0 3px 0', fontSize: '1rem' }}>{re.ejercicios_biblioteca?.nombre}</h4>

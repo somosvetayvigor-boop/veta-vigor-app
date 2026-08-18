@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
-import { compressImage } from '../utils/imageUtils';
+import { compressImage, getResponsiveExerciseImage } from '../utils/imageUtils';
 import { ImagePlus, Search, Edit2, Loader2, Check, Link } from 'lucide-react';
 
 export default function AdminBiblioteca() {
@@ -189,7 +189,7 @@ export default function AdminBiblioteca() {
               {/* Miniatura de Imagen */}
               <div style={{ width: '70px', height: '70px', borderRadius: '8px', background: 'rgba(0,0,0,0.5)', overflow: 'hidden', flexShrink: 0, border: '1px solid rgba(212, 175, 55, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 {item.imagen_url ? (
-                  <img src={item.imagen_url} alt={item.nombre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <img src={getResponsiveExerciseImage(item.imagen_url, 'thumb')} alt={item.nombre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 ) : (
                   <ImagePlus size={24} color="#555" />
                 )}

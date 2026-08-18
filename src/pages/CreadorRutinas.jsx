@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Dumbbell, Plus, Search, X, Loader2, Save, ArrowLeft, AlertCircle } from 'lucide-react';
+import { getResponsiveExerciseImage } from '../utils/imageUtils';
 
 export default function CreadorMisións({ session }) {
   const navigate = useNavigate();
@@ -223,7 +224,7 @@ export default function CreadorMisións({ session }) {
                 style={{ background: 'rgba(255,255,255,0.05)', padding: '15px', borderRadius: '12px', color: 'white', display: 'flex', alignItems: 'center', gap: '15px' }}
               >
                 {ej.imagen_url ? (
-                  <img src={ej.imagen_url} alt={ej.nombre} style={{ width: '50px', height: '50px', borderRadius: '8px', objectFit: 'cover' }} />
+                  <img src={getResponsiveExerciseImage(ej.imagen_url, 'thumb')} alt={ej.nombre} style={{ width: '50px', height: '50px', borderRadius: '8px', objectFit: 'cover' }} />
                 ) : (
                   <div style={{ width: '50px', height: '50px', borderRadius: '8px', background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <Dumbbell size={20} color="#888" />

@@ -37,3 +37,22 @@ export const compressImage = (file) => {
     };
   });
 };
+
+export const getResponsiveExerciseImage = (imagenUrl, size = 'thumb') => {
+  if (!imagenUrl) return null;
+  
+  // Si es un JSON string (Release A)
+  if (imagenUrl.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(imagenUrl);
+      return parsed[size] || parsed['detail'] || parsed['thumb'] || null;
+    } catch (e) {
+      console.warn('Error parsing JSON image url', e);
+      return null;
+    }
+  }
+  
+  // Si es una URL normal o legacy
+  return imagenUrl;
+};
+
