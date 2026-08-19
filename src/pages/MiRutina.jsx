@@ -42,6 +42,9 @@ export default function MiRutina({ session }) {
   const [coachBrand, setCoachBrand] = useState(null);
   const [ultimoEntrenamiento, setUltimoEntrenamiento] = useState(null);
   const [planFrescoServidor, setPlanFrescoServidor] = useState(null);
+  const [retoActivoId, setRetoActivoId] = useState(null);
+  const [retoCompletado, setRetoCompletado] = useState(false);
+  const [tieneAccesoPlatinum, setTieneAccesoPlatinum] = useState(false);
 
   // VIP check (necesario antes de detectar día de descanso). suscripcion
   // sale primero de user_metadata (rápido, puede estar cacheado) y luego se
@@ -57,7 +60,9 @@ export default function MiRutina({ session }) {
                 localStorage.getItem('user_role') === 'alumno_entrenador' ||
                 suscripcion?.includes('Entrenador Pro') ||
                 suscripcion?.includes('Entrenador Élite') ||
-                ['Socio Argentum', 'Socio Aurum', 'Plan Platinum', 'Socio Fundador Vitalicio', 'Prueba Gratis (7 Días)'].includes(suscripcion);
+                ['Socio Argentum', 'Socio Aurum', 'Plan Platinum', 'Socio Fundador Vitalicio', 'Prueba Gratis (7 Días)'].includes(suscripcion) ||
+                tieneAccesoPlatinum ||
+                (!!retoActivoId && !retoCompletado);
 
   // Día de descanso según el calendario fijo semanal (Lunes=idx0 ... Domingo=idx6),
   // mismo cálculo de "hoy" que usa loadRutinas() para la semana en curso. Se
@@ -95,10 +100,20 @@ export default function MiRutina({ session }) {
   // tanto.
   useEffect(() => {
     if (!session?.user?.id || !navigator.onLine) return;
-    supabase.from('perfiles').select('plan_membresia').eq('id', session.user.id).single()
+    supabase.from('perfiles').select('plan_membresia, reto_activo_id, reto_completado').eq('id', session.user.id).single()
       .then(({ data }) => {
         if (data?.plan_membresia) setPlanFrescoServidor(data.plan_membresia);
+        setRetoActivoId(data?.reto_activo_id || null);
+        setRetoCompletado(!!data?.reto_completado);
       })
+      .catch(() => {});
+    // tiene_acceso_platinum() ya revisa los 4 planes pagos + el 'Platinum'
+    // del trial + la fecha de vencimiento en un solo lugar del servidor
+    // (18/08) -- la lista local de arriba no reconoce 'Platinum' (sin
+    // "Plan "), así que un trial recién otorgado se quedaba sin VIP acá
+    // hasta que algo más lo corrigiera.
+    supabase.rpc('tiene_acceso_platinum')
+      .then(({ data }) => setTieneAccesoPlatinum(!!data))
       .catch(() => {});
   }, [session?.user?.id]);
 

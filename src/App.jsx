@@ -151,7 +151,7 @@ function App() {
       // 2. Sincronización en segundo plano con Supabase
       const { data: rolData, error } = await supabase
         .from('perfiles')
-        .select('rol_usuario, plan_membresia, force_paywall, force_platinum_trial, platinum_trial_ends_at')
+        .select('rol_usuario, plan_membresia, force_paywall, force_platinum_trial, platinum_trial_ends_at, reto_activo_id, reto_completado')
         .eq('id', user.id)
         .maybeSingle();
 
@@ -258,7 +258,29 @@ function App() {
         } else {
           const athletePaidPlans = ['Socio Argentum', 'Socio Aurum', 'Plan Platinum', 'Socio Fundador Vitalicio'];
           const hasAthletePlan = athletePaidPlans.some(p => (rolData.plan_membresia || '').includes(p));
-          setShowPaywall(!hasAthletePlan);
+
+          // La lista de arriba no reconoce 'Platinum' (el trial, sin "Plan "
+          // — activar_trial_platinum() lo escribe así a propósito, distinto
+          // del plan pago) ni al inscrito en el Reto21, que Comunidad.jsx sí
+          // deja pasar por su cuenta pero nunca llega a esa pantalla si acá
+          // se bloquea la app entera primero. tiene_acceso_platinum() ya
+          // existe en el servidor y revisa los 4 planes pagos + 'Platinum' +
+          // la fecha de vencimiento en un solo lugar (18/08).
+          let accesoPlatinum = false;
+          try {
+            const { data } = await supabase.rpc('tiene_acceso_platinum');
+            accesoPlatinum = !!data;
+          } catch (e) {
+            console.warn('tiene_acceso_platinum falló, se sigue solo con la lista local:', e);
+          }
+          // reto_activo_id nunca se limpia a null al terminar el reto (solo
+          // se marca reto_completado aparte) -- sin el && de abajo, quien ya
+          // terminó el Reto21 seguiría destrabando el paywall para siempre,
+          // sin importar si su regalo de 7 días de Platino (si le tocó) ya
+          // venció.
+          const estaEnReto = !!rolData.reto_activo_id && !rolData.reto_completado;
+
+          setShowPaywall(!(hasAthletePlan || accesoPlatinum || estaEnReto));
         }
       } else {
         setShowPaywall(false);
