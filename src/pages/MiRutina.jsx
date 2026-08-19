@@ -59,6 +59,13 @@ export default function MiRutina({ session }) {
                 suscripcion?.includes('Entrenador Élite') ||
                 ['Socio Argentum', 'Socio Aurum', 'Plan Platinum', 'Socio Fundador Vitalicio', 'Prueba Gratis (7 Días)'].includes(suscripcion);
 
+  // Día de descanso según el calendario fijo semanal (Lunes=idx0 ... Domingo=idx6),
+  // mismo cálculo de "hoy" que usa loadRutinas() para la semana en curso. Se
+  // recalcula en cada render a partir de `semana` -- no un useState propio,
+  // así nunca queda vieja.
+  const todayIdx = (new Date().getDay() || 7) - 1;
+  const esHoyDescanso = semana[todayIdx]?.isDescanso === true;
+
   // Estados para modales
   const [showModal, setShowModal] = useState(false);
   const [showTuMusica, setShowTuMusica] = useState(false);
@@ -69,8 +76,6 @@ export default function MiRutina({ session }) {
   const [bienestarDone, setBienestarDone] = useState(false);
   const [savingBienestar, setSavingBienestar] = useState(false);
   const [showingBienestarCheckin, setShowingBienestarCheckin] = useState(false);
-  const [intencionDescanso, setIntencionDescanso] = useState(false);
-  const [entrenoHoy, setEntrenoHoy] = useState(false);
   
   // Novedades / Explora
   const [articulosState, setArticulosState] = useState(globalRutinaArticulos);
@@ -241,7 +246,6 @@ export default function MiRutina({ session }) {
       const checkinData = checkinResult.length > 0 ? checkinResult[0] : null;
       if (checkinData) {
         setHasCheckedInToday(true);
-        setEntrenoHoy(true);
       }
 
       const bienestarData = bienestarTodayResult.length > 0 ? bienestarTodayResult[0] : null;
@@ -695,7 +699,6 @@ export default function MiRutina({ session }) {
       }
 
       setHasCheckedInToday(true);
-      setEntrenoHoy(true);
     } catch (error) {
       console.error("Error saving checkin:", error);
       setHasCheckedInToday(true);
@@ -797,7 +800,7 @@ export default function MiRutina({ session }) {
   };
 
   const renderBienestarSummary = () => {
-    if (!bienestarDone || entrenoHoy) return null;
+    if (!bienestarDone || !esHoyDescanso) return null;
     return (
       <div 
         onClick={() => navigate('/historial', { state: { tab: 'bienestar' } })}
@@ -961,27 +964,6 @@ export default function MiRutina({ session }) {
                 <span style={descStyle}>Necesito recuperación.</span>
               </div>
             </div>
-            
-            {esVIP && (
-              <button 
-                onClick={(e) => {
-                  e.preventDefault();
-                  setIntencionDescanso(true);
-                  setHasCheckedInToday(true);
-                  setEntrenoHoy(false);
-                }}
-                style={{
-                  background: 'linear-gradient(135deg, rgba(212, 175, 55, 0.1) 0%, rgba(212, 175, 55, 0.05) 100%)',
-                  border: '1px dashed var(--accent-gold)',
-                  borderRadius: '12px', padding: '15px',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
-                  cursor: 'pointer', marginTop: '10px', width: '100%'
-                }}
-              >
-                <span style={{ fontSize: '1.5rem' }}>🧘</span>
-                <span className="gold-gradient-text" style={{ fontWeight: 'bold', fontSize: '1rem' }}>Hoy es mi día de descanso</span>
-              </button>
-            )}
           </div>
         </div>
       </div>
@@ -1347,7 +1329,7 @@ export default function MiRutina({ session }) {
       )}
 
       {/* Registro de Bienestar (si hay intención de descanso) */}
-      {intencionDescanso && !bienestarDone && (
+      {esVIP && esHoyDescanso && !bienestarDone && (
         <div style={{ marginBottom: '30px' }}>
           {!showingBienestarCheckin ? (
             <button 

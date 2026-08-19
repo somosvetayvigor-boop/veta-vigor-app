@@ -21,8 +21,6 @@ export default function RutinaDetail({ session }) {
   const [showWarmups, setShowWarmups] = useState(false);
   const [unlockWarningModal, setUnlockWarningModal] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [isDownloaded, setIsDownloaded] = useState(false);
-  const [isDownloading, setIsDownloading] = useState(false);
 
   // Clave con la fecha de hoy a propósito: si mañana repetís la misma
   // rutina, no queremos que aparezcan precargadas las series de la vez
@@ -161,37 +159,10 @@ export default function RutinaDetail({ session }) {
 
       setWarmups(warmupsArray);
       
-      const { obtenerRutinaLocal } = await import('../utils/LocalDB');
-      const localData = await obtenerRutinaLocal(id);
-      if (localData) {
-        setIsDownloaded(true);
-      }
-      
       setLoading(false);
     }
     fetchData();
   }, [id, session]);
-
-  const descargarParaOffline = async () => {
-    setIsDownloading(true);
-    try {
-      const { guardarRutinaLocal } = await import('../utils/LocalDB');
-      await guardarRutinaLocal(id, {
-        rutina,
-        ejercicios,
-        warmups,
-        seriesLog,
-        formInputs
-      });
-      setIsDownloaded(true);
-      alert('✅ Rutina descargada correctamente para usarla sin internet.');
-    } catch (e) {
-      console.error(e);
-      alert('❌ Hubo un error al guardar la rutina.');
-    } finally {
-      setIsDownloading(false);
-    }
-  };
 
   const playTimerSound = () => {
     try {
@@ -1155,29 +1126,8 @@ export default function RutinaDetail({ session }) {
       )}
 
       <div style={{ display: 'flex', gap: '10px', marginBottom: '30px' }}>
-        <button onClick={() => setActiveIndex(0)} className="btn-primary" style={{ flex: 2, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}>
+        <button onClick={() => setActiveIndex(0)} className="btn-primary" style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}>
           <PlayCircle /> INICIAR ENTRENAMIENTO
-        </button>
-        
-        <button 
-          onClick={descargarParaOffline} 
-          disabled={isDownloading || !navigator.onLine}
-          style={{ 
-            flex: 1, 
-            display: 'flex', 
-            justifyContent: 'center', 
-            alignItems: 'center', 
-            gap: '5px', 
-            padding: '10px',
-            borderRadius: '12px',
-            border: isDownloaded ? '1px solid #2ecc71' : '1px solid rgba(255,255,255,0.2)',
-            background: isDownloaded ? 'rgba(46, 204, 113, 0.1)' : 'rgba(255,255,255,0.05)',
-            color: isDownloaded ? '#2ecc71' : '#ccc',
-            fontSize: '0.8rem',
-            cursor: (isDownloading || !navigator.onLine) ? 'not-allowed' : 'pointer'
-          }}
-        >
-          {isDownloading ? <Loader className="fa-spin" size={18} /> : (isDownloaded ? <><CheckCircle size={18} /> Guardada</> : <><i className="fa-solid fa-download"></i> Descargar</>)}
         </button>
       </div>
 
