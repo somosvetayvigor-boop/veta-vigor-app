@@ -729,10 +729,33 @@ export default function RutinaDetail({ session }) {
         // Progreso Semanal / Sesión histórica / Último Entrenamiento (17/08,
         // reporte real: esos tres quedaron en blanco tras entrenar rutina
         // normal, incluso ya con el fix del crash por fecha nula).
+        const fechaCompletado = new Date().toISOString();
         await DatabaseService.execute(`
           INSERT INTO historial_entrenamientos (id, user_id, rutina_id, ejercicio_id, series_log, completado, fecha_completado, is_dirty)
           VALUES (?, ?, ?, ?, ?, 1, ?, 1)
-        `, [historialId, session?.user.id, id, ejId, JSON.stringify(logs), new Date().toISOString()]);
+        `, [historialId, session?.user.id, id, ejId, JSON.stringify(logs), fechaCompletado]);
+
+        // Empuje inmediato, best-effort -- igual que ya hace handleCheckin()
+        // en MiRutina.jsx con checkins. Sin esto, esta fila dependía por
+        // completo del próximo ciclo de SyncService.pushData(), que puede no
+        // llegar a correr si el usuario cierra la app pronto (18/08, reporte
+        // real: el historial nunca aparecía en la pantalla de Historial, que
+        // lee directo de Supabase sin pasar por el caché local).
+        if (navigator.onLine) {
+          supabase.from('historial_entrenamientos').insert([{
+            id: historialId,
+            user_id: session?.user.id,
+            rutina_id: id,
+            ejercicio_id: ejId,
+            series_log: logs,
+            completado: true,
+            fecha_completado: fechaCompletado
+          }]).then(({ error }) => {
+            if (!error) {
+              DatabaseService.execute(`UPDATE historial_entrenamientos SET is_dirty = 0 WHERE id = ?`, [historialId]);
+            }
+          });
+        }
 
         cancelTrainingReminder();
       } catch (err) {

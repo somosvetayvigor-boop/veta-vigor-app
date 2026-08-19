@@ -203,7 +203,16 @@ export default function MiRutina({ session }) {
       // check-in no había llegado a SQLite, la app no tenía forma de enterarse de
       // que en el servidor sí existía, y volvía a preguntar la disposición aunque
       // el usuario ya la hubiera contestado.
-      if ((!checkinResult || checkinResult.length === 0) && navigator.onLine) {
+      //
+      // Ya NO se exige navigator.onLine acá (18/08, reporte real: la tabla de
+      // disposición volvía a salir SIEMPRE que se mataba el proceso de la app y
+      // se reabría, nunca solo al minimizarla). navigator.onLine puede reportar
+      // false por error justo al arrancar en frío un WebView de Android, antes
+      // de que termine de detectar la conexión real -- si eso pasaba acá, este
+      // respaldo se saltaba entero aunque hubiera internet de verdad. Ahora se
+      // intenta siempre que el local esté vacío; si en verdad no hay conexión,
+      // el fetch falla solo y cae al catch de abajo, sin romper nada.
+      if (!checkinResult || checkinResult.length === 0) {
         console.log("⚠️ checkTodayStatus: SQLite vacío, leyendo de Supabase...");
         try {
           const [checkinRes, perfilRes, bienestarRes] = await Promise.all([
@@ -724,6 +733,22 @@ export default function MiRutina({ session }) {
       const checkinId = crypto.randomUUID();
       await DatabaseService.execute(`INSERT INTO checkins_bienestar (id, user_id, fecha, habitos, is_dirty) VALUES (?, ?, ?, ?, 1)`, [checkinId, session?.user.id, todayStr, JSON.stringify(bienestarHabitos)]);
       setBienestarDone(true);
+
+      // Empuje inmediato, best-effort -- mismo motivo que en
+      // RutinaDetail.jsx: sin esto, esta fila dependía por completo del
+      // próximo ciclo de SyncService.pushData(), que puede no llegar a
+      // correr si el usuario cierra la app pronto (18/08, reporte real: la
+      // pestaña Bienestar de Historial.jsx, que lee directo de Supabase,
+      // nunca mostraba los días de descanso registrados).
+      if (navigator.onLine) {
+        supabase.from('checkins_bienestar').upsert({
+          id: checkinId, user_id: session?.user.id, fecha: todayStr, habitos: bienestarHabitos
+        }).then(({ error }) => {
+          if (!error) {
+            DatabaseService.execute(`UPDATE checkins_bienestar SET is_dirty = 0 WHERE id = ?`, [checkinId]);
+          }
+        });
+      }
 
       // === INYECCIÓN RPG ENGINE (Recompensas por Descanso) ===
       try {
