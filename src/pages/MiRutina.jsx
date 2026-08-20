@@ -320,7 +320,7 @@ export default function MiRutina({ session }) {
 
       // PASO B: Recálculo profundo EN SEGUNDO PLANO (no bloquea la UI)
       // Esto verifica si se perdió un día y consume la Ficha de Reposo si aplica
-      recalcularRachaEnFondo(todayStr, checkinData);
+      recalcularRachaEnFondo(todayStr);
     } catch (error) {
       console.warn("Error on startup local check:", error);
     }
@@ -332,26 +332,48 @@ export default function MiRutina({ session }) {
       let checkinsResult = await DatabaseService.query(`SELECT fecha FROM checkins WHERE user_id = ? ORDER BY fecha DESC LIMIT 30`, [session?.user.id]);
       let bienestarResult = await DatabaseService.query(`SELECT fecha, habitos FROM checkins_bienestar WHERE user_id = ? ORDER BY fecha DESC LIMIT 30`, [session?.user.id]);
 
-      // FALLBACK: si el SQLite local no tiene nada (dispositivo nuevo o que
-      // llevaba tiempo sin sincronizar), preguntarle a Supabase antes de
-      // asumir racha 0 -- a diferencia de checkTodayStatus/loadRutinas, este
-      // cálculo no tenía respaldo de red, y como el resultado se GUARDA
-      // (is_dirty=1, más abajo), un local vacío podía pisar con un 0 la
-      // racha real que sí existía en el servidor.
-      if ((!checkinsResult || checkinsResult.length === 0) && (!bienestarResult || bienestarResult.length === 0) && navigator.onLine) {
+      // Se pregunta al servidor SIEMPRE que hay internet, en vez de solo
+      // cuando el local "parece vacío" (20/08: ese heurístico fallaba de dos
+      // formas distintas -- 1) checkTodayStatus ya deja una fila de HOY en
+      // `checkins` en casi cada apertura, así que "vacío" casi nunca era
+      // cierto aunque el resto del historial real siguiera sin sincronizar
+      // localmente; 2) esa fila persiste todo el día en SQLite, así que una
+      // vez que el local se veía "no vacío" una vez, se quedaba así el resto
+      // del día en cada apertura siguiente, sin importar cuándo se midiera.
+      // Dos consultas chicas de más por apertura es un costo aceptable por
+      // la certeza de que la Llama Viva —una mecánica de juego visible—
+      // siempre refleje el historial real, no una lectura local a medias.
+      if (navigator.onLine) {
         try {
           const limitDate = new Date();
           limitDate.setDate(limitDate.getDate() - 30);
           const limitStr = limitDate.toISOString().split('T')[0];
-          const [{ data: checkinsRemoto }, { data: bienestarRemoto }] = await Promise.all([
-            supabase.from('checkins').select('fecha').eq('user_id', session?.user.id).gte('fecha', limitStr),
-            supabase.from('checkins_bienestar').select('fecha, habitos').eq('user_id', session?.user.id).gte('fecha', limitStr)
+          const [{ data: checkinsRemoto, error: errCheckins }, { data: bienestarRemoto, error: errBienestar }] = await Promise.all([
+            supabase.from('checkins').select('id, fecha, nivel').eq('user_id', session?.user.id).gte('fecha', limitStr),
+            supabase.from('checkins_bienestar').select('id, fecha, habitos').eq('user_id', session?.user.id).gte('fecha', limitStr)
           ]);
+          if (errCheckins || errBienestar) throw (errCheckins || errBienestar);
+
           checkinsResult = checkinsRemoto || [];
           bienestarResult = bienestarRemoto || [];
+          console.log(`[Racha] Servidor: ${checkinsResult.length} checkins, ${bienestarResult.length} bienestar en los últimos 30 días.`);
+
+          // Devolver lo encontrado a SQLite (igual que hace SyncService.pullData
+          // con estas mismas tablas), para que quede disponible localmente
+          // aunque la próxima apertura no tenga red.
+          await DatabaseService.executeBatch(
+            `INSERT OR REPLACE INTO checkins (id, user_id, fecha, nivel, is_dirty) VALUES (?, ?, ?, ?, 0)`,
+            checkinsResult.map(c => [c.id, session?.user.id, c.fecha, c.nivel])
+          );
+          await DatabaseService.executeBatch(
+            `INSERT OR REPLACE INTO checkins_bienestar (id, user_id, fecha, habitos, is_dirty) VALUES (?, ?, ?, ?, 0)`,
+            bienestarResult.map(b => [b.id, session?.user.id, b.fecha, JSON.stringify(b.habitos)])
+          );
         } catch (sbErr) {
-          console.warn("Supabase fallback failed in recalcularRachaEnFondo:", sbErr);
+          console.warn("[Racha] Fetch al servidor falló, se usa el local:", sbErr);
         }
+      } else {
+        console.log(`[Racha] Sin conexión, usando local: ${checkinsResult.length} checkins, ${bienestarResult.length} bienestar.`);
       }
 
       const allCheckins = checkinsResult || [];
@@ -359,6 +381,7 @@ export default function MiRutina({ session }) {
         const h = JSON.parse(b.habitos || '[]');
         return h.length >= 2;
       });
+      console.log(`[Racha] Calculando desde hoy=${todayStr} con ${allCheckins.length} checkins + ${allBienestar.length} bienestar utilizables:`, allCheckins.map(c => c.fecha));
         
       if (allCheckins.length > 0 || allBienestar.length > 0) {
         let currentStreak = 0;
@@ -401,17 +424,19 @@ export default function MiRutina({ session }) {
           }
         }
         // Actualizar pantalla silenciosamente solo si el resultado cambió
+        console.log(`[Racha] Resultado final: ${currentStreak}`);
         setRacha(currentStreak);
 
         // Guardar la racha actualizada en perfiles para que los aliados (Dúos) puedan verla
         await DatabaseService.execute(`UPDATE perfiles SET racha_actual = ?, is_dirty = 1 WHERE id = ?`, [currentStreak, session?.user.id]);
       } else {
+        console.log(`[Racha] Sin checkins ni bienestar en absoluto, racha = 0.`);
         // Si no hay NINGUN checkin en los ultimos 30 dias, la racha es definitivamente 0
         setRacha(0);
         await DatabaseService.execute(`UPDATE perfiles SET racha_actual = ?, is_dirty = 1 WHERE id = ?`, [0, session?.user.id]);
       }
     } catch (error) {
-      console.warn("Background streak recalculation error (non-blocking):", error);
+      console.warn("[Racha] Background streak recalculation error (non-blocking):", error);
     }
   };
 
