@@ -1,4 +1,13 @@
 apply plugin: 'com.android.application'
+apply plugin: 'kotlin-android'
+
+kotlin {
+    // capacitor.build.gradle (autogenerado) ya fija Java 21 como
+    // sourceCompatibility/targetCompatibility -- sin esto, Kotlin puede
+    // compilar contra un JVM target distinto y Gradle lo rechaza con
+    // "Inconsistent JVM-target compatibility".
+    jvmToolchain(21)
+}
 
 android {
     namespace = "dev.workers.somos_vetayvigor.vetayvigor_assetlinks.twa"

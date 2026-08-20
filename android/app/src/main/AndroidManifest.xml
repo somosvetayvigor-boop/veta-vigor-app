@@ -35,6 +35,20 @@
             android:grantUriPermissions="true">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
         </provider>
+
+        <!-- Widget de pantalla de inicio: racha + rutina de hoy.
+             android:exported="true" es obligatorio desde targetSdkVersion 31+
+             para cualquier componente con intent-filter (sin esto el build falla). -->
+        <receiver
+            android:name=".VetaVigorWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/veta_vigor_widget_info" />
+        </receiver>
     </application>
 
     <!-- Permissions -->

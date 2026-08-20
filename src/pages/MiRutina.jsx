@@ -8,6 +8,7 @@ import { DatabaseManager } from '../utils/DatabaseManager';
 import DatabaseService from '../services/DatabaseService';
 import SyncService from '../services/SyncService';
 import { useWakeLock } from '../utils/useWakeLock';
+import { actualizarWidget } from '../utils/widgetBridge';
 
 let globalRutinaSemana = [];
 let globalRutinaTodas = [];
@@ -116,6 +117,15 @@ export default function MiRutina({ session }) {
       .then(({ data }) => setTieneAccesoPlatinum(!!data))
       .catch(() => {});
   }, [session?.user?.id]);
+
+  // Widget de pantalla de inicio (Android): manda la racha y la rutina de
+  // hoy cada vez que cambian, para que se vean sin abrir la app. No hace
+  // nada en web -- actualizarWidget() ya revisa Capacitor.isNativePlatform().
+  useEffect(() => {
+    const diaHoy = semana[todayIdx];
+    const rutinaHoyTexto = diaHoy?.isDescanso ? 'Descanso' : (diaHoy?.nombre || '—');
+    actualizarWidget({ racha, rutinaHoy: rutinaHoyTexto });
+  }, [racha, semana, todayIdx]);
 
   useEffect(() => {
     let safetyTimer = null;

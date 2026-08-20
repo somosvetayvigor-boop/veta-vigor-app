@@ -1,4 +1,9 @@
 ext {
+    // Unifica el Kotlin que usan los plugins ya instalados con Kotlin
+    // (camera/filesystem caen en 2.2.20 por su cuenta si no encuentran esta
+    // variable, local-notifications cae en 2.0.21) -- y el que ahora
+    // también necesita el módulo :app para el widget de Android.
+    kotlin_version = '2.2.20'
     minSdkVersion = 24
     compileSdkVersion = 36
     targetSdkVersion = 36

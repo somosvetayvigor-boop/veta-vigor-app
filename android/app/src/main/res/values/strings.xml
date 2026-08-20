@@ -4,4 +4,5 @@
     <string name="title_activity_main">Veta &amp; Vigor</string>
     <string name="package_name">dev.workers.somos_vetayvigor.vetayvigor_assetlinks.twa</string>
     <string name="custom_url_scheme">dev.workers.somos_vetayvigor.vetayvigor_assetlinks.twa</string>
+    <string name="widget_description">Tu racha y la rutina de hoy</string>
 </resources>
