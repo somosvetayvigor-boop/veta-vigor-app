@@ -8,7 +8,8 @@ import android.content.Intent
 import android.widget.RemoteViews
 
 /**
- * Widget de pantalla de inicio: racha (La Llama Viva) + rutina de hoy.
+ * Widget de pantalla de inicio: racha (La Llama Viva), nivel (madera),
+ * rutina de hoy, y último entrenamiento.
  *
  * No lee el SQLite de la app directo -- leer los datos ya calculados por
  * MiRutina.jsx desde SharedPreferences (escritos vía @capacitor/preferences,
@@ -24,15 +25,21 @@ class VetaVigorWidgetProvider : AppWidgetProvider() {
         private const val PREFS_GROUP = "VetaVigorWidget"
         private const val KEY_RACHA = "racha"
         private const val KEY_RUTINA_HOY = "rutinaHoy"
+        private const val KEY_NIVEL = "nivel"
+        private const val KEY_ULTIMO_ENTRENAMIENTO = "ultimoEntrenamiento"
 
         private fun updateAppWidget(context: Context, appWidgetManager: AppWidgetManager, appWidgetId: Int) {
             val prefs = context.getSharedPreferences(PREFS_GROUP, Context.MODE_PRIVATE)
-            val racha = prefs.getString(KEY_RACHA, "0") ?: "0"
+            val racha = prefs.getString(KEY_RACHA, "0 días") ?: "0 días"
             val rutinaHoy = prefs.getString(KEY_RUTINA_HOY, "—") ?: "—"
+            val nivel = prefs.getString(KEY_NIVEL, "Semilla") ?: "Semilla"
+            val ultimoEntrenamiento = prefs.getString(KEY_ULTIMO_ENTRENAMIENTO, "Sin registros") ?: "Sin registros"
 
             val views = RemoteViews(context.packageName, R.layout.veta_vigor_widget)
             views.setTextViewText(R.id.widget_racha, racha)
-            views.setTextViewText(R.id.widget_rutina_hoy, rutinaHoy)
+            views.setTextViewText(R.id.widget_nivel, "Nivel: $nivel")
+            views.setTextViewText(R.id.widget_rutina_hoy, "Hoy: $rutinaHoy")
+            views.setTextViewText(R.id.widget_ultimo_entrenamiento, "Último: $ultimoEntrenamiento")
 
             val launchIntent = Intent(context, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP

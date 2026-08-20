@@ -118,14 +118,25 @@ export default function MiRutina({ session }) {
       .catch(() => {});
   }, [session?.user?.id]);
 
-  // Widget de pantalla de inicio (Android): manda la racha y la rutina de
-  // hoy cada vez que cambian, para que se vean sin abrir la app. No hace
-  // nada en web -- actualizarWidget() ya revisa Capacitor.isNativePlatform().
+  // Widget de pantalla de inicio (Android): manda la racha, la rutina de
+  // hoy, el nivel y el último entrenamiento cada vez que cambian, para que
+  // se vean sin abrir la app. No hace nada en web -- actualizarWidget() ya
+  // revisa Capacitor.isNativePlatform().
   useEffect(() => {
     const diaHoy = semana[todayIdx];
     const rutinaHoyTexto = diaHoy?.isDescanso ? 'Descanso' : (diaHoy?.nombre || '—');
-    actualizarWidget({ racha, rutinaHoy: rutinaHoyTexto });
-  }, [racha, semana, todayIdx]);
+    const nivelTexto = session?.user?.user_metadata?.nivel || 'Semilla';
+
+    let ultimoTexto = 'Sin registros';
+    if (ultimoEntrenamiento) {
+      const dias = Math.floor(
+        (new Date().setHours(0, 0, 0, 0) - new Date(ultimoEntrenamiento).setHours(0, 0, 0, 0)) / 86400000
+      );
+      ultimoTexto = dias <= 0 ? 'Hoy' : dias === 1 ? 'Ayer' : `Hace ${dias} días`;
+    }
+
+    actualizarWidget({ racha, rutinaHoy: rutinaHoyTexto, nivel: nivelTexto, ultimoEntrenamiento: ultimoTexto });
+  }, [racha, semana, todayIdx, session?.user?.user_metadata?.nivel, ultimoEntrenamiento]);
 
   useEffect(() => {
     let safetyTimer = null;
