@@ -27,6 +27,7 @@ class VetaVigorWidgetProvider : AppWidgetProvider() {
         private const val KEY_RUTINA_HOY = "rutinaHoy"
         private const val KEY_NIVEL = "nivel"
         private const val KEY_ULTIMO_ENTRENAMIENTO = "ultimoEntrenamiento"
+        private const val KEY_PROGRESO_SEMANAL = "progresoSemanal"
 
         private fun updateAppWidget(context: Context, appWidgetManager: AppWidgetManager, appWidgetId: Int) {
             val prefs = context.getSharedPreferences(PREFS_GROUP, Context.MODE_PRIVATE)
@@ -34,12 +35,19 @@ class VetaVigorWidgetProvider : AppWidgetProvider() {
             val rutinaHoy = prefs.getString(KEY_RUTINA_HOY, "—") ?: "—"
             val nivel = prefs.getString(KEY_NIVEL, "Semilla") ?: "Semilla"
             val ultimoEntrenamiento = prefs.getString(KEY_ULTIMO_ENTRENAMIENTO, "Sin registros") ?: "Sin registros"
+            val progresoSemanal = prefs.getString(KEY_PROGRESO_SEMANAL, "") ?: ""
 
             val views = RemoteViews(context.packageName, R.layout.veta_vigor_widget)
             views.setTextViewText(R.id.widget_racha, racha)
             views.setTextViewText(R.id.widget_nivel, "Nivel: $nivel")
             views.setTextViewText(R.id.widget_rutina_hoy, "Hoy: $rutinaHoy")
             views.setTextViewText(R.id.widget_ultimo_entrenamiento, "Último: $ultimoEntrenamiento")
+            if (progresoSemanal.isNotBlank()) {
+                views.setTextViewText(R.id.widget_progreso_semanal, "Semana: $progresoSemanal")
+                views.setViewVisibility(R.id.widget_progreso_semanal, android.view.View.VISIBLE)
+            } else {
+                views.setViewVisibility(R.id.widget_progreso_semanal, android.view.View.GONE)
+            }
 
             val launchIntent = Intent(context, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP

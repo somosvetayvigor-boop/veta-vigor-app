@@ -119,9 +119,9 @@ export default function MiRutina({ session }) {
   }, [session?.user?.id]);
 
   // Widget de pantalla de inicio (Android): manda la racha, la rutina de
-  // hoy, el nivel y el último entrenamiento cada vez que cambian, para que
-  // se vean sin abrir la app. No hace nada en web -- actualizarWidget() ya
-  // revisa Capacitor.isNativePlatform().
+  // hoy, el nivel, el último entrenamiento y el progreso semanal cada vez
+  // que cambian, para que se vean sin abrir la app. No hace nada en web --
+  // actualizarWidget() ya revisa Capacitor.isNativePlatform().
   useEffect(() => {
     const diaHoy = semana[todayIdx];
     const rutinaHoyTexto = diaHoy?.isDescanso ? 'Descanso' : (diaHoy?.nombre || '—');
@@ -135,8 +135,27 @@ export default function MiRutina({ session }) {
       ultimoTexto = dias <= 0 ? 'Hoy' : dias === 1 ? 'Ayer' : `Hace ${dias} días`;
     }
 
-    actualizarWidget({ racha, rutinaHoy: rutinaHoyTexto, nivel: nivelTexto, ultimoEntrenamiento: ultimoTexto });
-  }, [racha, semana, todayIdx, session?.user?.user_metadata?.nivel, ultimoEntrenamiento]);
+    // Misma cuenta de meta semanal que renderSemaforo() más abajo: si es
+    // alumno de entrenador, la meta son los días con rutina personalizada
+    // asignada (customCal); si no, viene de dias_entrenamiento del perfil.
+    const isAlumno = localStorage.getItem('user_role') === 'alumno_entrenador';
+    let goalDays = 4;
+    if (isAlumno) {
+      goalDays = Object.values(customCal).filter(id => id).length || 1;
+    } else {
+      const metaStr = session?.user?.user_metadata?.dias_entrenamiento || '>3';
+      goalDays = metaStr === '3' ? 3 : 4;
+    }
+    const progresoSemanalTexto = `${diasEntrenadosSemana}/${goalDays} días`;
+
+    actualizarWidget({
+      racha,
+      rutinaHoy: rutinaHoyTexto,
+      nivel: nivelTexto,
+      ultimoEntrenamiento: ultimoTexto,
+      progresoSemanal: progresoSemanalTexto,
+    });
+  }, [racha, semana, todayIdx, session?.user?.user_metadata?.nivel, session?.user?.user_metadata?.dias_entrenamiento, ultimoEntrenamiento, diasEntrenadosSemana, customCal]);
 
   useEffect(() => {
     let safetyTimer = null;

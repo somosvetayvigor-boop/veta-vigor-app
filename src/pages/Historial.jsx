@@ -32,7 +32,7 @@ export default function Historial({ session }) {
           supabase
             .from('historial_entrenamientos')
             .select(`
-              id, created_at, series_log,
+              id, created_at, fecha_completado, series_log,
               ejercicios_biblioteca:ejercicio_id (nombre, musculos_trabajados)
             `)
             .eq('user_id', session?.user.id)
@@ -47,7 +47,17 @@ export default function Historial({ session }) {
         if (historyRes.error) throw historyRes.error;
         if (bienestarRes.error) throw bienestarRes.error;
 
-        const data = historyRes.data;
+        // fecha_completado es el momento real en que se hizo el ejercicio;
+        // created_at es cuándo la fila llegó a Supabase, que puede ser horas
+        // o días después si el celular estuvo offline o el push falló y se
+        // reintentó más tarde. Ordenar/agrupar por created_at mezclaba
+        // entrenamientos de días distintos bajo la fecha del día en que
+        // finalmente sincronizaron (20/08, reporte real: varios días
+        // atorados por la falta de la columna fecha_completado se
+        // sincronizaron juntos y aparecieron todos como "hoy").
+        const data = (historyRes.data || [])
+          .slice()
+          .sort((a, b) => new Date(b.fecha_completado || b.created_at) - new Date(a.fecha_completado || a.created_at));
         const bData = bienestarRes.data;
 
         // Group by date
@@ -55,7 +65,7 @@ export default function Historial({ session }) {
         if (data) {
           data.forEach(item => {
             // Convert to local date string to group
-            const dateObj = new Date(item.created_at);
+            const dateObj = new Date(item.fecha_completado || item.created_at);
             const dateStr = dateObj.toLocaleDateString('es-MX', { 
               weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
             });

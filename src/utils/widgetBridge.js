@@ -15,7 +15,7 @@ const GRUPO_WIDGET = 'VetaVigorWidget';
  * solo cada ~30 min (mínimo real de Android), así que esto no necesita
  * ser instantáneo.
  */
-export async function actualizarWidget({ racha, rutinaHoy, nivel, ultimoEntrenamiento }) {
+export async function actualizarWidget({ racha, rutinaHoy, nivel, ultimoEntrenamiento, progresoSemanal }) {
   if (!Capacitor.isNativePlatform()) return;
   try {
     const { Preferences } = await import('@capacitor/preferences');
@@ -25,6 +25,7 @@ export async function actualizarWidget({ racha, rutinaHoy, nivel, ultimoEntrenam
     await Preferences.set({ key: 'rutinaHoy', value: rutinaHoy || '—' });
     await Preferences.set({ key: 'nivel', value: nivel || 'Semilla' });
     await Preferences.set({ key: 'ultimoEntrenamiento', value: ultimoEntrenamiento || 'Sin registros' });
+    await Preferences.set({ key: 'progresoSemanal', value: progresoSemanal || '' });
   } catch (e) {
     console.warn('No se pudo actualizar el widget:', e);
   }
