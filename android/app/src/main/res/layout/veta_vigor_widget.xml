@@ -3,98 +3,142 @@
      FrameLayout, TextView, ImageView, etc). Nada de ConstraintLayout acá.
      Las 4 estadísticas se agrupan de a 2 por fila (en vez de una columna
      vertical de líneas sueltas) para aprovechar el ancho horizontal, que
-     suele sobrar en este widget (targetCellWidth=3, resizable). -->
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+     suele sobrar en este widget (targetCellWidth=3, resizable).
+
+     FrameLayout como raíz (en vez de LinearLayout) para poder superponer
+     las 4 escuadras decorativas de las esquinas sobre el contenido, sin
+     que empujen ni corran nada -- viven en sus propias esquinas, con
+     margen propio, independiente del padding del contenido. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:gravity="center_vertical"
-    android:background="#0F0F11"
-    android:padding="16dp">
+    android:background="#0F0F11">
 
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
         android:gravity="center_vertical"
-        android:layout_marginBottom="12dp">
+        android:padding="16dp">
 
-        <ImageView
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:layout_marginEnd="10dp"
-            android:src="@drawable/widget_logo" />
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="12dp">
+
+            <ImageView
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginEnd="10dp"
+                android:src="@drawable/widget_logo" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🔥"
+                android:textSize="22sp"
+                android:layout_marginEnd="8dp" />
+
+            <TextView
+                android:id="@+id/widget_racha"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="26sp"
+                android:textStyle="bold"
+                android:textColor="#D4AF37" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="4dp">
+
+            <TextView
+                android:id="@+id/widget_nivel"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textSize="13sp"
+                android:textColor="#E0E0E0" />
+
+            <TextView
+                android:id="@+id/widget_progreso_semanal"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textSize="13sp"
+                android:textColor="#D4AF37" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="10dp">
+
+            <TextView
+                android:id="@+id/widget_rutina_hoy"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textSize="13sp"
+                android:textColor="#E0E0E0" />
+
+            <TextView
+                android:id="@+id/widget_ultimo_entrenamiento"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textSize="13sp"
+                android:textColor="#E0E0E0" />
+        </LinearLayout>
 
         <TextView
-            android:layout_width="wrap_content"
+            android:id="@+id/widget_frase_del_dia"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="🔥"
-            android:textSize="22sp"
-            android:layout_marginEnd="8dp" />
-
-        <TextView
-            android:id="@+id/widget_racha"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:textSize="26sp"
-            android:textStyle="bold"
-            android:textColor="#D4AF37" />
+            android:textSize="13sp"
+            android:textStyle="italic"
+            android:textColor="#A0A0A0"
+            android:maxLines="3"
+            android:ellipsize="end" />
     </LinearLayout>
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:layout_marginBottom="4dp">
+    <!-- Escuadras doradas de esquina -- mismo drawable las 4 veces, cada
+         una rotada 90° respecto a la anterior para apuntar a su esquina. -->
+    <ImageView
+        android:layout_width="14dp"
+        android:layout_height="14dp"
+        android:layout_gravity="top|left"
+        android:layout_margin="6dp"
+        android:rotation="0"
+        android:src="@drawable/widget_corner" />
 
-        <TextView
-            android:id="@+id/widget_nivel"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:textSize="13sp"
-            android:textColor="#E0E0E0" />
+    <ImageView
+        android:layout_width="14dp"
+        android:layout_height="14dp"
+        android:layout_gravity="top|right"
+        android:layout_margin="6dp"
+        android:rotation="90"
+        android:src="@drawable/widget_corner" />
 
-        <TextView
-            android:id="@+id/widget_progreso_semanal"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:textSize="13sp"
-            android:textColor="#D4AF37" />
-    </LinearLayout>
+    <ImageView
+        android:layout_width="14dp"
+        android:layout_height="14dp"
+        android:layout_gravity="bottom|right"
+        android:layout_margin="6dp"
+        android:rotation="180"
+        android:src="@drawable/widget_corner" />
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:layout_marginBottom="10dp">
-
-        <TextView
-            android:id="@+id/widget_rutina_hoy"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:textSize="13sp"
-            android:textColor="#E0E0E0" />
-
-        <TextView
-            android:id="@+id/widget_ultimo_entrenamiento"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:textSize="13sp"
-            android:textColor="#E0E0E0" />
-    </LinearLayout>
-
-    <TextView
-        android:id="@+id/widget_frase_del_dia"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:textSize="13sp"
-        android:textStyle="italic"
-        android:textColor="#A0A0A0"
-        android:maxLines="3"
-        android:ellipsize="end" />
-</LinearLayout>
+    <ImageView
+        android:layout_width="14dp"
+        android:layout_height="14dp"
+        android:layout_gravity="bottom|left"
+        android:layout_margin="6dp"
+        android:rotation="270"
+        android:src="@drawable/widget_corner" />
+</FrameLayout>

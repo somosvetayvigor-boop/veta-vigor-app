@@ -612,26 +612,36 @@ export default function MiRutina({ session }) {
           }
         }
       } else {
-        // If the user is forced to 'Semilla', do not enforce the exact system_id match, 
-        // because they might have selected a system that doesn't have a specific Semilla routine.
-        if (nivel === 'Semilla') {
-           data = await DatabaseService.query(`SELECT * FROM rutinas WHERE nivel = ? OR user_id = ? ORDER BY nombre`, [nivel, session?.user.id]);
-        } else {
-           data = await DatabaseService.query(`SELECT * FROM rutinas WHERE (nivel = ? AND sistema_id = ?) OR user_id = ? ORDER BY nombre`, [nivel, sistemaId, session?.user.id]);
+        // Siempre se intenta primero con el sistema activo -- antes, cuando
+        // nivel='Semilla', se ignoraba el sistema a propósito ("podría no
+        // haber rutina Semilla para ese sistema"), lo que traía las Semilla
+        // de TODOS los sistemas mezcladas. buildCalendar() arma la semana
+        // buscando por texto ("completo"/"superior"/"inferior") sobre esa
+        // lista ordenada alfabéticamente -- si otro sistema tenía una
+        // rutina Semilla cuyo nombre ordenaba antes, el calendario la
+        // tomaba a ella sin importar el sistema activo real. Caso real:
+        // sofiita con Vigor Corporal activo veía rutinas de Carga de
+        // Hierro, pese a que Vigor Corporal sí tenía sus propias Semilla
+        // (20/08). Ahora solo se ensancha a "cualquier sistema" cuando el
+        // activo de verdad no tiene ninguna rutina para este nivel.
+        data = await DatabaseService.query(`SELECT * FROM rutinas WHERE (nivel = ? AND sistema_id = ?) OR user_id = ? ORDER BY nombre`, [nivel, sistemaId, session?.user.id]);
+        const tieneRutinaDelSistema = (data || []).some(r => r.sistema_id === sistemaId);
+        if (!tieneRutinaDelSistema) {
+          data = await DatabaseService.query(`SELECT * FROM rutinas WHERE nivel = ? OR user_id = ? ORDER BY nombre`, [nivel, session?.user.id]);
         }
-        
-        // FALLBACK: Si SQLite no tiene rutinas, leer de Supabase
+
+        // FALLBACK: Si SQLite no tiene rutinas, leer de Supabase (mismo
+        // orden: sistema activo primero, cualquier sistema solo si ese
+        // específico no tiene nada).
         if ((!data || data.length === 0) && navigator.onLine) {
           console.log("⚠️ Rutinas no encontradas en SQLite, leyendo de Supabase...");
-          let rutRemoto;
-          if (nivel === 'Semilla') {
-            const { data: res } = await supabase.from('rutinas').select('*').eq('nivel', nivel).order('nombre');
-            rutRemoto = res;
-          } else {
-            const { data: res } = await supabase.from('rutinas').select('*').eq('nivel', nivel).eq('sistema_id', sistemaId).order('nombre');
-            rutRemoto = res;
+          const { data: res } = await supabase.from('rutinas').select('*').eq('nivel', nivel).eq('sistema_id', sistemaId).order('nombre');
+          let rutRemoto = res || [];
+          if (rutRemoto.length === 0) {
+            const { data: resAmplio } = await supabase.from('rutinas').select('*').eq('nivel', nivel).order('nombre');
+            rutRemoto = resAmplio || [];
           }
-          data = rutRemoto || [];
+          data = rutRemoto;
           console.log(`✅ Rutinas obtenidas de Supabase: ${data.length}`);
         }
       }

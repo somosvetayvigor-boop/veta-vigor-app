@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Escuadra decorativa para las 4 esquinas del widget. Dibuja una "L"
+     que por defecto abre hacia la esquina superior izquierda; las otras 3
+     esquinas reusan el mismo drawable rotándolo en el layout
+     (android:rotation="90/180/270"), en vez de crear 4 archivos iguales. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="14dp"
+    android:height="14dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M2,13 L2,2 L13,2"
+        android:strokeColor="#D4AF37"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="square"
+        android:fillColor="#00000000" />
+</vector>
