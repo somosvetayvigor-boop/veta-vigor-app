@@ -18,12 +18,29 @@ export default function SistemaDetail({ session }) {
   useEffect(() => {
     async function fetchData() {
       // 0. Fetch Real Subscription
-      const perfilesRows = await DatabaseService.query(`SELECT plan_membresia FROM perfiles WHERE id = ?`, [session?.user.id]);
+      const perfilesRows = await DatabaseService.query(`SELECT plan_membresia, reto_activo_id, reto_completado FROM perfiles WHERE id = ?`, [session?.user.id]);
       const perfilData = perfilesRows.length > 0 ? perfilesRows[0] : null;
-        
+
       const suscripcionReal = perfilData?.plan_membresia || session?.user?.user_metadata?.suscripcion || session?.user?.user_metadata?.plan_membresia;
       const isAdmin = session?.user?.email === 'somos.vetayvigor@gmail.com';
-      const hasPaidPlan = suscripcionReal?.includes('Pro') || suscripcionReal?.includes('Élite') || ['Socio Argentum', 'Socio Aurum', 'Plan Platinum', 'Socio Fundador Vitalicio', 'Prueba Gratis (7 Días)'].includes(suscripcionReal);
+      const hasLocalPaidPlan = suscripcionReal?.includes('Pro') || suscripcionReal?.includes('Élite') || ['Socio Argentum', 'Socio Aurum', 'Plan Platinum', 'Socio Fundador Vitalicio', 'Prueba Gratis (7 Días)', 'Platinum'].includes(suscripcionReal);
+      const estaEnReto = !!perfilData?.reto_activo_id && !perfilData?.reto_completado;
+
+      // Local primero, confirmado con el servidor si hay red --
+      // tiene_acceso_platinum() revisa los 4 planes pagos + el trial + su
+      // fecha real de vencimiento en un solo lugar, en vez de repetir la
+      // lista a mano en cada pantalla.
+      let accesoPlatinum = false;
+      if (navigator.onLine) {
+        try {
+          const { data } = await supabase.rpc('tiene_acceso_platinum');
+          accesoPlatinum = !!data;
+        } catch (e) {
+          console.warn('tiene_acceso_platinum falló, se sigue con la lista local:', e);
+        }
+      }
+
+      const hasPaidPlan = hasLocalPaidPlan || accesoPlatinum || estaEnReto;
       const freeStatus = !isAdmin && !hasPaidPlan;
       setIsFreeUser(freeStatus);
 

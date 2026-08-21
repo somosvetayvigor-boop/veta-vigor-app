@@ -342,9 +342,17 @@ export default function Perfil({ session }) {
     .replace(/Socio /i, '');
 
   const isEntrenador = localStorage.getItem('user_role') === 'entrenador';
-  const hasPaidPlan = suscripcion?.includes('Pro') || suscripcion?.includes('Élite') || ['Socio Argentum', 'Socio Aurum', 'Plan Platinum', 'Socio Fundador Vitalicio', 'Prueba Gratis (7 Días)'].includes(suscripcion);
+  // Mismo criterio que tiene_acceso_platinum() en el servidor: los 4 planes
+  // pagos + el trial ('Platinum', sin "Plan ") + que no haya vencido, más
+  // estar en el Reto21 sin haberlo terminado. meta ya trae
+  // plan_membresia/platinum_trial_ends_at/reto_* reales (fetchUser hace
+  // select('*') sobre perfiles más arriba), así que no hace falta una
+  // consulta nueva para esto.
+  const trialPlatinumVigente = meta.platinum_trial_ends_at && new Date(meta.platinum_trial_ends_at) > new Date();
+  const estaEnReto = !!meta.reto_activo_id && !meta.reto_completado;
+  const hasPaidPlan = suscripcion?.includes('Pro') || suscripcion?.includes('Élite') || ['Socio Argentum', 'Socio Aurum', 'Plan Platinum', 'Socio Fundador Vitalicio', 'Prueba Gratis (7 Días)', 'Platinum'].includes(suscripcion) || trialPlatinumVigente;
   const isAlumnoEntrenador = meta.rol_usuario === 'alumno_entrenador';
-  const isFreeUser = !isAdmin && !hasPaidPlan && !isAlumnoEntrenador;
+  const isFreeUser = !isAdmin && !hasPaidPlan && !isAlumnoEntrenador && !estaEnReto;
   const isFundador = suscripcion?.toLowerCase().includes('fundador') || suscripcion?.toLowerCase().includes('vitalicio');
 
   const showBadge = !isAlumnoEntrenador && (hasPaidPlan || isFundador);

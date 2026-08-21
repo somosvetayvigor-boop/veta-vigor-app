@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { supabase } from '../supabaseClient';
 import DatabaseService from '../services/DatabaseService';
 import { Lock, Gift } from 'lucide-react';
 
@@ -75,7 +76,24 @@ export default function Dashboard({ session }) {
         
       const suscripcionReal = perfilData?.plan_membresia || meta.suscripcion || meta.plan_membresia;
       const isAdmin = session?.user.email === 'somos.vetayvigor@gmail.com';
-      const isPaidPlan = suscripcionReal?.includes('Pro') || suscripcionReal?.includes('Élite') || ['Socio Argentum', 'Socio Aurum', 'Plan Platinum', 'Socio Fundador Vitalicio', 'Prueba Gratis (7 Días)'].includes(suscripcionReal);
+      const hasLocalPaidPlan = suscripcionReal?.includes('Pro') || suscripcionReal?.includes('Élite') || ['Socio Argentum', 'Socio Aurum', 'Plan Platinum', 'Socio Fundador Vitalicio', 'Prueba Gratis (7 Días)', 'Platinum'].includes(suscripcionReal);
+      const estaEnReto = !!perfilData?.reto_activo_id && !perfilData?.reto_completado;
+
+      // Local primero (instantáneo), y se confirma con el servidor si hay
+      // red -- tiene_acceso_platinum() revisa los 4 planes pagos + el trial
+      // + su fecha real de vencimiento en un solo lugar (18/08), en vez de
+      // repetir la lista a mano en cada pantalla.
+      let accesoPlatinum = false;
+      if (navigator.onLine) {
+        try {
+          const { data } = await supabase.rpc('tiene_acceso_platinum');
+          accesoPlatinum = !!data;
+        } catch (e) {
+          console.warn('tiene_acceso_platinum falló, se sigue con la lista local:', e);
+        }
+      }
+
+      const isPaidPlan = hasLocalPaidPlan || accesoPlatinum || estaEnReto;
       const freeStatus = !isAdmin && !isPaidPlan;
       setIsFreeUser(freeStatus);
       

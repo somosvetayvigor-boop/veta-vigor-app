@@ -21,8 +21,16 @@ export default function TopHeader({ session }) {
   const userRole = localStorage.getItem('user_role') || 'atleta_normal';
 
   const isAlumnoEntrenador = userRole === 'alumno_entrenador';
+  // Top-tier a propósito (Platinum + Vitalicio), igual que Consultorio.jsx
+  // (el destino de "Consultorio VIP" de este mismo menú) -- Socio
+  // Argentum/Aurum quedan afuera aposta. 'Platinum' (sin "Plan ") faltaba:
+  // es el string del trial gratis (activar_trial_platinum(), regalos del
+  // Reto21 y de perder entrenador), así que alguien en ese trial no veía
+  // este menú aunque sí debiera (20/08). No hace falta revisar la fecha de
+  // vencimiento acá -- para cuando este componente pinta, sincronizar_mi_plan()
+  // ya corrió al abrir la app y degrada el plan solo si el trial venció.
   const esPro = isAdmin || isAlumnoEntrenador ||
-                ['Plan Platinum', 'Socio Fundador Vitalicio', 'Prueba Gratis (7 Días)'].includes(suscripcion) ||
+                ['Plan Platinum', 'Socio Fundador Vitalicio', 'Prueba Gratis (7 Días)', 'Platinum'].includes(suscripcion) ||
                 suscripcion?.includes('Pro') || suscripcion?.includes('Élite');
 
   useEffect(() => {

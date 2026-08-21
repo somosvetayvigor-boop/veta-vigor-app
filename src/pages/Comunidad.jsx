@@ -444,11 +444,21 @@ export default function Comunidad({ session }) {
         setPlanReal(planActual);
         
         const isEntrenador = localStorage.getItem('user_role') === 'entrenador';
-        const estaEnReto = data?.reto_activo_id ? true : false;
         const retoTerminado = data?.reto_completado === true;
+        // reto_activo_id nunca se limpia a null al terminar el reto (solo se
+        // marca reto_completado aparte) -- sin el && de abajo, quien alguna
+        // vez empezó el Reto21 conservaba acceso al chat para siempre, sin
+        // importar el plan, incluso mucho después de terminarlo o dejarlo.
+        const estaEnReto = !!data?.reto_activo_id && !retoTerminado;
         const esSuscritoBase = ['Socio Argentum', 'Socio Aurum'].includes(planActual);
 
-        const tieneAcceso = planActual?.includes('Pro') || planActual?.includes('Élite') || planActual === 'Socio Fundador Vitalicio' || planActual === 'Plan Platinum' || planActual === 'Prueba Gratis (7 Días)' || planActual.toLowerCase().includes('administrador') || estaEnReto || isEntrenador || (esSuscritoBase && retoTerminado);
+        // Acceso inmediato para Platinum/Vitalicio, pagado o en trial
+        // ('Platinum', sin "Plan " -- el string del trial gratis, antes no
+        // se reconocía acá). Socio Argentum/Aurum solo lo ganan terminando
+        // el Reto21 -- así lo dice el propio texto de este chat más abajo
+        // ("reservado para el Plan Platinum, Socios Vitalicios y Atletas
+        // VIP que superaron el Reto Vigor 21"), no es un hueco a cerrar.
+        const tieneAcceso = planActual?.includes('Pro') || planActual?.includes('Élite') || planActual === 'Socio Fundador Vitalicio' || planActual === 'Plan Platinum' || planActual === 'Platinum' || planActual === 'Prueba Gratis (7 Días)' || planActual.toLowerCase().includes('administrador') || estaEnReto || isEntrenador || (esSuscritoBase && retoTerminado);
         setIsVip(tieneAcceso);
 
         if (!tieneAcceso) {
@@ -483,7 +493,9 @@ export default function Comunidad({ session }) {
         muroData = { ...muroData, perfiles: perfilNominado };
 
         const plan = muroData.perfiles?.plan_membresia || '';
-        const isPaidUser = ['Socio Fundador Vitalicio', 'Plan Platinum', 'Prueba Gratis (7 Días)', 'Socio Aurum', 'Socio Argentum'].includes(plan) || plan.toLowerCase().includes('administrador');
+        // 'Platinum' (sin "Plan ") es el string del trial gratis -- faltaba
+        // acá, así que una nominación de alguien en ese trial no se mostraba.
+        const isPaidUser = ['Socio Fundador Vitalicio', 'Plan Platinum', 'Platinum', 'Prueba Gratis (7 Días)', 'Socio Aurum', 'Socio Argentum'].includes(plan) || plan.toLowerCase().includes('administrador');
         if (isPaidUser) {
           setMuroFama(muroData);
         }

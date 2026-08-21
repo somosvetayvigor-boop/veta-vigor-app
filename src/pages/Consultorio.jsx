@@ -30,15 +30,24 @@ export default function Consultorio({ session }) {
     // 1. Verificar plan del usuario
     const { data: perfil } = await supabase
       .from('perfiles')
-      .select('plan_membresia, nivel')
+      .select('plan_membresia, nivel, platinum_trial_ends_at')
       .eq('id', session.user.id)
       .single();
-    
+
     const plan = perfil?.plan_membresia || session.user.user_metadata?.plan_membresia || '';
     const nivel = perfil?.nivel || session.user.user_metadata?.nivel || 'Semilla';
     setUserLevel(nivel);
 
-  const isVip = plan === 'Socio Fundador Vitalicio' || plan === 'Plan Platinum' || plan === 'Prueba Gratis (7 Días)' || plan === 'Entrenador Élite' || plan === 'Entrenador Pro' || plan.toLowerCase().includes('administrador');
+    // El Coach virtual es a propósito solo para Platinum + Vitalicio (lo dice
+    // el texto de esta misma pantalla más abajo) -- Socio Argentum/Aurum
+    // quedan afuera aposta, no es un hueco a cerrar. Lo que sí faltaba: el
+    // trial gratis de Platino ('Platinum', sin "Plan " -- el string que usa
+    // activar_trial_platinum()/los regalos del Reto21 y de perder
+    // entrenador) no estaba reconocido, así que alguien con esos 7 días
+    // gratis no podía entrar al chat aunque el texto de la pantalla diga que
+    // sí debería (20/08).
+    const trialPlatinumVigente = plan === 'Platinum' && perfil?.platinum_trial_ends_at && new Date(perfil.platinum_trial_ends_at) > new Date();
+    const isVip = plan === 'Socio Fundador Vitalicio' || plan === 'Plan Platinum' || plan === 'Prueba Gratis (7 Días)' || plan === 'Entrenador Élite' || plan === 'Entrenador Pro' || plan.toLowerCase().includes('administrador') || trialPlatinumVigente;
     setHasAccess(isVip);
 
     if (!isVip) {
