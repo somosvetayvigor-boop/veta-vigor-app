@@ -7,7 +7,7 @@
 
      FrameLayout como raíz (en vez de LinearLayout) para poder superponer
      las 4 escuadras decorativas de las esquinas sobre el contenido, sin
-     que empujen ni corran nada -- viven en sus propias esquinas, con
+     que empujen ni corran nada: viven en sus propias esquinas, con
      margen propio, independiente del padding del contenido. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
@@ -108,7 +108,7 @@
             android:ellipsize="end" />
     </LinearLayout>
 
-    <!-- Escuadras doradas de esquina -- mismo drawable las 4 veces, cada
+    <!-- Escuadras doradas de esquina: mismo drawable las 4 veces, cada
          una rotada 90° respecto a la anterior para apuntar a su esquina. -->
     <ImageView
         android:layout_width="14dp"

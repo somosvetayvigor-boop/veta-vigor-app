@@ -25,7 +25,15 @@ export default function RutinaDetail({ session }) {
   // Clave con la fecha de hoy a propósito: si mañana repetís la misma
   // rutina, no queremos que aparezcan precargadas las series de la vez
   // pasada como si ya las hubieras hecho hoy.
-  const hoyStr = new Date().toISOString().split('T')[0];
+  //
+  // Fecha LOCAL, no toISOString() (que da la fecha en UTC) -- con
+  // toISOString(), entre las 6pm y medianoche hora de México (UTC-6), UTC ya
+  // cree que es el día siguiente, y esta clave cambiaba sola a mitad de una
+  // sesión de entreno nocturna, perdiendo el progreso guardado igual que el
+  // bug de remount de arriba. Mismo cálculo de "hoy" que ya usa
+  // MiRutina.jsx/checkTodayStatus en vez de duplicar otro distinto.
+  const hoy = new Date();
+  const hoyStr = hoy.getFullYear() + '-' + String(hoy.getMonth() + 1).padStart(2, '0') + '-' + String(hoy.getDate()).padStart(2, '0');
   const progresoStorageKey = `vigor_rutina_progreso_${session?.user?.id}_${id}_${hoyStr}`;
 
   // Active Training States (con recuperación de localStorage -- si la app se
@@ -46,6 +54,7 @@ export default function RutinaDetail({ session }) {
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const targetTimeRef = useRef(null);
   const finalizandoRef = useRef(false);
+  const finalizandoEjercicioRef = useRef(false);
 
   // Form Inputs State { [ejId]: { 1: {kg, reps}, 2: {kg, reps} } }
   const [formInputs, setFormInputs] = useState(() => {
@@ -61,6 +70,15 @@ export default function RutinaDetail({ session }) {
   }, [activeIndex, seriesLog, formInputs, progresoStorageKey]);
 
   const [rutinaCompletada, setRutinaCompletada] = useState(false);
+
+  // Solo una rutina de entrenamiento por día: si ya se entrenó hoy (esta
+  // rutina la primera vez y se terminó, o cualquier otra), el resto del día
+  // esta pantalla entra en modo solo lectura -- se puede ver, no interactuar.
+  // motivoSoloLectura distingue el mensaje ("ya la terminaste" vs "ya
+  // entrenaste con otra rutina hoy") sin duplicar la consulta.
+  const [soloLectura, setSoloLectura] = useState(false);
+  const [motivoSoloLectura, setMotivoSoloLectura] = useState('');
+
   const [rmModal, setRmModal] = useState({ show: false, rmValue: 0, level: '', isTrenSuperior: false, isTrenInferior: false, exerciseName: '', isNewRecord: false });
   const [levelUpModal, setLevelUpModal] = useState({ show: false, newLevel: '', phrase: '' });
   const [rpgModal, setRpgModal] = useState({ show: false, xp: 0, forja: 0, stats: null });
@@ -137,8 +155,74 @@ export default function RutinaDetail({ session }) {
             initInputs[e.ejercicios_biblioteca.id] = {};
           }
         });
-        setSeriesLog(initLogs);
-        setFormInputs(initInputs);
+        // Se combina con lo que ya había (prev) en vez de reemplazarlo --
+        // seriesLog/formInputs se inicializan al montar leyendo el respaldo
+        // de localStorage (líneas ~39-54, "no perder progreso si la app se
+        // cierra a medias", arreglo real del 17/08). Reemplazarlos aquí a
+        // ciegas con listas vacías por ejercicio BORRABA ese respaldo cada
+        // vez que este componente se montaba -- incluso al volver a la
+        // MISMA rutina a medio terminar -- y además el useEffect de guardado
+        // de más abajo detectaba el cambio y sobreescribía el respaldo real
+        // en localStorage con uno vacío, perdiendo también las series de un
+        // ejercicio a medias que aún no se hubieran guardado en la base.
+        // Reporte real (20/08): ejercicios ya marcados aparecían sin marcar.
+        // prev gana sobre initLogs/initInputs donde ya existía dato.
+        setSeriesLog(prev => ({ ...initLogs, ...prev }));
+        setFormInputs(prev => ({ ...initInputs, ...prev }));
+      }
+
+      // Solo una rutina de entrenamiento por día: revisa si hoy ya se
+      // entrenó -- con esta misma rutina completa, o con cualquier otra.
+      // Local primero, respaldo a Supabase si local está vacío y hay red
+      // (si no, cambiar de dispositivo el mismo día se saltaría el límite).
+      try {
+        // Fecha local calculada acá adentro (no la de arriba, "hoy"/"hoyStr"
+        // de nivel componente) para que este efecto no tenga que declarar esa
+        // dependencia -- "hoy" es un Date nuevo en cada render, así que
+        // agregarlo a las dependencias de este useEffect (que solo debe
+        // correr una vez por rutina/sesión, [id, session]) lo haría repetirse
+        // en cada render en vez de una sola vez por montaje.
+        const ahora = new Date();
+        const hoyLocalStr = ahora.getFullYear() + '-' + String(ahora.getMonth() + 1).padStart(2, '0') + '-' + String(ahora.getDate()).padStart(2, '0');
+
+        let historialHoy = await DatabaseService.query(
+          `SELECT rutina_id, ejercicio_id FROM historial_entrenamientos WHERE user_id = ? AND fecha_completado >= ?`,
+          [session?.user.id, hoyLocalStr]
+        );
+        if ((!historialHoy || historialHoy.length === 0) && navigator.onLine) {
+          const manana = new Date(ahora);
+          manana.setDate(manana.getDate() + 1);
+          const mananaStr = manana.getFullYear() + '-' + String(manana.getMonth() + 1).padStart(2, '0') + '-' + String(manana.getDate()).padStart(2, '0');
+          const { data } = await supabase
+            .from('historial_entrenamientos')
+            .select('rutina_id, ejercicio_id')
+            .eq('user_id', session?.user.id)
+            .gte('fecha_completado', hoyLocalStr)
+            .lt('fecha_completado', mananaStr);
+          historialHoy = data || [];
+        }
+
+        if (historialHoy && historialHoy.length > 0) {
+          const otraRutina = historialHoy.some(h => h.rutina_id !== id);
+          if (otraRutina) {
+            setSoloLectura(true);
+            setMotivoSoloLectura('Ya entrenaste hoy con otra rutina. Vuelve mañana para continuar tu plan.');
+          } else if (ejRows && ejRows.length > 0) {
+            // Misma rutina: solo lectura si YA se completaron todos sus
+            // ejercicios hoy -- si faltan algunos, se deja seguir, porque es
+            // una sesión a medias que se está retomando, no una repetición.
+            const ejerciciosHechosHoy = new Set(
+              historialHoy.filter(h => h.rutina_id === id).map(h => h.ejercicio_id)
+            );
+            const totalEjercicios = new Set(ejRows.map(r => r.ej_id)).size;
+            if (ejerciciosHechosHoy.size >= totalEjercicios) {
+              setSoloLectura(true);
+              setMotivoSoloLectura('Ya completaste esta rutina hoy. Vuelve mañana para repetirla.');
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('No se pudo revisar si ya se entrenó hoy:', e);
       }
 
       const meta = session?.user?.user_metadata || {};
@@ -250,41 +334,60 @@ export default function RutinaDetail({ session }) {
   };
 
   const logSerie = (ejId, serieNum) => {
-    setSeriesLog(prev => {
-      const current = [...(prev[ejId] || [])];
-      const existingIdx = current.findIndex(s => s.serie === serieNum);
-      
-      // 1. Si ya existe (está palomeado), lo quitamos (Toggle OFF)
-      if (existingIdx >= 0) {
-        current.splice(existingIdx, 1);
-        return { ...prev, [ejId]: current };
-      }
-      
-      // 2. Si no existe, lo agregamos (Toggle ON)
-      const input = formInputs[ejId]?.[serieNum];
-      
-      // Buscar datos pasados para auto-rellenar
-      const userMeta = session?.user?.user_metadata || {};
-      const historial = userMeta.historial_ejercicios?.[ejId] || [];
-      const pastData = historial.find(h => h.serie === serieNum);
-      
-      let reps = input?.reps;
-      let peso = input?.kg;
-      
-      // Si están vacíos, usamos el dato anterior
-      if (!reps && pastData?.reps) reps = pastData.reps;
-      if (!peso && pastData?.peso) peso = pastData.peso;
-      
-      // Si siguen vacíos, ponemos guión
-      if (!reps) reps = '-';
-      if (!peso) peso = '-';
+    if (soloLectura) return; // ver "solo una rutina por día" en fetchData()
 
-      current.push({ serie: serieNum, reps, peso });
-      return { ...prev, [ejId]: current };
-    });
+    const yaEstaMarcada = (seriesLog[ejId] || []).some(s => s.serie === serieNum);
+
+    // Toggle OFF: quitar la marca no necesita validar nada.
+    if (yaEstaMarcada) {
+      setSeriesLog(prev => ({
+        ...prev,
+        [ejId]: (prev[ejId] || []).filter(s => s.serie !== serieNum)
+      }));
+      return;
+    }
+
+    // Toggle ON: hace falta un valor real de repeticiones, tecleado ahora o
+    // heredado de la sesión pasada -- antes, si ninguno de los dos existía,
+    // se guardaba un guión ('-') igual y la palomita se veía en verde como
+    // si hubiera funcionado. El problema: finalizarEjercicio() exige
+    // reps > 0 para dejar avanzar (más abajo en este archivo), así que esas
+    // series "marcadas" con guión no contaban para nada -- el usuario no se
+    // enteraba hasta chocar con el aviso de "Siguiente Ejercicio", sin
+    // saber cuál serie era la culpable. Reporte real (20/08): en algunos
+    // ejercicios parecía que hacía falta pasar por "Calcular 1RM" para que
+    // registrara -- en realidad ese modal exige teclear un número antes de
+    // dejar calcular, y ESO es lo que de verdad arreglaba el registro, no
+    // el botón en sí. Ahora se avisa acá mismo, al momento de palomear.
+    const input = formInputs[ejId]?.[serieNum];
+    const userMeta = session?.user?.user_metadata || {};
+    const historial = userMeta.historial_ejercicios?.[ejId] || [];
+    const pastData = historial.find(h => h.serie === serieNum);
+
+    let reps = input?.reps;
+    let peso = input?.kg;
+
+    if (!reps && pastData?.reps) reps = pastData.reps;
+    if (!peso && pastData?.peso) peso = pastData.peso;
+
+    if (!reps) {
+      alert('Ingresa las repeticiones antes de marcar esta serie como hecha.');
+      return;
+    }
+
+    // El peso sí puede quedar en guión -- es válido (ej. ejercicios de
+    // peso corporal), solo las repeticiones son obligatorias.
+    if (!peso) peso = '-';
+
+    setSeriesLog(prev => ({
+      ...prev,
+      [ejId]: [...(prev[ejId] || []), { serie: serieNum, reps, peso }]
+    }));
   };
 
   const openRmModal = (ej) => {
+    if (soloLectura) return; // ver "solo una rutina por día" en fetchData()
+
     const inputs = formInputs[ej.id] || {};
     const logs = seriesLog[ej.id] || [];
     
@@ -669,6 +772,26 @@ export default function RutinaDetail({ session }) {
   };
 
   const finalizarEjercicio = async (item) => {
+    if (soloLectura) {
+      alert(motivoSoloLectura || 'Ya entrenaste hoy. Vuelve mañana para continuar.');
+      return;
+    }
+
+    // Guarda contra doble toque, mismo patrón que procesarFinDeRutina() más
+    // arriba en este archivo -- sin esto, dos toques rápidos en "Siguiente
+    // Ejercicio" podían guardar el mismo ejercicio dos veces en el
+    // historial (dos INSERT con UUID distintos, cada uno con su propio
+    // series_log).
+    if (finalizandoEjercicioRef.current) return;
+    finalizandoEjercicioRef.current = true;
+    try {
+      await finalizarEjercicioInterno(item);
+    } finally {
+      setTimeout(() => { finalizandoEjercicioRef.current = false; }, 1500);
+    }
+  };
+
+  const finalizarEjercicioInterno = async (item) => {
     const ejId = item.ejercicios_biblioteca.id;
     const ej = item.ejercicios_biblioteca;
     const logs = seriesLog[ejId] || [];
@@ -906,11 +1029,12 @@ export default function RutinaDetail({ session }) {
                     <div style={{ color: isLogged ? '#78e08f' : '#888', fontWeight: 'bold' }}>{serieNum}</div>
                     
                     <div style={{ padding: '0 5px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         inputMode="decimal"
                         value={isLogged ? logData.peso : (inputData.kg || '')}
                         onChange={(e) => handleInputChange(ej.id, serieNum, 'kg', e.target.value)}
+                        disabled={soloLectura}
                         placeholder={pastData ? String(pastData.peso) : "-"}
                         style={{ 
                           width: '100%', background: 'rgba(255,255,255,0.05)', border: 'none', 
@@ -929,7 +1053,7 @@ export default function RutinaDetail({ session }) {
                         inputMode="decimal"
                         value={isLogged ? logData.reps : (inputData.reps || '')}
                         onChange={(e) => handleInputChange(ej.id, serieNum, 'reps', e.target.value)}
-                        disabled={isLogged}
+                        disabled={isLogged || soloLectura}
                         placeholder={pastData ? String(pastData.reps) : (isTimeBased ? 's' : '')}
                         style={{
                           width: '100%', padding: '10px', borderRadius: '8px', border: 'none',
@@ -943,13 +1067,15 @@ export default function RutinaDetail({ session }) {
                     </div>
 
                     <div style={{ display: 'flex', justifyContent: 'center' }}>
-                      <button 
+                      <button
                         onClick={() => logSerie(ej.id, serieNum)}
+                        disabled={soloLectura}
                         style={{
                           width: '40px', height: '40px', borderRadius: '10px',
                           background: isLogged ? '#78e08f' : 'rgba(255,255,255,0.1)',
                           border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          color: isLogged ? '#000' : '#888', cursor: 'pointer',
+                          color: isLogged ? '#000' : '#888', cursor: soloLectura ? 'not-allowed' : 'pointer',
+                          opacity: soloLectura && !isLogged ? 0.4 : 1,
                           transition: 'all 0.2s'
                         }}
                       >
@@ -960,11 +1086,12 @@ export default function RutinaDetail({ session }) {
                 );
               })}
             </div>
-            
+
             {/* Botón de RM */}
             <div style={{ padding: '15px', display: 'flex', justifyContent: 'center', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-              <button 
+              <button
                 onClick={() => openRmModal(ej)}
+                disabled={soloLectura}
                 style={{
                   background: 'linear-gradient(135deg, rgba(212, 175, 55, 0.2), rgba(212, 175, 55, 0.05))',
                   border: '1px solid var(--accent-gold)',
@@ -975,7 +1102,8 @@ export default function RutinaDetail({ session }) {
                   display: 'flex',
                   alignItems: 'center',
                   gap: '8px',
-                  cursor: 'pointer',
+                  cursor: soloLectura ? 'not-allowed' : 'pointer',
+                  opacity: soloLectura ? 0.4 : 1,
                   fontSize: '0.9rem'
                 }}
               >
@@ -984,12 +1112,15 @@ export default function RutinaDetail({ session }) {
             </div>
           </div>
 
-          <button 
+          <button
             onClick={() => finalizarEjercicio(item)}
-            className="btn-primary" 
-            style={{ width: '100%', padding: '18px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px', fontSize: '1.1rem', marginBottom: '40px' }}
+            className="btn-primary"
+            disabled={soloLectura}
+            style={{ width: '100%', padding: '18px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px', fontSize: '1.1rem', marginBottom: '40px', opacity: soloLectura ? 0.5 : 1, cursor: soloLectura ? 'not-allowed' : 'pointer' }}
           >
-            {activeIndex < ejercicios.length - 1 ? (
+            {soloLectura ? (
+              <>SOLO LECTURA 🔒</>
+            ) : activeIndex < ejercicios.length - 1 ? (
               <>SIGUIENTE EJERCICIO <ChevronRight /></>
             ) : (
               <>FINALIZAR RUTINA <CheckCircle /></>
@@ -1125,9 +1256,19 @@ export default function RutinaDetail({ session }) {
         </button>
       )}
 
+      {soloLectura && (
+        <div style={{
+          background: 'rgba(212, 175, 55, 0.1)', border: '1px solid var(--accent-gold)',
+          borderRadius: '12px', padding: '15px', marginBottom: '20px',
+          color: 'var(--accent-gold)', fontSize: '0.9rem', textAlign: 'center'
+        }}>
+          🔒 {motivoSoloLectura} Puedes ver los ejercicios y lo ya registrado, pero no marcar ni avanzar más por hoy.
+        </div>
+      )}
+
       <div style={{ display: 'flex', gap: '10px', marginBottom: '30px' }}>
         <button onClick={() => setActiveIndex(0)} className="btn-primary" style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}>
-          <PlayCircle /> INICIAR ENTRENAMIENTO
+          <PlayCircle /> {soloLectura ? 'VER RUTINA (SOLO LECTURA)' : 'INICIAR ENTRENAMIENTO'}
         </button>
       </div>
 
