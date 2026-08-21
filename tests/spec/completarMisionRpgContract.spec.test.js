@@ -2,8 +2,13 @@ import { describe, it, expect } from 'vitest';
 
 /**
  * Espejo en JS del contrato de negocio de public.completar_mision_rpg, tal
- * como está HOY en VETA_VIGOR_FIX_ZONA_HORARIA_RPG.sql (última versión
- * aplicada sobre esa función, 2026-08-16).
+ * como está HOY en VETA_VIGOR_FIX_NIVEL_RPG.sql (última versión aplicada
+ * sobre esa función, 2026-08-20 -- reemplaza a
+ * VETA_VIGOR_RESTAURAR_ECONOMIA_RPG.sql del 18/08, que a su vez reemplazó
+ * a VETA_VIGOR_FIX_ZONA_HORARIA_RPG.sql del 16/08. Verificado en vivo con
+ * pg_get_functiondef antes de dar por buena cuál versión manda -- varios
+ * .sql del repo redefinen esta misma función y el nombre del archivo no
+ * indica cuál quedó vigente al final, ver [[contrato-real-completar-mision-rpg]]).
  *
  * ESTO NO PRUEBA LA FUNCIÓN REAL. Vitest corre en Node y no tiene acceso a la
  * base de Supabase (no hay service role key ni proyecto de staging
@@ -56,6 +61,14 @@ function construirIdempotencyKey(userId, idempotencyKeyCliente) {
   return `${userId}:${idempotencyKeyCliente}`;
 }
 
+// Espeja v_nivel_rpg := FLOOR((v_xp_actual + v_xp) / 100) + 1 -- agregado
+// 20/08 (VETA_VIGOR_FIX_NIVEL_RPG.sql). Mismo cálculo que calculateLevel()
+// en src/utils/ProgressionEngine.js, a propósito: server y cliente nunca
+// deben divergir en qué nivel corresponde a cuánto XP total.
+function calcularNivelRpg(xpActualAntes, xpGanado) {
+  return Math.floor((xpActualAntes + xpGanado) / 100) + 1;
+}
+
 describe('contrato de recompensa por origen', () => {
   it('entrenamiento normal: 10 XP, 5 monedas, sin importar lo que pida el cliente', () => {
     expect(recompensaPorOrigen('entrenamiento', 999)).toEqual({ xp: 10, monedas: 5 });
@@ -99,6 +112,26 @@ describe('contrato de cálculo de racha', () => {
 
   it('se saltó uno o más días: la racha se reinicia a 1', () => {
     expect(calcularRacha({ rachaActual: 10, fechaUltimaMision: '2026-08-13', hoy: '2026-08-16' })).toBe(1);
+  });
+});
+
+describe('contrato de cálculo de nivel_rpg', () => {
+  it('se calcula sobre el XP total (lo que ya tenía + lo que gana ahora), no solo lo nuevo', () => {
+    expect(calcularNivelRpg(90, 10)).toBe(2); // 100 XP total -> nivel 2
+    expect(calcularNivelRpg(0, 10)).toBe(1); // recién empieza, sigue en nivel 1
+  });
+
+  it('reproduce el bug real reportado el 20/08: XP ya cruzó el umbral pero nivel_rpg se había quedado atascado', () => {
+    // Antes de este fix, nivel_rpg no se recalculaba acá -- un usuario con
+    // 150 XP acumulados (sobre todo por Bienestar/Descanso Activo, que no
+    // subían nivel_rpg al servidor) seguía viendo "Nivel 1" con la barra
+    // llena. Con el fix, la siguiente misión que gane -- de cualquier
+    // origen -- lo autocorrige solo, sin backfill manual.
+    expect(calcularNivelRpg(150, 10)).toBe(2);
+  });
+
+  it('salto de más de un nivel de una sola vez (recompensa grande o XP acumulado alto)', () => {
+    expect(calcularNivelRpg(290, 20)).toBe(4); // 310 XP total -> nivel 4
   });
 });
 

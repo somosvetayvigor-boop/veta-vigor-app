@@ -9,7 +9,7 @@ import android.widget.RemoteViews
 
 /**
  * Widget de pantalla de inicio: racha (La Llama Viva), nivel (madera),
- * rutina de hoy, y último entrenamiento.
+ * rutina de hoy, último entrenamiento, progreso semanal y frase del día.
  *
  * No lee el SQLite de la app directo -- leer los datos ya calculados por
  * MiRutina.jsx desde SharedPreferences (escritos vía @capacitor/preferences,
@@ -28,6 +28,7 @@ class VetaVigorWidgetProvider : AppWidgetProvider() {
         private const val KEY_NIVEL = "nivel"
         private const val KEY_ULTIMO_ENTRENAMIENTO = "ultimoEntrenamiento"
         private const val KEY_PROGRESO_SEMANAL = "progresoSemanal"
+        private const val KEY_FRASE_DEL_DIA = "fraseDelDia"
 
         private fun updateAppWidget(context: Context, appWidgetManager: AppWidgetManager, appWidgetId: Int) {
             val prefs = context.getSharedPreferences(PREFS_GROUP, Context.MODE_PRIVATE)
@@ -36,6 +37,7 @@ class VetaVigorWidgetProvider : AppWidgetProvider() {
             val nivel = prefs.getString(KEY_NIVEL, "Semilla") ?: "Semilla"
             val ultimoEntrenamiento = prefs.getString(KEY_ULTIMO_ENTRENAMIENTO, "Sin registros") ?: "Sin registros"
             val progresoSemanal = prefs.getString(KEY_PROGRESO_SEMANAL, "") ?: ""
+            val fraseDelDia = prefs.getString(KEY_FRASE_DEL_DIA, "") ?: ""
 
             val views = RemoteViews(context.packageName, R.layout.veta_vigor_widget)
             views.setTextViewText(R.id.widget_racha, racha)
@@ -47,6 +49,12 @@ class VetaVigorWidgetProvider : AppWidgetProvider() {
                 views.setViewVisibility(R.id.widget_progreso_semanal, android.view.View.VISIBLE)
             } else {
                 views.setViewVisibility(R.id.widget_progreso_semanal, android.view.View.GONE)
+            }
+            if (fraseDelDia.isNotBlank()) {
+                views.setTextViewText(R.id.widget_frase_del_dia, "“$fraseDelDia”")
+                views.setViewVisibility(R.id.widget_frase_del_dia, android.view.View.VISIBLE)
+            } else {
+                views.setViewVisibility(R.id.widget_frase_del_dia, android.view.View.GONE)
             }
 
             val launchIntent = Intent(context, MainActivity::class.java).apply {

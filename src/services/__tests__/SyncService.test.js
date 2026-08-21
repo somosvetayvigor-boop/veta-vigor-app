@@ -100,6 +100,44 @@ describe('SyncService.pushData — outbox de recompensas RPG', () => {
     );
   });
 
+  it('si el servidor manda nivel_rpg (VETA_VIGOR_FIX_NIVEL_RPG.sql aplicado), también lo adopta en el perfil local', async () => {
+    mockRecompensasPendientes([
+      { id: 'reward-uuid-1', user_id: USER_ID, fuente: 'descanso_activo', xp_ganada: 15, monedas_ganadas: 15 },
+    ]);
+    supabase.rpc.mockResolvedValue({
+      data: { success: true, xp_total: 110, monedas_total: 55, racha: 3, nivel_rpg: 2 },
+      error: null,
+    });
+
+    await SyncService.pushData(USER_ID);
+
+    expect(DatabaseService.execute).toHaveBeenCalledWith(
+      expect.stringContaining('UPDATE perfiles SET xp_actual'),
+      [110, 55, 3, 2, USER_ID]
+    );
+  });
+
+  it('si el servidor todavía no manda nivel_rpg (migración vieja), no lo pisa con NULL -- usa el UPDATE de 3 campos de siempre', async () => {
+    mockRecompensasPendientes([
+      { id: 'reward-uuid-1', user_id: USER_ID, fuente: 'entrenamiento', xp_ganada: 10, monedas_ganadas: 5 },
+    ]);
+    supabase.rpc.mockResolvedValue({
+      data: { success: true, xp_total: 110, monedas_total: 55, racha: 3 }, // sin nivel_rpg
+      error: null,
+    });
+
+    await SyncService.pushData(USER_ID);
+
+    expect(DatabaseService.execute).toHaveBeenCalledWith(
+      expect.stringContaining('UPDATE perfiles SET xp_actual'),
+      [110, 55, 3, USER_ID]
+    );
+    expect(DatabaseService.execute).not.toHaveBeenCalledWith(
+      expect.stringContaining('nivel_rpg'),
+      expect.anything()
+    );
+  });
+
   it('"Ya se registró esta misión" (reintento de una clave ya usada) limpia is_dirty pero NO reescribe el perfil local', async () => {
     mockRecompensasPendientes([
       { id: 'reward-uuid-1', user_id: USER_ID, fuente: 'entrenamiento', xp_ganada: 10, monedas_ganadas: 5 },

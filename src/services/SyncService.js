@@ -452,11 +452,29 @@ class SyncService {
         );
 
         if (data?.success) {
-          // Adoptar el saldo autoritativo que devolvió el servidor.
-          await DatabaseService.execute(
-            `UPDATE perfiles SET xp_actual = ?, puntos_forja = ?, racha_actual = ? WHERE id = ?`,
-            [data.xp_total, data.monedas_total, data.racha, userId]
-          );
+          // Adoptar el saldo autoritativo que devolvió el servidor. nivel_rpg
+          // incluido desde acá (20/08): antes solo lo subía RutinaDetail.jsx
+          // con una llamada aparte y best-effort, así que el XP ganado por
+          // Bienestar o Descanso Activo podía cruzar de nivel sin que
+          // nivel_rpg se enterara nunca -- la barra se veía llena pero el
+          // número de nivel se quedaba pegado. Ahora el RPC lo calcula junto
+          // con el XP, en la misma transacción (ver VETA_VIGOR_FIX_NIVEL_RPG.sql),
+          // y el cliente lo adopta acá.
+          //
+          // data.nivel_rpg puede venir undefined si todavía no se corrió esa
+          // migración en Supabase -- en ese caso se omite del UPDATE en vez
+          // de mandar NULL, para no borrar el valor que ya había.
+          if (data.nivel_rpg !== undefined && data.nivel_rpg !== null) {
+            await DatabaseService.execute(
+              `UPDATE perfiles SET xp_actual = ?, puntos_forja = ?, racha_actual = ?, nivel_rpg = ? WHERE id = ?`,
+              [data.xp_total, data.monedas_total, data.racha, data.nivel_rpg, userId]
+            );
+          } else {
+            await DatabaseService.execute(
+              `UPDATE perfiles SET xp_actual = ?, puntos_forja = ?, racha_actual = ? WHERE id = ?`,
+              [data.xp_total, data.monedas_total, data.racha, userId]
+            );
+          }
 
           // Revisar bonos de racha (7/14 días) también acá: hasta el 16/08 solo
           // RutinaRetoPlayer.jsx los revisaba, justo después de SU propia llamada
