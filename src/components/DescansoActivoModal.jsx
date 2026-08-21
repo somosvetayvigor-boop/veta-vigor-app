@@ -1,5 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, Play, Square, Share, Droplets, Wind, Activity, Pause } from 'lucide-react';
+import DatabaseService from '../services/DatabaseService';
+import { registrarDiaEntrenado } from '../utils/registrarDiaEntrenado';
+import { calculateWorkoutRewards, calculateLevel } from '../utils/ProgressionEngine';
+import { getOrCreateTodayBienestarRow, marcarProtocoloHecho } from '../utils/descansoActivo';
 
 const BreathingAudioWidget = () => {
   const [phase, setPhase] = useState('RESPIRA');
@@ -154,13 +158,92 @@ const BreathingAudioWidget = () => {
   );
 };
 
-export default function DescansoActivoModal({ onClose }) {
+export default function DescansoActivoModal({ session, onClose }) {
   const [selectedProtocol, setSelectedProtocol] = useState(null);
-  
+
   // Timer state
   const [time, setTime] = useState(0); // in seconds
   const [isRunning, setIsRunning] = useState(false);
   const [activeTab, setActiveTab] = useState('caminadora'); // for Caminata
+
+  // Protocolos ya completados hoy (comparten fila con el check-in de
+  // Bienestar de MiRutina.jsx, vía checkins_bienestar.habitos) -- para no
+  // pagar XP/monedas dos veces por el mismo protocolo el mismo día.
+  const [protocolosHechosHoy, setProtocolosHechosHoy] = useState([]);
+  const [terminando, setTerminando] = useState(false);
+  const terminandoRef = useRef(false);
+
+  useEffect(() => {
+    let cancelado = false;
+    (async () => {
+      if (!session?.user?.id) return;
+      const { habitos } = await getOrCreateTodayBienestarRow(session.user.id);
+      if (!cancelado) setProtocolosHechosHoy(habitos);
+    })();
+    return () => { cancelado = true; };
+  }, [session?.user?.id]);
+
+  const handleTerminarProtocolo = async () => {
+    if (terminandoRef.current || !selectedProtocol) return;
+    const userId = session?.user?.id;
+    if (!userId) return;
+
+    terminandoRef.current = true;
+    setTerminando(true);
+    setIsRunning(false);
+
+    try {
+      const protocoloId = selectedProtocol.id;
+      if (protocolosHechosHoy.includes(protocoloId)) {
+        alert('Ya registraste este protocolo hoy. ¡Sigue disfrutando tu recuperación, aunque no haya recompensa extra por repetirlo!');
+        return;
+      }
+
+      // Cuenta para la racha, el progreso semanal y el historial, igual
+      // que terminar una rutina normal.
+      await registrarDiaEntrenado(userId);
+
+      // Recompensa -- MISMO origen 'entrenamiento' que una rutina real: el
+      // RPC completar_mision_rpg solo reconoce 'entrenamiento',
+      // 'descanso_activo' y 'reto_vigor21_dia_%', y decide el monto él
+      // mismo del lado servidor (10 XP + 5 monedas fijos para
+      // 'entrenamiento', sin importar lo que mande el cliente) -- por eso
+      // "igual que una rutina normal" no necesita ningún cambio de SQL.
+      const perfilesRows = await DatabaseService.query(
+        `SELECT xp_actual, puntos_forja, nivel_rpg FROM perfiles WHERE id = ?`, [userId]
+      );
+      if (perfilesRows.length > 0) {
+        const perfilInfo = perfilesRows[0];
+        const { xp, puntosForja } = calculateWorkoutRewards();
+        const newXp = (perfilInfo.xp_actual || 0) + xp;
+        const newForja = (perfilInfo.puntos_forja || 0) + puntosForja;
+        const newLevelRPG = calculateLevel(newXp);
+
+        await DatabaseService.execute(
+          `UPDATE perfiles SET xp_actual = ?, puntos_forja = ?, nivel_rpg = ?, is_dirty = 1 WHERE id = ?`,
+          [newXp, newForja, newLevelRPG, userId]
+        );
+
+        const recId = crypto.randomUUID();
+        await DatabaseService.execute(
+          `INSERT INTO rpg_historial_recompensas (id, user_id, xp_ganada, monedas_ganadas, fuente, descripcion, fecha_reclamo, is_dirty) VALUES (?, ?, ?, ?, ?, ?, ?, 1)`,
+          [recId, userId, xp, puntosForja, 'entrenamiento', `Descanso Activo: ${selectedProtocol.title}`, new Date().toISOString()]
+        );
+
+        alert(`¡Protocolo completado! +${xp} XP y +${puntosForja} Oro del Gremio.`);
+      }
+
+      // Marca el protocolo como hecho hoy -- comparte fila con Bienestar.
+      const { habitos } = await marcarProtocoloHecho(userId, protocoloId);
+      setProtocolosHechosHoy(habitos);
+    } catch (e) {
+      console.error('Error al terminar protocolo de Descanso Activo:', e);
+      alert('Hubo un problema guardando tu progreso. Intenta de nuevo.');
+    } finally {
+      setTerminando(false);
+      setTimeout(() => { terminandoRef.current = false; }, 3000);
+    }
+  };
 
   useEffect(() => {
     let interval;
@@ -310,7 +393,28 @@ export default function DescansoActivoModal({ onClose }) {
         </div>
 
         {selectedProtocol.id === 'absoluto' ? (
-          <BreathingAudioWidget />
+          <>
+            <BreathingAudioWidget />
+            <div style={{ padding: '0 20px', marginBottom: '30px' }}>
+              {protocolosHechosHoy.includes('absoluto') && (
+                <p style={{ textAlign: 'center', color: 'var(--accent-gold)', fontSize: '0.85rem', marginBottom: '10px' }}>
+                  ✅ Ya completaste este protocolo hoy
+                </p>
+              )}
+              <button
+                onClick={handleTerminarProtocolo}
+                disabled={terminando}
+                style={{
+                  width: '100%', padding: '15px', borderRadius: '12px',
+                  background: 'linear-gradient(135deg, #f9f0b1 0%, #D4AF37 50%, #aa8b2c 100%)',
+                  color: '#000', fontWeight: 'bold', fontSize: '1rem',
+                  border: 'none', cursor: terminando ? 'not-allowed' : 'pointer'
+                }}
+              >
+                {terminando ? 'Guardando...' : 'TERMINAR Y REGISTRAR'}
+              </button>
+            </div>
+          </>
         ) : (
           <>
             {/* Tabs (Si existen) */}
@@ -391,9 +495,30 @@ export default function DescansoActivoModal({ onClose }) {
           </>
         )}
 
+        {/* Terminar y Registrar */}
+        <div style={{ padding: '0 20px', marginBottom: '15px' }}>
+          {protocolosHechosHoy.includes(selectedProtocol.id) && (
+            <p style={{ textAlign: 'center', color: 'var(--accent-gold)', fontSize: '0.85rem', marginBottom: '10px' }}>
+              ✅ Ya completaste este protocolo hoy
+            </p>
+          )}
+          <button
+            onClick={handleTerminarProtocolo}
+            disabled={terminando}
+            style={{
+              width: '100%', padding: '15px', borderRadius: '12px',
+              background: 'linear-gradient(135deg, #f9f0b1 0%, #D4AF37 50%, #aa8b2c 100%)',
+              color: '#000', fontWeight: 'bold', fontSize: '1rem',
+              border: 'none', cursor: terminando ? 'not-allowed' : 'pointer'
+            }}
+          >
+            {terminando ? 'Guardando...' : 'TERMINAR Y REGISTRAR'}
+          </button>
+        </div>
+
         {/* Compartir Victoria */}
         <div style={{ padding: '0 20px', marginBottom: '30px' }}>
-          <button 
+          <button
             onClick={handleShare}
             style={{ 
               width: '100%', padding: '15px', borderRadius: '12px', 

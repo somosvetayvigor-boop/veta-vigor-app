@@ -157,7 +157,7 @@ function App() {
             <Route path="/" element={session?.user ? <MiRutina session={session} /> : <Navigate to="/login" />} />
             <Route path="/sistema/:id" element={session?.user ? <SistemaDetail session={session} /> : <Navigate to="/login" />} />
             <Route path="/rutina/:id" element={session?.user ? <RutinaDetail session={session} /> : <Navigate to="/login" />} />
-            <Route path="/descanso" element={session?.user ? <DescansoActivoModal onClose={() => window.history.back()} /> : <Navigate to="/login" />} />
+            <Route path="/descanso" element={session?.user ? <DescansoActivoModal session={session} onClose={() => window.history.back()} /> : <Navigate to="/login" />} />
             <Route path="/comunidad" element={session?.user ? <Comunidad session={session} /> : <Navigate to="/login" />} />
             <Route path="/coach" element={session?.user ? <Consultorio session={session} /> : <Navigate to="/login" />} />
             <Route path="/panel-entrenador" element={session?.user ? <PanelEntrenador session={session} /> : <Navigate to="/login" />} />

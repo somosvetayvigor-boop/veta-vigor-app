@@ -13,7 +13,9 @@ const HABITOS_MAP = {
   caminata: { label: 'Caminar 30m', emoji: '🚶' },
   bicicleta: { label: 'Bicicleta', emoji: '🚴' },
   natacion: { label: 'Natación', emoji: '🏊' },
-  saltar_cuerda: { label: 'Saltar Cuerda', emoji: '🪢' }
+  cuerda: { label: 'Saltar Cuerda', emoji: '🪢' },
+  movilidad: { label: 'Movilidad', emoji: '🧘‍♂️' },
+  absoluto: { label: 'Descanso Absoluto', emoji: '🛏️' }
 };
 
 export default function Historial({ session }) {

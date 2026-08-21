@@ -9,6 +9,8 @@ import DatabaseService from '../services/DatabaseService';
 import SyncService from '../services/SyncService';
 import { useWakeLock } from '../utils/useWakeLock';
 import { actualizarWidget } from '../utils/widgetBridge';
+import { getOrCreateTodayBienestarRow, PROTOCOLOS_COMPARTIDOS_CON_BIENESTAR } from '../utils/descansoActivo';
+import { contarDiasEntrenadosSemana, META_DIAS_SEMANA } from '../utils/progresoSemanal';
 
 let globalRutinaSemana = [];
 let globalRutinaTodas = [];
@@ -65,23 +67,22 @@ export default function MiRutina({ session }) {
                 tieneAccesoPlatinum ||
                 (!!retoActivoId && !retoCompletado);
 
-  // Día de descanso según el calendario fijo semanal (Lunes=idx0 ... Domingo=idx6),
-  // mismo cálculo de "hoy" que usa loadRutinas() para la semana en curso. Se
-  // recalcula en cada render a partir de `semana` -- no un useState propio,
-  // así nunca queda vieja.
+  // Mismo cálculo de "hoy" que usa loadRutinas() para la semana en curso.
   const todayIdx = (new Date().getDay() || 7) - 1;
-  const esHoyDescanso = semana[todayIdx]?.isDescanso === true;
 
   // Estados para modales
   const [showModal, setShowModal] = useState(false);
   const [showTuMusica, setShowTuMusica] = useState(false);
   const [customMusicLink, setCustomMusicLink] = useState(session?.user?.user_metadata?.custom_music_link || '');
   
-  // Estados para Check-In de Bienestar (días de descanso)
+  // Estados para Check-In de Bienestar (ahora disponible todos los días)
   const [bienestarHabitos, setBienestarHabitos] = useState([]);
   const [bienestarDone, setBienestarDone] = useState(false);
   const [savingBienestar, setSavingBienestar] = useState(false);
   const [showingBienestarCheckin, setShowingBienestarCheckin] = useState(false);
+  // Ids que Descanso Activo ya registró hoy (comparten fila con este check-in) --
+  // aparecen pre-marcados y bloqueados para no pagar recompensa dos veces.
+  const [habitosBloqueados, setHabitosBloqueados] = useState([]);
   
   // Novedades / Explora
   const [articulosState, setArticulosState] = useState(globalRutinaArticulos);
@@ -135,18 +136,9 @@ export default function MiRutina({ session }) {
       ultimoTexto = dias <= 0 ? 'Hoy' : dias === 1 ? 'Ayer' : `Hace ${dias} días`;
     }
 
-    // Misma cuenta de meta semanal que renderSemaforo() más abajo: si es
-    // alumno de entrenador, la meta son los días con rutina personalizada
-    // asignada (customCal); si no, viene de dias_entrenamiento del perfil.
-    const isAlumno = localStorage.getItem('user_role') === 'alumno_entrenador';
-    let goalDays = 4;
-    if (isAlumno) {
-      goalDays = Object.values(customCal).filter(id => id).length || 1;
-    } else {
-      const metaStr = session?.user?.user_metadata?.dias_entrenamiento || '>3';
-      goalDays = metaStr === '3' ? 3 : 4;
-    }
-    const progresoSemanalTexto = `${diasEntrenadosSemana}/${goalDays} días`;
+    // Meta semanal fija: la semana completa (7 días) -- ahora que Descanso
+    // Activo y Bienestar también cuentan como día activo, no solo rutinas.
+    const progresoSemanalTexto = `${diasEntrenadosSemana}/${META_DIAS_SEMANA} días`;
 
     actualizarWidget({
       racha,
@@ -155,7 +147,7 @@ export default function MiRutina({ session }) {
       ultimoEntrenamiento: ultimoTexto,
       progresoSemanal: progresoSemanalTexto,
     });
-  }, [racha, semana, todayIdx, session?.user?.user_metadata?.nivel, session?.user?.user_metadata?.dias_entrenamiento, ultimoEntrenamiento, diasEntrenadosSemana, customCal]);
+  }, [racha, semana, todayIdx, session?.user?.user_metadata?.nivel, ultimoEntrenamiento, diasEntrenadosSemana]);
 
   useEffect(() => {
     let safetyTimer = null;
@@ -310,6 +302,13 @@ export default function MiRutina({ session }) {
         if (habitosParsed.length >= 2) {
           setBienestarDone(true);
           setHasCheckedInToday(true);
+        }
+        // Pre-marcar (y bloquear) los protocolos que Descanso Activo ya
+        // registró hoy -- comparten la misma fila de checkins_bienestar.
+        const compartidos = habitosParsed.filter(id => PROTOCOLOS_COMPARTIDOS_CON_BIENESTAR.includes(id));
+        if (compartidos.length > 0) {
+          setBienestarHabitos(prev => Array.from(new Set([...prev, ...compartidos])));
+          setHabitosBloqueados(compartidos);
         }
       }
 
@@ -540,7 +539,31 @@ export default function MiRutina({ session }) {
       // volver tampoco lo arreglaba porque el crash pasaba antes de llegar a
       // esa parte del código).
       const historialConFecha = (historialTotal || []).filter(h => h.fecha_completado);
-      const trainedDays = historialRows ? new Set(historialRows.map(h => h.fecha_completado?.split('T')[0]).filter(Boolean)).size : 0;
+
+      // Progreso Semanal ahora cuenta TODA la semana (Descanso Activo y
+      // Bienestar también son "día activo"), no solo rutinas completadas --
+      // mismo patrón local-primero-respaldo-Supabase que el historial de arriba.
+      let checkinsSemana = await DatabaseService.query(`SELECT fecha FROM checkins WHERE user_id = ? AND fecha >= ?`, [session?.user.id, startOfWeekStr]);
+      if ((!checkinsSemana || checkinsSemana.length === 0) && navigator.onLine) {
+        try {
+          const { data } = await supabase.from('checkins').select('fecha').eq('user_id', session?.user.id).gte('fecha', startOfWeekStr);
+          checkinsSemana = data || [];
+        } catch (e) { console.warn('Supabase checkins semana fetch failed:', e); }
+      }
+
+      let bienestarSemana = await DatabaseService.query(`SELECT fecha FROM checkins_bienestar WHERE user_id = ? AND fecha >= ?`, [session?.user.id, startOfWeekStr]);
+      if ((!bienestarSemana || bienestarSemana.length === 0) && navigator.onLine) {
+        try {
+          const { data } = await supabase.from('checkins_bienestar').select('fecha').eq('user_id', session?.user.id).gte('fecha', startOfWeekStr);
+          bienestarSemana = data || [];
+        } catch (e) { console.warn('Supabase bienestar semana fetch failed:', e); }
+      }
+
+      const trainedDays = contarDiasEntrenadosSemana({
+        historialFechas: (historialRows || []).map(h => h.fecha_completado?.split('T')[0]),
+        checkinsFechas: (checkinsSemana || []).map(c => c.fecha),
+        bienestarFechas: (bienestarSemana || []).map(b => b.fecha),
+      });
       setDiasEntrenadosSemana(trainedDays);
 
       if (historialConFecha.length > 0) {
@@ -801,7 +824,8 @@ export default function MiRutina({ session }) {
   ];
 
   const toggleHabito = (id) => {
-    setBienestarHabitos(prev => 
+    if (habitosBloqueados.includes(id)) return; // ya viene de Descanso Activo hoy
+    setBienestarHabitos(prev =>
       prev.includes(id) ? prev.filter(h => h !== id) : [...prev, id]
     );
   };
@@ -810,11 +834,15 @@ export default function MiRutina({ session }) {
     if (bienestarHabitos.length < 2) return;
     setSavingBienestar(true);
     try {
-      const today = new Date();
-      const todayStr = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
-      
-      const checkinId = crypto.randomUUID();
-      await DatabaseService.execute(`INSERT INTO checkins_bienestar (id, user_id, fecha, habitos, is_dirty) VALUES (?, ?, ?, ?, 1)`, [checkinId, session?.user.id, todayStr, JSON.stringify(bienestarHabitos)]);
+      // Reutiliza la fila de hoy si Descanso Activo (u otro dispositivo) ya
+      // la creó, en vez de insertar una fila nueva a ciegas -- así no queda
+      // más de una fila el mismo día, que rompería el anti-duplicado con
+      // Descanso Activo (ver src/utils/descansoActivo.js).
+      const { id: checkinId, habitos: habitosExistentes, fecha: todayStr } =
+        await getOrCreateTodayBienestarRow(session?.user.id);
+      const habitosFinales = Array.from(new Set([...habitosExistentes, ...bienestarHabitos]));
+
+      await DatabaseService.execute(`INSERT OR REPLACE INTO checkins_bienestar (id, user_id, fecha, habitos, is_dirty) VALUES (?, ?, ?, ?, 1)`, [checkinId, session?.user.id, todayStr, JSON.stringify(habitosFinales)]);
       setBienestarDone(true);
 
       // Empuje inmediato, best-effort -- mismo motivo que en
@@ -825,7 +853,7 @@ export default function MiRutina({ session }) {
       // nunca mostraba los días de descanso registrados).
       if (navigator.onLine) {
         supabase.from('checkins_bienestar').upsert({
-          id: checkinId, user_id: session?.user.id, fecha: todayStr, habitos: bienestarHabitos
+          id: checkinId, user_id: session?.user.id, fecha: todayStr, habitos: habitosFinales
         }).then(({ error }) => {
           if (!error) {
             DatabaseService.execute(`UPDATE checkins_bienestar SET is_dirty = 0 WHERE id = ?`, [checkinId]);
@@ -880,7 +908,7 @@ export default function MiRutina({ session }) {
   };
 
   const renderBienestarSummary = () => {
-    if (!bienestarDone || !esHoyDescanso) return null;
+    if (!bienestarDone) return null;
     return (
       <div 
         onClick={() => navigate('/historial', { state: { tab: 'bienestar' } })}
@@ -1072,18 +1100,10 @@ export default function MiRutina({ session }) {
 
   // --- Renderizado del Semáforo ---
   const renderSemaforo = () => {
-    const isAlumno = localStorage.getItem('user_role') === 'alumno_entrenador';
-    const metaStr = session?.user.user_metadata?.dias_entrenamiento || '>3';
-    
-    // Si es alumno, la meta son los días que el entrenador le asignó (rutinas personalizadas activas)
-    let goalDays = 4;
-    if (isAlumno) {
-      goalDays = Object.values(customCal).filter(id => id).length;
-      if (goalDays === 0) goalDays = 1; // Para evitar división entre 0 si no tiene rutina aún
-    } else {
-      goalDays = metaStr === '3' ? 3 : 4;
-    }
-    
+    // Meta fija: la semana completa (7 días) -- ahora que Descanso Activo y
+    // Bienestar también cuentan como día activo, no solo rutinas.
+    const goalDays = META_DIAS_SEMANA;
+
     let color = '#e55039'; // Rojo por defecto
     let mensaje = '¡Arranca tu semana!';
     
@@ -1408,8 +1428,8 @@ export default function MiRutina({ session }) {
         </div>
       )}
 
-      {/* Registro de Bienestar (si hay intención de descanso) */}
-      {esVIP && esHoyDescanso && !bienestarDone && (
+      {/* Registro de Bienestar (disponible todos los días) */}
+      {esVIP && !bienestarDone && (
         <div style={{ marginBottom: '30px' }}>
           {!showingBienestarCheckin ? (
             <button 
@@ -1442,22 +1462,25 @@ export default function MiRutina({ session }) {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '20px' }}>
                 {HABITOS_BIENESTAR.map(h => {
                   const selected = bienestarHabitos.includes(h.id);
+                  const bloqueado = habitosBloqueados.includes(h.id);
                   return (
                     <button
                       key={h.id}
-                      onClick={(e) => { e.preventDefault(); toggleHabito(h.id); }}
+                      onClick={(e) => { e.preventDefault(); if (!bloqueado) toggleHabito(h.id); }}
+                      disabled={bloqueado}
                       style={{
                         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
                         padding: '12px 5px', gap: '6px',
                         backgroundColor: selected ? 'rgba(212, 175, 55, 0.15)' : '#1c1c20',
                         border: selected ? '2px solid var(--accent-gold)' : '1px solid #333',
                         borderRadius: '12px',
-                        cursor: 'pointer',
+                        cursor: bloqueado ? 'default' : 'pointer',
+                        opacity: bloqueado ? 0.85 : 1,
                         transition: 'all 0.2s ease'
                       }}
                     >
                       <span style={{ fontSize: '1.5rem' }}>{h.emoji}</span>
-                      <span style={{ fontSize: '0.65rem', color: selected ? 'var(--accent-gold)' : '#999', fontWeight: selected ? 'bold' : 'normal', textAlign: 'center', lineHeight: '1.2' }}>{h.label}</span>
+                      <span style={{ fontSize: '0.65rem', color: selected ? 'var(--accent-gold)' : '#999', fontWeight: selected ? 'bold' : 'normal', textAlign: 'center', lineHeight: '1.2' }}>{h.label}{bloqueado ? ' ✓' : ''}</span>
                     </button>
                   );
                 })}
