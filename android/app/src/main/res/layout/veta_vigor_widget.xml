@@ -19,8 +19,18 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
-        android:gravity="center_vertical"
         android:padding="16dp">
+
+        <!-- Espaciador flexible: si el launcher le da al widget más alto del
+             que el contenido necesita, ese sobrante se reparte acá arriba y
+             en el de más abajo, en vez de quedar como un hueco vacío pegado
+             a un extremo (reporte real: en algunos launchers -Nothing OS,
+             confirmado con foto- el contenido quedaba pegado arriba con
+             medio celular de fondo vacío debajo). -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -106,6 +116,11 @@
             android:textColor="#A0A0A0"
             android:maxLines="3"
             android:ellipsize="end" />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
     </LinearLayout>
 
     <!-- Escuadras doradas de esquina: mismo drawable las 4 veces, cada
