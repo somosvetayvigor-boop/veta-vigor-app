@@ -21,6 +21,7 @@ export default function Perfil({ session }) {
   const isAdmin = session?.user?.email === 'somos.vetayvigor@gmail.com';
   const [zoomedImage, setZoomedImage] = useState(null);
   const [editModal, setEditModal] = useState(false);
+  const [isSavingMetrics, setIsSavingMetrics] = useState(false);
   const [legalModal, setLegalModal] = useState(null); // 'privacy' or 'terms'
   const [isUploading, setIsUploading] = useState(false);
   const [imgError, setImgError] = useState(false);
@@ -264,23 +265,35 @@ export default function Perfil({ session }) {
   };
 
   const handleSaveMetrics = async () => {
-    try {
-      if (!navigator.onLine) {
-        addToOfflineQueue('UPDATE_AUTH_META', formMetrics);
-        addToOfflineQueue('UPDATE_PERFIL', { userId: session?.user.id, data: formMetrics });
-        setMeta({ ...meta, ...formMetrics });
-        setEditModal(false);
-        alert('Sin conexión: Métricas guardadas localmente. Se sincronizarán automáticamente.');
-        return;
-      }
+    if (isSavingMetrics) return; // guardia contra doble-toque
+    if (!navigator.onLine) {
+      addToOfflineQueue('UPDATE_AUTH_META', formMetrics);
+      addToOfflineQueue('UPDATE_PERFIL', { userId: session?.user.id, data: formMetrics });
+      setMeta({ ...meta, ...formMetrics });
+      setEditModal(false);
+      alert('Sin conexión: Métricas guardadas localmente. Se sincronizarán automáticamente.');
+      return;
+    }
 
-      const { data } = await supabase.auth.updateUser({ data: formMetrics });
+    setIsSavingMetrics(true);
+    try {
+      // Los dos escrituras son independientes (metadata de Auth vs. la
+      // tabla perfiles) -- en paralelo en vez de una tras otra, para no
+      // sumar sus latencias. Reporte real: el modal se sentía "trabado"
+      // varios segundos sin ningún indicador de que algo estaba pasando
+      // (21/08) -- el botón de abajo ahora también muestra que está
+      // guardando.
+      const [{ data }] = await Promise.all([
+        supabase.auth.updateUser({ data: formMetrics }),
+        supabase.from('perfiles').update(formMetrics).eq('id', session?.user.id)
+      ]);
       if (data?.user) setMeta(data.user.user_metadata);
-      await supabase.from('perfiles').update(formMetrics).eq('id', session?.user.id);
       setEditModal(false);
     } catch (e) {
       console.error(e);
       alert("Error al guardar métricas");
+    } finally {
+      setIsSavingMetrics(false);
     }
   };
 
@@ -310,12 +323,15 @@ export default function Perfil({ session }) {
       else if (type === 'avatar') key = 'avatar_url';
       else if (type === 'logo') key = 'logo_entrenador';
 
-      const { data: userData } = await supabase.auth.updateUser({ data: { [key]: data.publicUrl } });
+      // Metadata de Auth y la tabla perfiles son escrituras independientes
+      // (esta última es para el Panel de Creador) -- en paralelo, mismo
+      // motivo que handleSaveMetrics.
+      const [{ data: userData }] = await Promise.all([
+        supabase.auth.updateUser({ data: { [key]: data.publicUrl } }),
+        supabase.from('perfiles').update({ [key]: data.publicUrl }).eq('id', session?.user.id)
+      ]);
       if (userData?.user) setMeta(userData.user.user_metadata);
       if (type === 'avatar') setImgError(false);
-
-      // Sincronizar también con la tabla de perfiles para el Panel de Creador
-      await supabase.from('perfiles').update({ [key]: data.publicUrl }).eq('id', session?.user.id);
 
     } catch (error) {
       console.error(error);
@@ -1066,7 +1082,9 @@ export default function Perfil({ session }) {
                   <input type="number" value={formMetrics.masa_muscular} onChange={e => setFormMetrics({...formMetrics, masa_muscular: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: 'none', background: 'rgba(255,255,255,0.05)', color: '#fff', marginTop: '5px' }} />
                 </div>
               </div>
-              <button onClick={handleSaveMetrics} className="btn-primary" style={{ marginTop: '10px', padding: '15px', fontWeight: 'bold' }}>Registrar Cambios</button>
+              <button onClick={handleSaveMetrics} disabled={isSavingMetrics} className="btn-primary" style={{ marginTop: '10px', padding: '15px', fontWeight: 'bold', opacity: isSavingMetrics ? 0.7 : 1, cursor: isSavingMetrics ? 'not-allowed' : 'pointer' }}>
+                {isSavingMetrics ? <i className="fa-solid fa-spinner fa-spin"></i> : 'Registrar Cambios'}
+              </button>
             </div>
           </div>
         </div>,
