@@ -591,9 +591,20 @@ export default function RutinaDetail({ session }) {
     let mensajePenalizacion = "";
 
     // ---- LOGICA DE ASCENSO Y CICLO ----
-    const hoyStr = hoy.toISOString().split('T')[0];
-    const lastDateStrJustDate = lastDateStr ? lastDateStr.split('T')[0] : null;
-    const yaEntrenoHoy = (hoyStr === lastDateStrJustDate);
+    // Fecha local, no hoy.toISOString() -- mismo patrón que ya usa
+    // checkTodayStatus() y la revisión de "solo lectura" más arriba en
+    // este archivo. Con .toISOString() (UTC), tanto "hoy" como la fecha
+    // guardada se calculaban en UTC -- consistentes entre sí, pero no con
+    // el calendario local: un entrenamiento después de las 6pm hora de
+    // México ya cae en el "día siguiente" de UTC, así que una sesión
+    // genuinamente nueva la mañana siguiente podía leerse como "ya
+    // entrenaste hoy" y saltarse el avance de ciclo/ascenso de nivel.
+    const hoyLocalStrCiclo = hoy.getFullYear() + '-' + String(hoy.getMonth() + 1).padStart(2, '0') + '-' + String(hoy.getDate()).padStart(2, '0');
+    const lastDateLocalStrCiclo = lastDateStr ? (() => {
+      const d = new Date(lastDateStr);
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    })() : null;
+    const yaEntrenoHoy = (hoyLocalStrCiclo === lastDateLocalStrCiclo);
 
     // Guardar logs de esta sesión
     const historialEjercicios = { ...(currentMetadata.historial_ejercicios || {}) };
