@@ -150,6 +150,16 @@ class DatabaseService {
       for (const tabla of TABLAS_CATALOGO) {
         await this.db.execute(`DROP TABLE IF EXISTS ${tabla};`);
       }
+      // Si el dispositivo ya tenía un sync de catálogos reciente (<24h,
+      // ver SyncService.HORAS_FRESCURA_CATALOGOS), esa marca sobrevive al
+      // DROP de arriba y el próximo syncAll() se salta el repull entero
+      // pensando que los catálogos siguen frescos -- dejando estas tablas
+      // recién vaciadas sin nadie que las rellene hasta que pasen las 24h.
+      // Bug real, visto en dispositivo 21/08: pantalla de Sistemas vacía
+      // tras actualizar. Se borra la marca acá para forzar el repull.
+      try {
+        await this.db.execute(`DELETE FROM sync_metadata WHERE table_name = 'catalogos';`);
+      } catch { /* sync_metadata todavía no existe en un dispositivo nuevo: nada que invalidar */ }
       await this.db.execute(`PRAGMA user_version = ${SCHEMA_VERSION};`);
       console.log('Migración completada. Los catálogos se rellenan en el próximo sync.');
     } catch (e) {

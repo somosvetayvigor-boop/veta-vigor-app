@@ -26,8 +26,15 @@
              en el de más abajo, en vez de quedar como un hueco vacío pegado
              a un extremo (reporte real: en algunos launchers -Nothing OS,
              confirmado con foto- el contenido quedaba pegado arriba con
-             medio celular de fondo vacío debajo). -->
-        <View
+             medio celular de fondo vacío debajo).
+
+             OJO: tiene que ser TextView, no View. RemoteViews (AppWidget)
+             solo soporta un set fijo de clases (ver comentario al inicio del
+             archivo) y un View plano NO está en esa lista. Usarlo rompe la
+             inflación del widget entero en tiempo de ejecución y el launcher
+             muestra "No se puede cargar el widget" (confirmado en
+             dispositivo real el 21/08, con foto). -->
+        <TextView
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1" />
@@ -117,7 +124,7 @@
             android:maxLines="3"
             android:ellipsize="end" />
 
-        <View
+        <TextView
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1" />
