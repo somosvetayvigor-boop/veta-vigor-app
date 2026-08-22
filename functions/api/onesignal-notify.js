@@ -9,9 +9,10 @@
 // mandar notificaciones push a CUALQUIER usuario de la app, no solo esas
 // dos pantallas. Mismo patron que ya usaba functions/api/chat.js para la
 // clave de Gemini: la clave real vive solo acá, del lado servidor
-// (env.ONESIGNAL_API_KEY, SIN prefijo VITE_ para que Vite nunca la
-// empaquete), y el cliente le manda a esta funcion en vez de a OneSignal
-// directo.
+// (env.ONESIGNAL_REST_API_KEY, SIN prefijo VITE_ para que Vite nunca la
+// empaquete -- ya estaba configurada en Cloudflare Pages con ese nombre,
+// solo hacia falta que el codigo la leyera), y el cliente le manda a
+// esta funcion en vez de a OneSignal directo.
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -39,9 +40,9 @@ export async function onRequestPost(context) {
       });
     }
 
-    const API_KEY = env.ONESIGNAL_API_KEY;
+    const API_KEY = env.ONESIGNAL_REST_API_KEY;
     if (!API_KEY) {
-      return new Response(JSON.stringify({ error: 'ONESIGNAL_API_KEY no configurada en el servidor.' }), {
+      return new Response(JSON.stringify({ error: 'ONESIGNAL_REST_API_KEY no configurada en el servidor.' }), {
         status: 500,
         headers: { 'Content-Type': 'application/json', ...corsHeaders }
       });
