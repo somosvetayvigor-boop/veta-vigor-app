@@ -712,6 +712,17 @@ export function useAppSession() {
 
         supabase.from('perfiles').update({ ultimo_ingreso: new Date().toISOString() }).eq('id', session?.user.id).then();
 
+        // Zona horaria real del dispositivo, para que completar_mision_rpg()
+        // calcule "hoy" con la hora del atleta y no con la de México a secas
+        // (ver VETA_VIGOR_ZONA_HORARIA_POR_USUARIO.sql). Sin gating por valor
+        // cacheado a propósito, mismo patrón que ultimo_ingreso arriba.
+        try {
+          const zonaHoraria = Intl.DateTimeFormat().resolvedOptions().timeZone;
+          if (zonaHoraria) {
+            supabase.from('perfiles').update({ zona_horaria: zonaHoraria }).eq('id', session?.user.id).then();
+          }
+        } catch { /* Intl no disponible: se queda con el default del servidor */ }
+
         // OneSignal Web Prompt (solo para PWA en navegador, no en app nativa).
         // Se engancha a la promesa que expone index.html, que resuelve cuando
         // init() ya terminó. Encolar en OneSignalDeferred no sirve: esa cola no
@@ -765,6 +776,17 @@ export function useAppSession() {
         checkPendingPurchases(session);
         // Track ultimo ingreso
         supabase.from('perfiles').update({ ultimo_ingreso: new Date().toISOString() }).eq('id', session?.user.id).then();
+
+        // Zona horaria real del dispositivo, para que completar_mision_rpg()
+        // calcule "hoy" con la hora del atleta y no con la de México a secas
+        // (ver VETA_VIGOR_ZONA_HORARIA_POR_USUARIO.sql). Sin gating por valor
+        // cacheado a propósito, mismo patrón que ultimo_ingreso arriba.
+        try {
+          const zonaHoraria = Intl.DateTimeFormat().resolvedOptions().timeZone;
+          if (zonaHoraria) {
+            supabase.from('perfiles').update({ zona_horaria: zonaHoraria }).eq('id', session?.user.id).then();
+          }
+        } catch { /* Intl no disponible: se queda con el default del servidor */ }
 
         // OneSignal Web Prompt (solo para PWA en navegador, no en app nativa).
         // Se engancha a la promesa que expone index.html, que resuelve cuando
