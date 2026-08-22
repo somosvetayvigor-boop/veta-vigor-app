@@ -549,22 +549,37 @@ export default function MiRutina({ session }) {
       const historialConFecha = (historialTotal || []).filter(h => h.fecha_completado);
 
       // Progreso Semanal ahora cuenta TODA la semana (Descanso Activo y
-      // Bienestar también son "día activo"), no solo rutinas completadas --
-      // mismo patrón local-primero-respaldo-Supabase que el historial de arriba.
-      let checkinsSemana = await DatabaseService.query(`SELECT fecha FROM checkins WHERE user_id = ? AND fecha >= ?`, [session?.user.id, startOfWeekStr]);
-      if ((!checkinsSemana || checkinsSemana.length === 0) && navigator.onLine) {
+      // Bienestar también son "día activo"), no solo rutinas completadas.
+      // Con conexión, siempre se confía en Supabase en vez de "SQLite
+      // primero, Supabase solo si SQLite está vacío" -- mismo motivo que
+      // el arreglo de "Sesión histórica" más arriba: ese chequeo de
+      // "vacío" no distingue "vacío de verdad" de "incompleto" (por
+      // ejemplo, recién después de borrar el almacenamiento de la app).
+      // SQLite solo se usa como respaldo sin conexión.
+      let checkinsSemana;
+      if (navigator.onLine) {
         try {
           const { data } = await supabase.from('checkins').select('fecha').eq('user_id', session?.user.id).gte('fecha', startOfWeekStr);
           checkinsSemana = data || [];
-        } catch (e) { console.warn('Supabase checkins semana fetch failed:', e); }
+        } catch (e) {
+          console.warn('Supabase checkins semana fetch failed, usando SQLite local:', e);
+          checkinsSemana = await DatabaseService.query(`SELECT fecha FROM checkins WHERE user_id = ? AND fecha >= ?`, [session?.user.id, startOfWeekStr]);
+        }
+      } else {
+        checkinsSemana = await DatabaseService.query(`SELECT fecha FROM checkins WHERE user_id = ? AND fecha >= ?`, [session?.user.id, startOfWeekStr]);
       }
 
-      let bienestarSemana = await DatabaseService.query(`SELECT fecha FROM checkins_bienestar WHERE user_id = ? AND fecha >= ?`, [session?.user.id, startOfWeekStr]);
-      if ((!bienestarSemana || bienestarSemana.length === 0) && navigator.onLine) {
+      let bienestarSemana;
+      if (navigator.onLine) {
         try {
           const { data } = await supabase.from('checkins_bienestar').select('fecha').eq('user_id', session?.user.id).gte('fecha', startOfWeekStr);
           bienestarSemana = data || [];
-        } catch (e) { console.warn('Supabase bienestar semana fetch failed:', e); }
+        } catch (e) {
+          console.warn('Supabase bienestar semana fetch failed, usando SQLite local:', e);
+          bienestarSemana = await DatabaseService.query(`SELECT fecha FROM checkins_bienestar WHERE user_id = ? AND fecha >= ?`, [session?.user.id, startOfWeekStr]);
+        }
+      } else {
+        bienestarSemana = await DatabaseService.query(`SELECT fecha FROM checkins_bienestar WHERE user_id = ? AND fecha >= ?`, [session?.user.id, startOfWeekStr]);
       }
 
       const trainedDays = contarDiasEntrenadosSemana({
