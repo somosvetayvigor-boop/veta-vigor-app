@@ -515,24 +515,29 @@ export default function MiRutina({ session }) {
       startOfWeek.setHours(0,0,0,0);
       const startOfWeekStr = startOfWeek.toISOString().split('T')[0];
 
-      // Traer historial — SQLite primero, Supabase fallback
-      let historialRows = await DatabaseService.query(`SELECT fecha_completado FROM historial_entrenamientos WHERE user_id = ? AND fecha_completado >= ?`, [session?.user.id, startOfWeekStr]);
-      let historialTotal = await DatabaseService.query(`SELECT fecha_completado FROM historial_entrenamientos WHERE user_id = ? ORDER BY fecha_completado DESC`, [session?.user.id]);
-
-      // FALLBACK: Si SQLite no tiene historial, leer de Supabase
-      if ((!historialTotal || historialTotal.length === 0) && navigator.onLine) {
-        console.log("⚠️ Historial no en SQLite, leyendo de Supabase...");
+      // Traer historial. Con conexión, siempre se confía en Supabase (la
+      // fuente de verdad) en vez de "SQLite primero, Supabase solo si
+      // SQLite está vacío" -- ese chequeo de "vacío" no distingue "vacío
+      // de verdad" de "incompleto" (por ejemplo, recién después de
+      // borrar el almacenamiento de la app, SQLite local solo tiene lo
+      // entrenado desde ese momento, no está vacío pero le falta todo lo
+      // de antes). Reporte real: "Sesión histórica" mostró 1 en vez del
+      // total real tras un borrado de almacenamiento (21/08) -- mismo
+      // patrón ya visto hoy con sistemas_entrenamiento. SQLite solo se
+      // usa como respaldo cuando no hay conexión.
+      let historialTotal;
+      if (navigator.onLine) {
         try {
           const { data: histRemoto } = await supabase.from('historial_entrenamientos').select('fecha_completado, created_at').eq('user_id', session?.user.id).order('created_at', { ascending: false });
-          if (histRemoto && histRemoto.length > 0) {
-            historialTotal = histRemoto.map(h => ({ fecha_completado: h.fecha_completado || h.created_at }));
-            historialRows = historialTotal.filter(h => h.fecha_completado >= startOfWeekStr);
-            console.log(`✅ Historial obtenido de Supabase: ${histRemoto.length} registros`);
-          }
+          historialTotal = (histRemoto || []).map(h => ({ fecha_completado: h.fecha_completado || h.created_at }));
         } catch (hErr) {
-          console.warn("Supabase historial fetch failed:", hErr);
+          console.warn("Supabase historial fetch failed, usando SQLite local:", hErr);
+          historialTotal = await DatabaseService.query(`SELECT fecha_completado FROM historial_entrenamientos WHERE user_id = ? ORDER BY fecha_completado DESC`, [session?.user.id]);
         }
+      } else {
+        historialTotal = await DatabaseService.query(`SELECT fecha_completado FROM historial_entrenamientos WHERE user_id = ? ORDER BY fecha_completado DESC`, [session?.user.id]);
       }
+      const historialRows = (historialTotal || []).filter(h => h.fecha_completado >= startOfWeekStr);
 
       // fecha_completado puede venir null en filas viejas -- sin filtrarlas
       // acá, una sola fila así hacia que loadRutinas() reventara en este punto
