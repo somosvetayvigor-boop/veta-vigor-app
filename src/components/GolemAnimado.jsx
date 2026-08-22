@@ -27,14 +27,39 @@ export default function GolemAnimado({ nivel, isHit, isDead, size = 150 }) {
       50% { opacity: 1; filter: drop-shadow(0 0 8px currentColor); }
       100% { opacity: 0.6; }
     }
+    /* Nivel 2: núcleo "chispeante" (así lo describe ya el flavor text de
+       renderOxido) -- varios destellos irregulares por ciclo en vez del
+       pulso único y suave de coreGlow, para que se sienta más eléctrico
+       e inestable que el núcleo de magma lento del Gólem del Lastre. */
+    @keyframes sparkCore {
+      0%, 100% { opacity: 0.5; filter: drop-shadow(0 0 4px currentColor); }
+      15% { opacity: 1; filter: drop-shadow(0 0 12px currentColor) brightness(1.6); }
+      30% { opacity: 0.55; filter: drop-shadow(0 0 5px currentColor); }
+      45% { opacity: 1; filter: drop-shadow(0 0 14px currentColor) brightness(1.7); }
+      60% { opacity: 0.5; filter: drop-shadow(0 0 4px currentColor); }
+    }
+    /* Nivel 2: leve bamboleo del cuerpo entero, sobre el wrapper (no sobre
+       .golem-body) para no pelear con floatGolem/breatheGolem, que ya
+       animan su propio transform -- refuerza la idea de "inconsistencia"
+       (la debilidad temática del Gólem de Óxido) frente a la quietud
+       pesada del Gólem del Lastre. */
+    @keyframes swayGolem {
+      0%, 100% { transform: rotate(0deg); }
+      25% { transform: rotate(-1.5deg); }
+      75% { transform: rotate(1.5deg); }
+    }
+    .golem-wrapper {
+      animation: ${isLevel2 && !isDead && !isHit ? 'swayGolem 2.6s ease-in-out infinite' : 'none'};
+      transform-origin: center bottom;
+    }
     .golem-body {
-      animation: ${isHit && !isDead ? 'hitShake 0.4s ease-in-out' : (isDead ? 'none' : 'floatGolem 4s ease-in-out infinite, breatheGolem 3s ease-in-out infinite')};
+      animation: ${isHit && !isDead ? 'hitShake 0.4s ease-in-out' : (isDead ? 'none' : (isLevel2 ? 'floatGolem 3s ease-in-out infinite, breatheGolem 2.2s ease-in-out infinite' : 'floatGolem 4s ease-in-out infinite, breatheGolem 3s ease-in-out infinite'))};
       transform-origin: center bottom;
       transition: filter 0.3s ease-out, opacity 0.5s ease-out;
       filter: ${isDead ? 'grayscale(100%) brightness(0.4) opacity(0.5)' : 'none'};
     }
     .golem-core {
-      animation: ${isDead ? 'none' : 'coreGlow 2s ease-in-out infinite'};
+      animation: ${isDead ? 'none' : (isLevel2 ? 'sparkCore 1.3s ease-in-out infinite' : 'coreGlow 2s ease-in-out infinite')};
       color: ${isLevel2 ? '#ff7f50' : '#ff4757'};
     }
   `;
@@ -107,7 +132,7 @@ export default function GolemAnimado({ nivel, isHit, isDead, size = 150 }) {
   );
 
   return (
-    <div style={{ display: 'inline-flex', justifyContent: 'center', alignItems: 'center', width: size, height: size }}>
+    <div className="golem-wrapper" style={{ display: 'inline-flex', justifyContent: 'center', alignItems: 'center', width: size, height: size }}>
       <style>{animationStyles}</style>
       {isLevel2 ? renderOxido() : renderLastre()}
     </div>
