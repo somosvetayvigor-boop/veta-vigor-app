@@ -68,8 +68,15 @@ export async function onRequestPost(context) {
 
     if (!osResponse.ok || osResult.errors) {
       console.error('OneSignal error:', JSON.stringify(osResult));
+      // 400, no 502: Cloudflare reemplaza el cuerpo de cualquier respuesta
+      // 502 de una función por su propia página generica de error (visto
+      // en vivo: el log del Worker mostraba el JSON real con el error de
+      // OneSignal, pero el cliente recibia "error code: 502" en texto
+      // plano sin nada de eso). 400 es ademas mas correcto semanticamente
+      // -- el pedido en si esta mal formado (destinatario invalido), no
+      // es un problema de gateway.
       return new Response(JSON.stringify({ error: osResult.errors || 'Error enviando notificación.' }), {
-        status: 502,
+        status: 400,
         headers: { 'Content-Type': 'application/json', ...corsHeaders }
       });
     }
