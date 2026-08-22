@@ -1435,7 +1435,7 @@ export default function MiRutina({ session }) {
               }}
             >
               <span style={{ fontSize: '1.5rem' }}>🧘</span>
-              REGISTRAR DESCANSO ACTIVO
+              REGISTRAR HÁBITOS DIARIOS
             </button>
           ) : (
             <div className="card" style={{ padding: '20px', border: '1px solid var(--accent-gold)', boxShadow: '0 0 20px rgba(212,175,55,0.1)' }}>
