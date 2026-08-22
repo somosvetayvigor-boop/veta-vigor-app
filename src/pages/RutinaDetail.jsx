@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import DatabaseService from '../services/DatabaseService';
+import SyncService from '../services/SyncService';
 import { ChevronLeft, PlayCircle, CheckCircle, ChevronRight, X, Loader, Play, Pause } from 'lucide-react';
 import { getResponsiveExerciseImage } from '../utils/imageUtils';
 import { warmupsData } from '../data/warmupsData';
@@ -533,6 +534,20 @@ export default function RutinaDetail({ session }) {
         await DatabaseService.execute(`INSERT INTO rpg_historial_recompensas (id, user_id, xp_ganada, monedas_ganadas, fuente, descripcion, fecha_reclamo, is_dirty) VALUES (?, ?, ?, ?, ?, ?, ?, 1)`, [
           recId, session?.user.id, xp, puntosForja, 'entrenamiento', `Rutina completada (+${xp} XP, +${puntosForja} Oro)`, new Date().toISOString()
         ]);
+
+        // Empuje inmediato, best-effort -- mismo patrón que ya usa el
+        // historial de entrenamientos más abajo. Sin esto, la acreditación
+        // real en el servidor (y cualquier pantalla que lea xp_actual/
+        // puntos_forja fresco de Supabase, ej. La Prueba) quedaba pendiente
+        // hasta el próximo SyncService.syncAll() -- podía tardar minutos u
+        // horas (reporte real: "tarda en reflejarse las monedas y el XP",
+        // 21/08). Reutiliza pushData() en vez de llamar la RPC acá mismo
+        // para no duplicar su lógica de adoptar el saldo autoritativo del
+        // servidor (nivel_rpg, racha, bonos) -- si esto falla o no hay red,
+        // la fila sigue is_dirty=1 y el próximo sync la reintenta igual.
+        if (navigator.onLine) {
+          SyncService.pushData(session?.user.id).catch(() => {});
+        }
 
         // === SYNC DIRECTO A SUPABASE (cuando hay internet) ===
         // Solo stats y nivel: xp_actual y puntos_forja los escribe el RPC.
