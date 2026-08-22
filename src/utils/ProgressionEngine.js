@@ -68,10 +68,17 @@ export const calculateBienestarRewards = (habitosCount) => {
 // EL GÓLEM (SISTEMA DE JEFES)
 // ==========================================
 
+// hpAcumuladoPrevio = suma del hp de todos los niveles ANTERIORES. Hace
+// falta porque golem_progreso.golpes_utilizados es un contador de golpes
+// DE POR VIDA (nunca se reinicia al avanzar de nivel -- ver
+// VETA_VIGOR_GOLEM_GOLPES_DE_POR_VIDA.sql), así que para saber cuánto
+// daño lleva el gólem ACTUAL hay que restarle lo ya gastado en los
+// anteriores, no usar el valor crudo tal cual.
 export const GOLEM_LEVELS = {
   1: {
     nombre: 'Gólem del Lastre',
     hp: 10,
+    hpAcumuladoPrevio: 0,
     recompensa: 100,
     color: '#8b8c89', // Gris piedra
     imgFallback: '🪨',
@@ -80,6 +87,7 @@ export const GOLEM_LEVELS = {
   2: {
     nombre: 'Gólem de Óxido',
     hp: 15,
+    hpAcumuladoPrevio: 10,
     recompensa: 200,
     color: '#c0392b', // Rojo óxido
     imgFallback: '⛓️',

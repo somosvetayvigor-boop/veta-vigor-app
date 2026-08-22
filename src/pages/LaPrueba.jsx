@@ -212,7 +212,9 @@ export default function LaPrueba({ session }) {
 
   const golpesDisponibles = getGolpesDisponibles(xp, golem.golpes_utilizados);
   const hpMax = currentGolemData.hp;
-  const vidaGolem = hpMax - golem.golpes_utilizados;
+  // golem.golpes_utilizados es de por vida (ver VETA_VIGOR_GOLEM_GOLPES_DE_POR_VIDA.sql),
+  // así que el daño al gólem ACTUAL es ese total menos lo ya gastado en niveles anteriores.
+  const vidaGolem = hpMax - (golem.golpes_utilizados - currentGolemData.hpAcumuladoPrevio);
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-dark)', color: '#fff', paddingBottom: '20px' }}>
