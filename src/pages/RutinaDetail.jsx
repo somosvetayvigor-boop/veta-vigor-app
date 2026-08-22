@@ -183,22 +183,30 @@ export default function RutinaDetail({ session }) {
         // correr una vez por rutina/sesión, [id, session]) lo haría repetirse
         // en cada render en vez de una sola vez por montaje.
         const ahora = new Date();
-        const hoyLocalStr = ahora.getFullYear() + '-' + String(ahora.getMonth() + 1).padStart(2, '0') + '-' + String(ahora.getDate()).padStart(2, '0');
+
+        // OJO: fecha_completado es timestamptz (guarda el toISOString() -- UTC
+        // -- que manda el cliente, ver VETA_VIGOR_AGREGAR_FECHA_COMPLETADO_HISTORIAL.sql).
+        // Compararla contra un string de solo fecha ("2026-08-21") hace que
+        // Postgres lo interprete como medianoche UTC, no medianoche local --
+        // con México en UTC-6 eso corre la ventana de "hoy" 6 horas antes de
+        // lo real, y cualquier entreno de ANOCHE después de las 6pm local ya
+        // cae en el "hoy" de UTC. Se arma el límite con Date local→UTC real
+        // (mismo patrón de [[bug-zona-horaria-timestamptz]]) en vez de un
+        // string de fecha desnudo.
+        const inicioHoyLocalUTC = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate(), 0, 0, 0, 0).toISOString();
+        const inicioMananaLocalUTC = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate() + 1, 0, 0, 0, 0).toISOString();
 
         let historialHoy = await DatabaseService.query(
-          `SELECT rutina_id, ejercicio_id FROM historial_entrenamientos WHERE user_id = ? AND fecha_completado >= ?`,
-          [session?.user.id, hoyLocalStr]
+          `SELECT rutina_id, ejercicio_id FROM historial_entrenamientos WHERE user_id = ? AND fecha_completado >= ? AND fecha_completado < ?`,
+          [session?.user.id, inicioHoyLocalUTC, inicioMananaLocalUTC]
         );
         if ((!historialHoy || historialHoy.length === 0) && navigator.onLine) {
-          const manana = new Date(ahora);
-          manana.setDate(manana.getDate() + 1);
-          const mananaStr = manana.getFullYear() + '-' + String(manana.getMonth() + 1).padStart(2, '0') + '-' + String(manana.getDate()).padStart(2, '0');
           const { data } = await supabase
             .from('historial_entrenamientos')
             .select('rutina_id, ejercicio_id')
             .eq('user_id', session?.user.id)
-            .gte('fecha_completado', hoyLocalStr)
-            .lt('fecha_completado', mananaStr);
+            .gte('fecha_completado', inicioHoyLocalUTC)
+            .lt('fecha_completado', inicioMananaLocalUTC);
           historialHoy = data || [];
         }
 
