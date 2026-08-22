@@ -198,7 +198,7 @@ export default function LaPrueba({ session }) {
       if (error) throw error;
       
       if (data && data.success) {
-        showToast(`¡Has avanzado al Gólem Nv. ${data.nuevo_nivel || 2}!`);
+        showToast(`¡Has avanzado al Gólem Nv. ${data.golem_nivel || 2}!`);
         await loadDatos();
       } else {
         showToast(data?.error || "Error al avanzar.");
