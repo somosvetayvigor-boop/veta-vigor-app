@@ -1,8 +1,45 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ChevronLeft, ChevronDown, ChevronRight, Calendar, Loader, Flame, Heart, Activity } from 'lucide-react';
+import { ChevronLeft, ChevronDown, ChevronRight, Calendar, Loader, Flame, Heart, Activity, TrendingUp } from 'lucide-react';
 import GaleriaReto from '../components/GaleriaReto';
+
+// Valor representativo de un ejercicio en una sesión: el peso máximo entre
+// sus series si es un ejercicio con peso real (Carga de Hierro), o si no
+// (peso siempre '-', como en Vigor Corporal/calistenia) las repeticiones
+// máximas -- así ambos tipos de sistema tienen una métrica de progreso.
+function valorSesionEjercicio(seriesLog) {
+  const pesos = seriesLog.map(s => parseFloat(s.peso)).filter(n => !isNaN(n) && n > 0);
+  if (pesos.length > 0) return { valor: Math.max(...pesos), unidad: 'kg' };
+  const reps = seriesLog.map(s => parseFloat(s.reps)).filter(n => !isNaN(n) && n > 0);
+  if (reps.length > 0) return { valor: Math.max(...reps), unidad: 'reps' };
+  return null;
+}
+
+// Sparkline simple (sin ejes ni leyenda -- una sola serie por tarjeta, el
+// título de la tarjeta ya la identifica). Trazo de 2px con extremos
+// redondeados y puntos ≥5px de diámetro, en el dorado de acento de la app.
+function Sparkline({ puntos, width = 100, height = 36 }) {
+  const valores = puntos.map(p => p.valor);
+  const min = Math.min(...valores);
+  const max = Math.max(...valores);
+  const rango = max - min || 1;
+  const paso = width / (puntos.length - 1);
+  const coords = valores.map((v, i) => [
+    i * paso,
+    height - ((v - min) / rango) * (height - 8) - 4
+  ]);
+  const pathD = coords.map(([x, y], i) => `${i === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`).join(' ');
+
+  return (
+    <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" style={{ display: 'block' }}>
+      <path d={pathD} fill="none" stroke="var(--accent-gold)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      {coords.map(([x, y], i) => (
+        <circle key={i} cx={x} cy={y} r={i === coords.length - 1 ? 3.5 : 2.5} fill="var(--accent-gold)" />
+      ))}
+    </svg>
+  );
+}
 
 const HABITOS_MAP = {
   agua: { label: '2L+ de Agua', emoji: '💧' },
@@ -23,9 +60,10 @@ export default function Historial({ session }) {
   const location = useLocation();
   const [history, setHistory] = useState({});
   const [bienestarHistory, setBienestarHistory] = useState([]);
+  const [progresoEjercicios, setProgresoEjercicios] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedDates, setExpandedDates] = useState({});
-  const [activeTab, setActiveTab] = useState(location.state?.tab || 'rutinas'); // 'rutinas', 'reto' or 'bienestar'
+  const [activeTab, setActiveTab] = useState(location.state?.tab || 'rutinas'); // 'rutinas', 'reto', 'bienestar' or 'progreso'
 
   useEffect(() => {
     const fetchHistory = async () => {
@@ -81,7 +119,34 @@ export default function Historial({ session }) {
         }
         
         setHistory(grouped);
-        
+
+        // Progreso por ejercicio: mismo array `data` de arriba, reagrupado
+        // por nombre de ejercicio en vez de por fecha.
+        const porEjercicio = {};
+        (data || []).forEach(item => {
+          const nombre = item.ejercicios_biblioteca?.nombre;
+          const series = Array.isArray(item.series_log) ? item.series_log : [];
+          const sesion = nombre ? valorSesionEjercicio(series) : null;
+          if (!sesion) return;
+
+          if (!porEjercicio[nombre]) porEjercicio[nombre] = { nombre, unidad: sesion.unidad, puntos: [] };
+          porEjercicio[nombre].puntos.push({
+            fecha: item.fecha_completado || item.created_at,
+            valor: sesion.valor
+          });
+        });
+
+        const listaProgreso = Object.values(porEjercicio)
+          .map(ej => {
+            const puntos = ej.puntos.slice().sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+            const primero = puntos[0].valor;
+            const ultimo = puntos[puntos.length - 1].valor;
+            return { ...ej, puntos, primero, ultimo, delta: ultimo - primero };
+          })
+          .sort((a, b) => new Date(b.puntos[b.puntos.length - 1].fecha) - new Date(a.puntos[a.puntos.length - 1].fecha));
+
+        setProgresoEjercicios(listaProgreso);
+
         if (bData) {
           setBienestarHistory(bData);
         }
@@ -144,10 +209,15 @@ export default function Historial({ session }) {
           style={{ flex: 1, minWidth: '100px', padding: '12px', borderRadius: '12px', border: '1px solid rgba(212, 175, 55, 0.3)', background: activeTab === 'reto' ? 'rgba(212, 175, 55, 0.2)' : 'rgba(255,255,255,0.05)', color: activeTab === 'reto' ? 'var(--accent-gold)' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '0.9rem' }}>
           <Flame size={16} /> Reto
         </button>
-        <button 
+        <button
           onClick={() => setActiveTab('bienestar')}
           style={{ flex: 1, minWidth: '100px', padding: '12px', borderRadius: '12px', border: '1px solid rgba(212, 175, 55, 0.3)', background: activeTab === 'bienestar' ? 'rgba(212, 175, 55, 0.2)' : 'rgba(255,255,255,0.05)', color: activeTab === 'bienestar' ? 'var(--accent-gold)' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '0.9rem' }}>
           <Heart size={16} /> Bienestar
+        </button>
+        <button
+          onClick={() => setActiveTab('progreso')}
+          style={{ flex: 1, minWidth: '100px', padding: '12px', borderRadius: '12px', border: '1px solid rgba(212, 175, 55, 0.3)', background: activeTab === 'progreso' ? 'rgba(212, 175, 55, 0.2)' : 'rgba(255,255,255,0.05)', color: activeTab === 'progreso' ? 'var(--accent-gold)' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '0.9rem' }}>
+          <TrendingUp size={16} /> Progreso
         </button>
       </div>
 
@@ -225,6 +295,47 @@ export default function Historial({ session }) {
                       ))}
                     </div>
                   </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      ) : activeTab === 'progreso' ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+          {progresoEjercicios.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '40px 20px', background: 'rgba(255,255,255,0.03)', borderRadius: '15px', border: '1px solid rgba(255,255,255,0.05)' }}>
+              <div style={{ fontSize: '3rem', marginBottom: '15px' }}>📈</div>
+              <h3 style={{ color: '#fff', marginBottom: '10px' }}>Aún no hay progreso registrado</h3>
+              <p style={{ color: '#888' }}>Completa rutinas registrando peso o repeticiones para ver tu evolución por ejercicio acá.</p>
+            </div>
+          ) : (
+            progresoEjercicios.map(ej => {
+              const subiendo = ej.delta > 0;
+              const bajando = ej.delta < 0;
+              const tieneTendencia = ej.puntos.length > 1;
+              return (
+                <div key={ej.nombre} style={{ background: 'rgba(20, 20, 20, 0.6)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.08)', padding: '18px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px', gap: '10px' }}>
+                    <h4 style={{ margin: 0, color: '#fff', fontSize: '1rem' }}>{ej.nombre}</h4>
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      <div style={{ fontWeight: 'bold', fontSize: '1.1rem', color: 'var(--accent-gold)' }}>
+                        {ej.ultimo} {ej.unidad}
+                      </div>
+                      {tieneTendencia && (
+                        <div style={{ fontSize: '0.75rem', color: subiendo ? '#78e08f' : bajando ? '#999' : '#888' }}>
+                          {subiendo ? '▲' : bajando ? '▼' : '▬'} {ej.delta > 0 ? '+' : ''}{ej.delta} {ej.unidad} desde tu primer registro
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  {tieneTendencia ? (
+                    <Sparkline puntos={ej.puntos} />
+                  ) : (
+                    <p style={{ margin: 0, fontSize: '0.8rem', color: '#666', fontStyle: 'italic' }}>Necesitas otra sesión para ver tu tendencia.</p>
+                  )}
+                  <p style={{ margin: '8px 0 0 0', fontSize: '0.75rem', color: '#666' }}>
+                    {ej.puntos.length} {ej.puntos.length === 1 ? 'sesión registrada' : 'sesiones registradas'}
+                  </p>
                 </div>
               );
             })
