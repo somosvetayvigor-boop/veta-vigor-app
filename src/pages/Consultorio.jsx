@@ -170,8 +170,12 @@ export default function Consultorio({ session }) {
         .slice(-6)
         .map(m => ({ role: m.role, text: m.text }));
 
-      // 2. Llamar a la API segura (Cloudflare)
-      const res = await fetch('/api/chat', {
+      // 2. Llamar a la API segura (Cloudflare). URL absoluta a propósito: en
+      // la app nativa (Capacitor) el WebView carga los archivos empaquetados
+      // del .aab, no el dominio real -- una ruta relativa como '/api/chat'
+      // no le llega a nada ahí (solo funcionaba probando desde el navegador,
+      // donde el sitio se sirve del mismo dominio que la función).
+      const res = await fetch('https://pro.vetayvigor.com/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
