@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12+ (API 31+): reemplaza a backup_rules.xml para este rango de
+     API. Excluye la base SQLite local del respaldo/restauración automática
+     de Android. Ver el comentario en backup_rules.xml, misma causa y
+     mismo arreglo, solo el formato que exige esta versión de API. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="database" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="database" />
+    </device-transfer>
+</data-extraction-rules>

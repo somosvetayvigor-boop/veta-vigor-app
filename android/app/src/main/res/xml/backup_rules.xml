@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 23-30: android:allowBackup="true" hace que Android respalde y
+     restaure automáticamente los archivos de la app (incluida la base
+     SQLite local, dominio "database"). Si al actualizar se restaura una
+     copia vieja de esa base (por ejemplo de antes de una migración de
+     esquema), el plugin de SQLite falla en silencio al abrirla.
+     Confirmado en dispositivo real el 21/08 (Motorola, log nativo
+     "ERROR CapacitorSQLitePlugin: null" justo al arrancar), dejando la
+     app sin datos locales (pantallas como Sistemas quedan vacías) sin
+     que se vea ningún error en la UI.
+
+     La base SQLite es un espejo desechable de Supabase (se rellena solo
+     en el próximo sync), así que no hay nada que perder por excluirla del
+     respaldo. Al contrario: incluirla es lo que causaba el bug. -->
+<full-backup-content>
+    <exclude domain="database" path="." />
+</full-backup-content>
