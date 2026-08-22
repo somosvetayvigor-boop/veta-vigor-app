@@ -212,32 +212,28 @@ export default function Comunidad({ session }) {
   const enviarZumbido = async (aliadoId) => {
     try {
       setZumbidosEnviados(prev => ({ ...prev, [aliadoId]: 'loading' }));
-      
-      const response = await fetch('https://onesignal.com/api/v1/notifications', {
+
+      // Vía función segura de Cloudflare, no directo a OneSignal -- la REST
+      // API Key ya no vive en el cliente (ver functions/api/onesignal-notify.js).
+      // URL absoluta a propósito: en la app nativa el WebView carga los
+      // archivos empaquetados, no el dominio real (mismo bug ya visto en
+      // Consultorio.jsx).
+      const response = await fetch('https://pro.vetayvigor.com/api/onesignal-notify', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json; charset=utf-8',
-          'Authorization': 'Basic ' + import.meta.env.VITE_ONESIGNAL_API_KEY
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          app_id: "f0e7f7a8-6da8-4592-92a7-542f731a91f0",
-          include_external_user_ids: [aliadoId],
-          contents: { 
-            en: `¡Zumbido Vigoroso! ⚡ ${session?.user?.user_metadata?.full_name || 'Tu aliado'} ha notado que no has entrenado. ¡Levántate y cumple tu misión!`,
-            es: `¡Zumbido Vigoroso! ⚡ ${session?.user?.user_metadata?.full_name || 'Tu aliado'} ha notado que no has entrenado. ¡Levántate y cumple tu misión!`
-          },
-          headings: {
-            en: "¡Zumbido Vigoroso! ⚡",
-            es: "¡Zumbido Vigoroso! ⚡"
-          },
-          data: { type: "zumbido_alianza" }
+          externalUserId: aliadoId,
+          heading: '¡Zumbido Vigoroso! ⚡',
+          content: `¡Zumbido Vigoroso! ⚡ ${session?.user?.user_metadata?.full_name || 'Tu aliado'} ha notado que no has entrenado. ¡Levántate y cumple tu misión!`,
+          data: { type: 'zumbido_alianza' }
         })
       });
 
-      if (response.ok) {
+      const data = await response.json();
+      if (response.ok && data.success) {
         setZumbidosEnviados(prev => ({ ...prev, [aliadoId]: 'sent' }));
       } else {
-        throw new Error("API Error");
+        throw new Error(data.error || "API Error");
       }
     } catch (error) {
       console.error("Error enviando zumbido:", error);
